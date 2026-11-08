@@ -60,7 +60,8 @@ public enum UniversalSettings {
 /// Overleaf (or its main file) names. Posted as `changed` on the main actor.
 @MainActor public enum CurrentProject {
   public static let changed = Notification.Name("taudot.currentProject")
-  public private(set) static var folder: URL?
+  /// (Screenshots: $TAUDOT_SETTINGS_PROJECT stands in before a project opens.)
+  public private(set) static var folder: URL? = ProcessInfo.processInfo.environment["TAUDOT_SETTINGS_PROJECT"].map { URL(fileURLWithPath: $0) }
   /// Overleaf's compiler, else what the main file says.
   public private(set) static var projectEngine: TexEngine?
   /// What runs it now ("pdfTeX (patched)", "XeLaTeX on universal", "TeXpresso").
