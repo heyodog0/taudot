@@ -306,6 +306,8 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             emergencystretch_pt: 0.0,
             italic_correction: true,
             ams_bold: false,
+            french: false,
+            cite_spaces: true,
             hang_sp: if p.hang > 0.0 { if (texgen::sp(p.hang) - parindent).abs() < 200 { parindent } else { texgen::sp(p.hang) } } else { 0 },
         },
         font_choice: font_choice.clone(),
@@ -503,13 +505,17 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                     st.flipped.clear();
                     moved = true;
                 }
-            } else if c.why.starts_with("positions") && c.first_dx < 0.0105 && c.bad_line.is_some() {
+            } else if c.why.starts_with("positions") && c.first_dx < 0.0125 && c.bad_line.is_some() {
                 // One unit off: the line start's residual (known to a few sp) is searched below, once per line.
                 let li = c.bad_line.unwrap();
                 if st.searched.insert(li) {
                     rsearch.push((i, li));
                     moved = true;
                 }
+            } else if c.why.starts_with("positions") && !c.why.contains(" dy ") && !c.why.contains("scale") && c.first_dx >= 0.0125 && !st.hyp.params.french && c.text.contains(". ") {
+                // Bibliographies set \sfcode`\.=1000: try French spacing.
+                st.hyp.params.french = true;
+                moved = true;
             } else if c.why.contains(" dy ") && !st.hyp.params.ams_bold && c.text.contains("boldsymbol") {
                 // Scripts on bold math sit differently under bm and amsmath.
                 st.hyp.params.ams_bold = true;

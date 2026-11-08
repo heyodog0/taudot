@@ -98,6 +98,20 @@ glyphs 525, math 179, glyphs 85, breaks 31, fonts 14. 1.07 s per page.
 Some paragraphs are proven under a second LaTeX setup (without `bm`, which moves scripts): the report and the
 emitted LaTeX say which.
 
+### 4. Citations and 11–12 pt units (2026-11-08)
+
+| | proven | of | % |
+|---|---|---|---|
+| paragraphs | 2 266 | 5 743 | 39.5 |
+| paragraphs of 2+ lines | 1 553 | 3 371 | 46.1 |
+| lines | 10 701 | 21 767 | 49.2 |
+| words | 109 835 | 225 601 | 48.7 |
+
+Two fixes: spaces after `,`/`;` inside citation brackets are control spaces (natbib, `\cite`), and the
+one-TJ-unit residual search now also fires for 11–12 pt fonts (a unit is 0.0109 bp there; the threshold was
+0.0105). 1810.04805 went from 40 to 70 proven paragraphs, 2302.13971 from 144 to 172. Also `\frenchspacing` as a
+hypothesis (bibliographies). 1.19 s per page.
+
 ### Baselines (prior art, not run here)
 
 - **go-pdfkit/latex** (BSD-3, Go, 2026): heuristic PDF → LaTeX for TeX PDFs, 275 arXiv papers: 99.6 % compile,

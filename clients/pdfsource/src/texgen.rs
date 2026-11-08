@@ -176,6 +176,10 @@ pub struct Params {
     pub italic_correction: bool,
     /// amsmath's \boldsymbol instead of bm's (when bm is loaded).
     pub ams_bold: bool,
+    /// \frenchspacing (all space factors 1000), as in bibliographies (\sfcode`\.=1000).
+    pub french: bool,
+    /// Control spaces after , and ; inside citation brackets.
+    pub cite_spaces: bool,
     /// Hanging indent after the first line (sp), 0 for none.
     pub hang_sp: i64,
 }
@@ -359,10 +363,36 @@ impl<'a> Gen<'a> {
                 let sep = if skip { 0 } else { sep };
                 // The text after a list label starts at the item's left edge: no space, the label is in an \llap.
                 let sep = if li == 0 && p.label > 0 && gi == p.label { 0 } else { sep };
-                items.push(Item { font, code, sep, drop, gap, sf: None, pre, boxed: boxed && span.is_none(), math, skip });
+                items.push(Item { font, code, sep, drop, gap, sf: None, pre, boxed: boxed && span.is_none() && !(li == 0 && gi < p.label), math, skip });
             }
             let start = items.len() - l.glyphs.len();
             self.space_factors(&mut items[start..], hyp, main_font, |it| (it.font, it.code, it.sep, it.gap), |it, v| it.sf = v);
+        }
+        // Citations: natbib and LaTeX's \cite put a control space after the commas and semicolons inside the
+        // brackets (space factor 1000), not the 1250/1500 a typed space gets. A bracket span counts as a citation
+        // when it holds a year or only numbers.
+        if hyp.params.cite_spaces {
+            let ch = |it: &Item| -> Option<char> { if it.code == u32::MAX { return None; } tf(it.font)?.input.get(&it.code)?.last().and_then(|&c| char::from_u32(c)) };
+            let mut i = 0;
+            while i < items.len() {
+                if matches!(ch(&items[i]), Some('(') | Some('[')) {
+                    let close = if ch(&items[i]) == Some('(') { ')' } else { ']' };
+                    if let Some(j) = (i + 1..items.len().min(i + 400)).find(|&j| ch(&items[j]) == Some(close)) {
+                        let text: String = items[i + 1..j].iter().filter_map(|it| ch(it)).collect();
+                        let year = text.as_bytes().windows(4).any(|w| (w.starts_with(b"19") || w.starts_with(b"20")) && w.iter().all(|b| b.is_ascii_digit()));
+                        let numeric = !text.is_empty() && text.chars().all(|c| c.is_ascii_digit() || c == ',' || c == ';' || c == '-' || c == '–');
+                        if year || numeric {
+                            for k in i + 2..j {
+                                if items[k].sep == 1 && items[k].sf.is_none() && matches!(ch(&items[k - 1]), Some(',') | Some(';')) {
+                                    items[k].sf = Some(1000);
+                                }
+                            }
+                        }
+                        i = j;
+                    }
+                }
+                i += 1;
+            }
         }
         let mut boxed_from: Option<Option<usize>> = None; // open box: the font before it
         for i in 0..items.len() {
@@ -588,10 +618,10 @@ pub fn para_page(body: &str, p: &Para, hyp: &Hyp, sel: &[(usize, usize)]) -> Str
         s,
         "\\setbox0\\vbox{{\\hsize={}sp \\parindent={}sp \\leftskip=0pt \\rightskip=0pt \\parfillskip=0pt plus 1fil \
          \\tolerance={} \\pretolerance={} \\emergencystretch={}pt \\looseness=0 \\hangindent={}sp \\hangafter=1 \\parshape=0 \
-         \\spaceskip=0pt \\xspaceskip=0pt \\nonfrenchspacing \\language=0 \\lefthyphenmin=2 \\righthyphenmin=3 \\uchyph=1 \
+         \\spaceskip=0pt \\xspaceskip=0pt {} \\language=0 \\lefthyphenmin=2 \\righthyphenmin=3 \\uchyph=1 \
          \\hyphenpenalty=50 \\exhyphenpenalty=50 \\linepenalty=10 \\adjdemerits=10000 \\doublehyphendemerits=10000 \
          \\finalhyphendemerits=5000 \\PSeverypar={{}} \\baselineskip=12pt \\lineskip=1pt \\lineskiplimit=0pt",
-        pr.hsize_sp, pr.parindent_sp, pr.tolerance, pr.pretolerance, pr.emergencystretch_pt, pr.hang_sp
+        pr.hsize_sp, pr.parindent_sp, pr.tolerance, pr.pretolerance, pr.emergencystretch_pt, pr.hang_sp, if pr.french { "\\frenchspacing" } else { "\\nonfrenchspacing" }
     );
     s.push_str("\\PScats ");
     let start = if p.start == crate::layout::Start::Indented { "\u{1}PSindent " } else { "\u{1}PSnoindent " };
@@ -697,6 +727,9 @@ impl<'a> Gen<'a> {
     /// Mark spaces whose width shows a space factor other than TeX's default for the text (`\ `, `\@`, `~`).
     /// Each line's glue ratio is solved from its ordinary spaces (factor 1000) in its main font.
     fn space_factors<T>(&self, items: &mut [T], hyp: &Hyp, main_font: usize, get: impl Fn(&T) -> (usize, u32, u8, f64), mut set: impl FnMut(&mut T, Option<u32>)) {
+        if hyp.params.french {
+            return;
+        }
         let tf = |f: usize| -> Option<&TexFont> { self.fonts.get(&f)?.get(*hyp.font_choice.get(&f)?) };
         let Some(mf) = tf(main_font) else { return };
         let k = 72.0 / 72.27;
