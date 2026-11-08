@@ -1,12 +1,12 @@
 # taudot.app
 
-The landing page (one tagline, one paragraph, the waitlist form, three clips), `/privacy`, `/terms` and `/source`,
+The landing page (one tagline, one paragraph, the work in progress, three clips), `/privacy`, `/terms` and `/source`,
 served by one Cloudflare Worker. Modelled on Glideshow's public pages (`~/code/lab/glideshow/cloud/pages.js`), in
 Taudot's own palette. **Not deployed.**
 
 | File | What it is |
 |---|---|
-| `src/worker.js` | Routes, security headers, the waitlist POST (`/waitlist`) |
+| `src/worker.js` | Routes, security headers, (the old waitlist POST is gone) |
 | `src/pages.js` | Every page: one template, inline CSS, system fonts; the clip list (`CLIPS`) and the copy |
 | `public/` | `mark.svg` (the web icon, also the favicon: a flatter take on the app icon), `clips/` |
 | `tools/clip.sh` | A screen recording → `clips/<id>.webm`, `.mp4` and `.jpg` poster |

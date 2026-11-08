@@ -26,8 +26,5 @@ with sync_playwright() as p:
                 # full_page draws fixed elements (the ground) at the first viewport's height: grow the viewport instead
                 pg.set_viewport_size({"width": opts["viewport"]["width"], "height": max(opts["viewport"]["height"], pg.evaluate("document.documentElement.scrollHeight"))})
                 pg.screenshot(path=out / f"{name}-{size}-{scheme}.png")
-                if path == "/":   # the confirmation after joining (writes one test address to the local KV only)
-                    pg.fill("input[name=email]", "shots@example.org"); pg.click("button[type=submit]"); pg.wait_for_load_state("networkidle")
-                    pg.screenshot(path=out / f"joined-{size}-{scheme}.png")
                 ctx.close()
     b.close()

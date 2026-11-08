@@ -1,4 +1,4 @@
-/* The pages: the landing page (what Taudot is, the waitlist, the clips), the privacy policy, the terms and the /source
+/* The pages: the landing page (what Taudot is, the work in progress, the clips), the privacy policy, the terms and the /source
    stub. One narrow column on a flat ground, small type, one framed panel for the clips (Superlogical's way of
    presenting, Glideshow's light/dark switch), in Taudot's own palette (clients/mac/Sources/TaudotShared/TaudotPalette.swift).
    Coral #ff5e4d means "you": only the icon's dot. No frameworks, no third-party anything. */
@@ -85,17 +85,12 @@ p { margin: 0; }
 h1 { margin: 0; font-size: 21px; line-height: 1.3; font-weight: 500; letter-spacing: -.015em; }
 h1 span { display: block; color: var(--muted); font-weight: 400; }
 
-form { display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--field); }
-form:focus-within { border-color: var(--accent); }
-input[type=email] { flex: 1; min-width: 0; font: inherit; border: 0; padding: 6px 0; background: none; color: var(--ink); outline: none; }
-input[type=email]::placeholder { color: var(--faint); }
-form button { flex: none; font: inherit; font-weight: 500; padding: 6px 12px; border: 0; border-radius: 8px; background: none; color: var(--accent); cursor: pointer; }
-form button:hover { background: var(--hover); }
-.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
-.note { font-size: 13px; color: var(--muted); margin-top: -10px; }
-.err { color: var(--err); font-size: 13px; margin-top: -10px; }
-.done { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; animation: fade .4s ease-out; }
-.done svg { flex: none; width: 16px; height: 16px; color: var(--accent); }
+.work { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.work li { display: grid; gap: 1px; }
+.work a { font-weight: 500; color: var(--accent); text-decoration: none; }
+.work a:hover { text-decoration: underline; }
+.work span { font-size: 14px; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); }
 @keyframes fade { from { opacity: 0; transform: translateY(3px); } }
 
 .panel { position: relative; width: min(680px, 100%); margin-top: 48px; padding: clamp(18px, 6%, 48px) clamp(14px, 7%, 56px) 0; border-radius: 14px; background: var(--panel); overflow: hidden; }
@@ -182,13 +177,17 @@ function html(body, status = 200) {
 
 const foot = `<footer><a href="/">Taudot</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/heyodog0/taudot">GitHub</a></footer>`;
 
-const FORM = (email = '') => `<form method="post" action="/waitlist">
-<label class="hp" aria-hidden="true">Leave this empty <input name="website" tabindex="-1" autocomplete="off"></label>
-<input type="email" name="email" required maxlength="254" autocomplete="email" placeholder="Your email" aria-label="Email address" value="${esc(email)}">
-<button type="submit">Join the waitlist</button></form>`;
-
-const DONE = `<div class="done" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
-<span>You're on the list. One email when there's a build to try.</span></div>`;
+/* What's being built now, each a folder of the repo. */
+const GH = 'https://github.com/heyodog0/taudot';
+const WORK = [
+  ['clients/pdftex', 'Live pdfTeX', 'Retypesets only what changed, so the exact PDF follows each keystroke in milliseconds.'],
+  ['clients/universal', 'XeLaTeX and LuaLaTeX, live', 'The same, on stock engines: no patches, just a small library loaded beside them.'],
+  ['clients/mac', 'The Mac app', 'The editor (Overleaf-style or Neovim), the PDF pane and the review margin.'],
+  ['crates/overleaf', 'Overleaf sync', 'Your edits reach coauthors live, under your name; their comments come back.'],
+  ['clients/pdfsource', 'PDF to LaTeX', "Recovers a paper's source from its PDF, each paragraph proven by typesetting it again."],
+];
+const WORKLIST = `<ul class="work">${WORK.map(([dir, name, what]) =>
+  `<li><a href="${GH}/tree/main/${dir}">${esc(name)}</a><span>${esc(what)}</span></li>`).join('')}</ul>`;
 
 function panel() {
   const shown = CLIPS.filter(c => !c.hidden);
@@ -200,44 +199,40 @@ function panel() {
 <ol class="clips">${tabs}</ol>${CLIP_JS}`;
 }
 
-/* The landing page. `err` and `email` come back from a form that didn't go through; `ok` after one that did. */
-export function landing(err = '', status = 200, email = '', ok = false) {
+/* The landing page. */
+export function landing(status = 200) {
   return html(`${head('Taudot', { path: '/', full: 'Taudot: write LaTeX on your Mac, live with your coauthors',
     description: 'Taudot is a Mac app for LaTeX. Type in an editor that works like Overleaf\'s, or in Neovim, and the PDF updates beside you. It works with your Overleaf projects: coauthors see your edits live, under your name, and their comments show in the margin.' })}
 <body>${TOGGLE}<main class="col">${ICON}
 <h1>Taudot<span>Write LaTeX on your Mac, live with your coauthors.</span></h1>
 <p>A Mac app for writing LaTeX. The editor works the way Overleaf's does, or you can write in Neovim, and the PDF beside it updates as you type. It works with your Overleaf projects: coauthors in the browser see your edits as you make them, under your name, and their comments show up next to your text.</p>
-${ok ? DONE : FORM(email)}${err ? `<p class="err" role="alert">${esc(err)}</p>` : ''}
-<p class="note">${ok ? 'Changed your mind? <a href="/privacy">Here is how to be removed</a>.' : 'In early testing. One email when you can try it, nothing else. <a href="/privacy">Privacy</a>. Open source: <a href="https://github.com/heyodog0/taudot">github.com/heyodog0/taudot</a>.'}</p>
+<p class="note">In progress, in the open. Build it, fork it, send pull requests: <a href="${GH}">github.com/heyodog0/taudot</a>.</p>
+${WORKLIST}
 </main>
 ${panel()}
 ${foot}</body></html>`, status);
 }
-
-export const joined = () => landing('', 200, '', true);
 
 function doc(title, inner, opts) {
   return html(`${head(title, opts)}<body>${TOGGLE}<main class="col doc">${ICON}<h1>${esc(title)}</h1>${inner}</main>${foot}</body></html>`, opts.status || 200);
 }
 
 export function privacy() {
-  return doc('Privacy', `<p class="date">Updated 5 November 2026</p>
-<p><b>What is kept.</b> If you join the waitlist, your email address. Only the address: no name, no date, no IP address, no cookie. To stop floods, the site counts joins per IP address for one minute and doesn't store the count.</p>
-<p><b>Why.</b> To send you one email when there is a build of Taudot you can try. It isn't used for anything else, isn't shared or sold, and isn't added to any other list.</p>
-<p><b>Where.</b> In a Cloudflare Workers KV store that belongs to Taudot. Cloudflare, which hosts this site, keeps its own routine request logs (with IP addresses) for a short time; this site turns its own logging off. Cloudflare's privacy policy covers those logs.</p>
-<p><b>Removal.</b> Write to <a href="mailto:${CONTACT}">${esc(CONTACT)}</a> from the address, or naming it, and it is deleted. The list as a whole is deleted after that one email goes out.</p>
+  return doc('Privacy', `<p class="date">Updated 8 November 2026</p>
+<p><b>What is kept.</b> Nothing. The site has no forms and no accounts. Cloudflare, which hosts it, keeps its own routine request logs (with IP addresses) for a short time; this site turns its own logging off. Cloudflare's privacy policy covers those logs.</p>
+<p><b>The old waitlist.</b> Addresses given to the waitlist this site used to have are kept only to send the one email promised, then deleted. To be removed sooner, write to <a href="mailto:${CONTACT}">${esc(CONTACT)}</a>.</p>
 <p><b>This site.</b> No analytics, no ads, no third-party scripts, fonts or trackers. The light or dark switch is remembered in your own browser and never sent anywhere.</p>`,
-  { path: '/privacy', description: 'What the Taudot waitlist keeps (your email address only), why, where, and how to be removed.' });
+  { path: '/privacy', description: 'taudot.app keeps nothing about you; what happens to the old waitlist.' });
 }
 
 export function terms() {
-  return doc('Terms', `<p class="date">Updated 5 November 2026</p>
-<p><b>This site.</b> taudot.app tells you about Taudot and keeps a waitlist. Joining costs nothing and commits you to nothing.</p>
+  return doc('Terms', `<p class="date">Updated 8 November 2026</p>
+<p><b>This site.</b> taudot.app tells you about Taudot and points to its source.</p>
 <p><b>The app.</b> Taudot is not released yet. When it is, it will come with its own terms.</p>
 <p><b>Overleaf.</b> Taudot works with Overleaf projects you have access to. It isn't made by or affiliated with Overleaf, and Overleaf's own terms still apply to your projects there.</p>
 <p><b>Liability.</b> The site is provided as is. To the extent the law allows, the person running it isn't liable for any loss from using it.</p>
 <p>Contact: <a href="mailto:${CONTACT}">${esc(CONTACT)}</a>.</p>`,
-  { path: '/terms', description: 'The terms for taudot.app and its waitlist.' });
+  { path: '/terms', description: 'The terms for taudot.app.' });
 }
 
 /* GPL: the live pdfTeX that ships with Taudot is a separate program, and its source goes here at release. */
