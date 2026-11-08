@@ -1,0 +1,12 @@
+[package]
+name = "pdfsource"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lopdf = { version = "=0.36.0", default-features = false }
+
+[workspace]
+
+[profile.release]
+debug = 1
