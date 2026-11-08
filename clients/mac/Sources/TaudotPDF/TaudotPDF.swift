@@ -188,13 +188,13 @@ import TaudotShared
     showCache(folder: folder, main: main)
     let mainText = try? String(contentsOf: folder.appendingPathComponent(main), encoding: .utf8)
     if engineSocket == nil {
-      startTypesetter(EngineChoice.choose(compiler: nil, image: nil, mainText: mainText, engine: UniversalSettings.engine(for: folder)))
+      startTypesetter(choose(compiler: nil, image: nil, mainText: mainText))
     } else {
       // the project's compiler and TeX Live image come with project.open; a slow or absent engine: the source decides
       DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
         MainActor.assumeIsolated {
           guard let self, self.folder == folder, self.txp == nil else { return }
-          self.startTypesetter(EngineChoice.choose(compiler: nil, image: nil, mainText: mainText, engine: UniversalSettings.engine(for: folder)))
+          self.startTypesetter(self.choose(compiler: nil, image: nil, mainText: mainText))
         }
       }
     }
@@ -206,8 +206,7 @@ import TaudotShared
         guard let self else { return }
         self.overleafCompiler = compiler.isEmpty ? nil : compiler
         self.lastImage = image
-        let c = EngineChoice.choose(compiler: compiler.isEmpty ? nil : compiler, image: image, mainText: mainText,
-                                    engine: UniversalSettings.engine(for: folder))
+        let c = self.choose(compiler: compiler.isEmpty ? nil : compiler, image: image, mainText: mainText)
         self.check("project: compiler \(compiler) image \(image) → \(c)")
         self.engineChosen(c)  // the docs are opened (again) right after this
       }
@@ -264,6 +263,14 @@ import TaudotShared
     install(t, choice: choice)
   }
 
+  /// Settings' universal switches (tests set their own: the real ones live in the shared defaults).
+  var universalSwitches: (unicode: Bool, pdflatex: Bool)?
+  /// The typesetter this project names now: its own engine (Settings), Overleaf's compiler, its main file.
+  func choose(compiler: String?, image: String?, mainText: String?) -> EngineChoice {
+    EngineChoice.choose(compiler: compiler, image: image, mainText: mainText, engine: folder.flatMap { UniversalSettings.engine(for: $0) },
+                        universal: universalSwitches ?? (UniversalSettings.unicode(), UniversalSettings.pdflatex()))
+  }
+
   /// Overleaf's compiler for this project (project.open), nil before it comes or without the engine.
   var overleafCompiler: String?
   /// The TeX Live image project.open named.
@@ -307,7 +314,7 @@ import TaudotShared
   func engineSettingsChanged() {
     guard let folder, let main = openedMainName, engine != nil else { return }
     let text = try? String(contentsOf: folder.appendingPathComponent(main), encoding: .utf8)
-    let c = EngineChoice.choose(compiler: overleafCompiler, image: lastImage, mainText: text, engine: UniversalSettings.engine(for: folder))
+    let c = choose(compiler: overleafCompiler, image: lastImage, mainText: text)
     guard c != requested else { return }
     check("settings: engine → \(c)")
     startTypesetter(c)

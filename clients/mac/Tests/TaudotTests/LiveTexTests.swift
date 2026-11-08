@@ -192,13 +192,15 @@ func pixel(_ t: TileImage, _ x: Int, _ y: Int) -> (Int, Int, Int) {
   for w in g.words() where grep == nil || w.raw.contains(grep!) { print("WORD \(w.raw) \(w.rect)") }
 }
 
-/// XeLaTeX projects stay on TeXpresso: a fontspec document in a folder without the engine.
+/// With "XeLaTeX and LuaLaTeX on universal" off, XeLaTeX projects stay on TeXpresso: a fontspec document in a folder
+/// without the engine. (On, the default, they go to universal: UniversalTests.)
 @MainActor @Test func paneKeepsXeLaTeXOnTeXpresso() throws {
   let dir = try tempProject("\\documentclass{article}\n\\usepackage{fontspec}\n\\begin{document}\nHi.\n\\end{document}\n")
   defer { try? FileManager.default.removeItem(at: dir) }
   let cache = dir.appendingPathExtension("cache")  // its own page cache, not a shared TAUDOT_PAGE_CACHE
   defer { try? FileManager.default.removeItem(at: cache) }
   let pane = TaudotPDFPane(cacheRoot: cache)
+  pane.universalSwitches = (false, false)
   pane.open(folder: dir, main: "main.tex", engineSocket: nil)
   defer { pane.close() }
   #expect(pane.engine == .texpresso)
