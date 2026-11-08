@@ -108,10 +108,14 @@ public enum UniversalPaths {
     let bundled = b.appendingPathComponent("fmt").path
     return FileManager.default.fileExists(atPath: bundled) ? bundled : b.appendingPathComponent("fmt-\(year)").path
   }
-  /// libtau's fetcher for TeX Live files missing from the tree (`TAU_FETCH`): $TAU_FETCH, else the repo's
-  /// `clients/universal/tools/tl-fetch` (the store's Python client; a development build only).
+  /// libtau's fetcher for TeX Live files missing from the tree (`TAU_FETCH`): only when asked for, $TAU_FETCH, or
+  /// $TAUDOT_UNIVERSAL_FETCH=1 for the repo's `clients/universal/tools/tl-fetch` (the store's Python client; a
+  /// development build only). Off by default: libtau runs it for every lookup that misses, also for paths TeX Live
+  /// doesn't have (kpathsea's directory probes), ~100 ms each: paper-b's first compile took 61 s (XeLaTeX) and 38 s
+  /// (LuaLaTeX) with it against 2.3 s and 5.9 s without, on a tree that already had every file.
   static func fetcher(_ env: [String: String]) -> String? {
-    if let f = env["TAU_FETCH"] { return f }
+    if let f = env["TAU_FETCH"] { return f.isEmpty ? nil : f }
+    guard env["TAUDOT_UNIVERSAL_FETCH"] == "1" else { return nil }
     let p = TxpPaths.repo.appendingPathComponent("clients/universal/tools/tl-fetch").path
     return FileManager.default.isExecutableFile(atPath: p) ? p : nil
   }
