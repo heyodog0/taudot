@@ -108,17 +108,12 @@ public enum UniversalPaths {
     let bundled = b.appendingPathComponent("fmt").path
     return FileManager.default.fileExists(atPath: bundled) ? bundled : b.appendingPathComponent("fmt-\(year)").path
   }
-  /// libtau's fetcher for TeX Live files missing from the tree (`TAU_FETCH`): only when asked for, $TAU_FETCH, or
-  /// $TAUDOT_UNIVERSAL_FETCH=1 for the repo's `clients/universal/tools/tl-fetch` (the store's Python client; a
-  /// development build only). Off by default: libtau runs it for every lookup that misses, also for paths TeX Live
-  /// doesn't have (kpathsea's directory probes), ~100 ms each: paper-b's first compile took 61 s (XeLaTeX) and 38 s
-  /// (LuaLaTeX) with it against 2.3 s and 5.9 s without, on a tree that already had every file.
-  static func fetcher(_ env: [String: String]) -> String? {
-    if let f = env["TAU_FETCH"] { return f.isEmpty ? nil : f }
-    guard env["TAUDOT_UNIVERSAL_FETCH"] == "1" else { return nil }
-    let p = TxpPaths.repo.appendingPathComponent("clients/universal/tools/tl-fetch").path
-    return FileManager.default.isExecutableFile(atPath: p) ? p : nil
-  }
+  /// TeX Live files missing from the tree: libtau fetches them itself from the store named by TEXSTORE_URL,
+  /// TEXSTORE_IMAGE and TEXSTORE_ROOT (the live pdfTeX's environment), only paths the tree's ls-R lists. $TAU_FETCH
+  /// (a command, e.g. `clients/universal/tools/tl-fetch`) replaces that client; tests only. Measured on paper-b's
+  /// first compile on a complete tree: 0 fetches, the same time as with fetching off (XeLaTeX 2.1–3.1 s, LuaLaTeX
+  /// 5.7–6.1 s to `done`).
+  static func fetcher(_ env: [String: String]) -> String? { env["TAU_FETCH"].flatMap { $0.isEmpty ? nil : $0 } }
 
   /// Why `e` can't run on universal, or nil.
   public static func missing(_ e: TexEngine, env: [String: String] = ProcessInfo.processInfo.environment) -> String? {
