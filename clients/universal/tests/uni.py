@@ -120,7 +120,7 @@ class Live:
         env.pop("TAU_FETCH", None)
         argv = [f"{UBIN}/tau-live", *opts, d, main, out, "--", *cmd(engine, main)]
         if os.environ.get("PATCHED"):  # the patched pdfTeX of clients/pdftex, for comparison (same protocol)
-            pb = os.path.expanduser("~/code/lab/taudot-ref/pdftex-build-2026")
+            pb = os.path.join(os.environ.get("TAUDOT_REF", os.path.expanduser("~/code/lab/taudot-ref")), "pdftex-build-2026")
             env.update(TEXFORMATS=f".:{pb}/fmt-live", TEXSTORE_URL="https://texlive.taudot.app")
             argv = [f"{pb}/pdftex-live", "--serve", "--engine", f"{pb}/live/texk/web2c/pdflatex", "--max-runs", "1",
                     d, main, out]

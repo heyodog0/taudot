@@ -1,15 +1,16 @@
 #!/bin/sh
 # MIT. Builds STOCK pdfTeX, XeTeX, LuaHBTeX (+ BibTeX, xdvipdfmx, makeindex) from TeX Live's release source,
 # with no Taudot patches, out of tree:
-#   SRC   ~/code/lab/taudot-ref/universal/src-2026  (git worktree of texlive-2026/src at tag `release`)
-#   BUILD ~/code/lab/taudot-ref/universal/build-2026
+#   SRC   $TAUDOT_REF/universal/src-2026  (git worktree of texlive-2026/src at tag `release`)
+#   BUILD $TAUDOT_REF/universal/build-2026
 set -eu
-R=$HOME/code/lab/taudot-ref/universal
+TAUDOT_REF=${TAUDOT_REF:-$HOME/code/lab/taudot-ref}
+R=$TAUDOT_REF/universal
 YEAR=${YEAR:-2026}
 SRC=${SRC:-$R/src-$YEAR}
 BUILD=${BUILD:-$R/build-$YEAR}
 if [ ! -d "$SRC" ]; then
-  git -C "$HOME/code/lab/taudot-ref/texlive-$YEAR/src" worktree add -q --detach "$SRC" release
+  git -C "$TAUDOT_REF/texlive-$YEAR/src" worktree add -q --detach "$SRC" release
 fi
 mkdir -p "$BUILD"
 cd "$BUILD"

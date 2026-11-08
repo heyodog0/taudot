@@ -1,8 +1,9 @@
 #!/bin/sh
-# MIT. Builds the interposer and the driver into BUILD (default ~/code/lab/taudot-ref/universal/bin).
+# MIT. Builds the interposer and the driver into BUILD (default $TAUDOT_REF/universal/bin).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
-BIN=${BIN:-$HOME/code/lab/taudot-ref/universal/bin}
+TAUDOT_REF=${TAUDOT_REF:-$HOME/code/lab/taudot-ref}
+BIN=${BIN:-$TAUDOT_REF/universal/bin}
 mkdir -p "$BIN"
 cc -O2 -Wall -dynamiclib -undefined dynamic_lookup -o "$BIN/libtau.dylib" "$here/interpose/tau.c" "$here/interpose/zcache.c"
 if [ -f "$here/driver/tau-live.c" ]; then cc -O2 -Wall -o "$BIN/tau-live" "$here/driver/tau-live.c"; fi
@@ -11,9 +12,9 @@ ls -l "$BIN"
 # tau-tdl (readers/): TeXpresso's DVI interpreter and the renderer's runtime and TDL device, from clients/render (not
 # modified, compiled into our own objects), and kpathsea from the engines' build.
 R=$(cd "$here/../render" && pwd)
-O=$HOME/code/lab/taudot-ref/universal/obj-tdl
-K=$HOME/code/lab/taudot-ref/universal/build-2026-dz/texk
-KS=$HOME/code/lab/taudot-ref/universal/src-2026/texk
+O=$TAUDOT_REF/universal/obj-tdl
+K=$TAUDOT_REF/universal/build-2026-dz/texk
+KS=$TAUDOT_REF/universal/src-2026/texk
 BREW=$(brew --prefix)
 CF="-O2 -g -w -I$R/rt -I$R/dvi -I$R/dvi/include -I$R/dvi/frontend -I$BREW/include $(pkg-config --cflags freetype2) -I$K -I$KS"
 mkdir -p "$O"

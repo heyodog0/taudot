@@ -268,11 +268,11 @@ and the paragraph pass on; the older `DIR MAIN OUT -- ENGINE ARGS...` form stays
 
 ## Results (TeX Live 2026, M-series Mac, 2026-11-07)
 
-Papers: paper-a (a 32-page conference paper, a private copy) and paper-b (CLIP, corpus `2103.00020`, 48 pages). "Stock" is TeX Live's
+Papers: paper-a (32 pages, one column, review-mode line numbers) and paper-b (the corpus's arXiv 2103.00020, 48 pages, two columns). "Stock" is TeX Live's
 own static build; the live engines are the same source with zlib as a dylib (checked byte-identical to stock).
 
 **Step 1: a run under libtau == a stock run.** Byte-identical PDF, `.aux`, `.out` and even `.log`, both papers. Time:
-1615 vs 1661 ms (paper-a), 926 vs 923 ms (CLIP): no measurable overhead. The project directory is never written.
+1615 vs 1661 ms (paper-a), 926 vs 923 ms (paper-b): no measurable overhead. The project directory is never written.
 
 **Step 2: snapshots and rollback.** Random edits (insert/delete a word, change a letter) anywhere after
 `\begin{document}`, each final PDF compared with a fresh stock run of the edited copy:
