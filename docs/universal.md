@@ -217,7 +217,7 @@ Same command line and protocol as `pdftex-live --serve` (`docs/live-protocol.md`
 With `--engine`, tau-live runs `ENGINE [-no-pdf for XeTeX] -interaction=batchmode -synctex=-1 MAIN` with the hook
 and the paragraph pass on; the older `DIR MAIN OUT -- ENGINE ARGS...` form stays for tests.
 
-- **latexmk's rule** (written from `clients/pdftex/DESIGN.md`'s description, not from `serve.c`): after each run
+- **latexmk's rule** (written from `clients/pdftex/README.md`'s description, not from `serve.c`): after each run
   the files it wrote (except the document, logs, SyncTeX) go into the clone when they differ; BibTeX runs when the bib
   lines of the main `.aux` and the `.aux` files it `\@input`s changed, or a `.bib` changed (biber when there is a
   `.bcf`, with `--biber`); makeindex when the `.idx` changed (`--makeindex`). Then, if any changed file was read by
