@@ -80,6 +80,24 @@ Time: 0.84 s per page (calibration ~40 % cheaper than stage 1), 7–74 s per pap
 Output: `pdfsource tex FILE.pdf` writes the recovered LaTeX (fonts defined, each paragraph marked proven or
 approximate with its reason); the 1512.03385 output compiles without errors.
 
+### 3. Stage 3 (2026-11-08): lists, indented blocks, a stricter proof
+
+| | proven | of | % | stage 2 |
+|---|---|---|---|---|
+| paragraphs | 2 076 | 5 743 | 36.1 | 41.1 |
+| paragraphs of 2+ lines | 1 388 | 3 371 | 41.2 | 42.9 |
+| lines | 9 281 | 21 767 | 42.6 | 44.1 |
+| words | 97 544 | 225 601 | 43.2 | 44.5 |
+
+The percentages dip although more lines are proven (9 281 vs 9 180): the proof got stricter (a paragraph with
+glyphs inside its region that aren't in its lines can't be proven any more: 525 rejected, among them split-off math
+accents that both sides used to lack, and table rows or author blocks caught as one-line paragraphs), and list
+items now count as whole paragraphs instead of loose trivially-proven fragments. Reasons: positions 2 829, stray
+glyphs 525, math 179, glyphs 85, breaks 31, fonts 14. 1.07 s per page.
+
+Some paragraphs are proven under a second LaTeX setup (without `bm`, which moves scripts): the report and the
+emitted LaTeX say which.
+
 ### Baselines (prior art, not run here)
 
 - **go-pdfkit/latex** (BSD-3, Go, 2026): heuristic PDF → LaTeX for TeX PDFs, 275 arXiv papers: 99.6 % compile,

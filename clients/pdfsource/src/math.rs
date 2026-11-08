@@ -106,6 +106,24 @@ pub fn token(mf: MathFont, code: u32) -> Option<String> {
             0..=10 => format!("\\mathbf{{\\{}}}", UGREEK[c as usize]),
             _ => return None,
         },
+        // Text-style big operators (cmex 0x46..0x60, the even ones; display ones are a size larger).
+        MathFont::Ext => match c {
+            0x46 => "\\bigsqcup".into(),
+            0x48 => "\\oint".into(),
+            0x4A => "\\bigodot".into(),
+            0x4C => "\\bigoplus".into(),
+            0x4E => "\\bigotimes".into(),
+            0x50 => "\\sum".into(),
+            0x51 => "\\prod".into(),
+            0x52 => "\\int".into(),
+            0x53 => "\\bigcup".into(),
+            0x54 => "\\bigcap".into(),
+            0x55 => "\\biguplus".into(),
+            0x56 => "\\bigwedge".into(),
+            0x57 => "\\bigvee".into(),
+            0x60 => "\\coprod".into(),
+            _ => return None,
+        },
         MathFont::Msbm => match c {
             65..=90 => format!("\\mathbb{{{ch}}}"),
             _ => return None,
@@ -124,16 +142,36 @@ pub fn span_source(fonts: &[Font], glyphs: &[Glyph], y0: f64, size0: f64) -> Res
         sub: String,
     }
     let mut atoms: Vec<Atom> = vec![];
+    let mut accent: Option<&str> = None;
     for g in glyphs {
         let f = &fonts[g.font];
         let Some(mf) = math_font(f) else { return Err("math: text font in math".into()) };
-        if mf == MathFont::Ext {
-            return Err("math: big operator or delimiter".into());
+        // A math accent: a text-size accent glyph above the baseline; it comes just before its nucleus.
+        if (g.size - size0).abs() < 0.01 && g.y > y0 + 0.01 {
+            let a = match (mf, g.code) {
+                (MathFont::Roman, 126) => Some("tilde"),
+                (MathFont::Roman, 94) => Some("hat"),
+                (MathFont::Roman, 22) => Some("bar"),
+                (MathFont::Roman, 95) => Some("dot"),
+                (MathFont::Roman, 127) => Some("ddot"),
+                (MathFont::Roman, 20) => Some("check"),
+                (MathFont::Roman, 21) => Some("breve"),
+                (MathFont::Roman, 19) => Some("acute"),
+                (MathFont::Roman, 18) => Some("grave"),
+                (MathFont::Italic, 126) => Some("vec"),
+                _ => None,
+            };
+            if a.is_some() {
+                accent = a;
+                continue;
+            }
         }
-        let t = token(mf, g.code).ok_or_else(|| format!("math: glyph {} in {}", g.code, f.name))?;
-        let on_base = (g.y - y0).abs() < 0.01 && (g.size - size0).abs() < 0.01;
+        let t = token(mf, g.code).ok_or_else(|| if mf == MathFont::Ext { "math: big delimiter".to_string() } else { format!("math: glyph {} in {}", g.code, f.name) })?;
+        // Big operators sit on the math axis, not the baseline: at text size they are nuclei wherever they are.
+        let on_base = ((g.y - y0).abs() < 0.01 || mf == MathFont::Ext) && (g.size - size0).abs() < 0.01;
         if on_base {
-            atoms.push(Atom { nuc: t, ..Default::default() });
+            let nuc = match accent.take() { Some(a) => format!("\\{a}{{{t}}}"), None => t };
+            atoms.push(Atom { nuc, ..Default::default() });
         } else if g.size < size0 - 0.01 {
             if atoms.is_empty() {
                 atoms.push(Atom { nuc: "{}".into(), ..Default::default() });

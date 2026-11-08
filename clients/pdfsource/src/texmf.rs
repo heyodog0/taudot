@@ -320,7 +320,8 @@ impl Texmf {
     /// The NFSS font whose `.fd` maps to this TFM (at `size_pt`), from the `.fd` files whose family is a prefix of
     /// the TFM's name (`ot1ptm.fd` for `ptmr7t`, `ot1cmr.fd` for `cmr10`; EC fonts look in the CM families).
     pub fn nfss_of(&mut self, tfm: &str, size_pt: f64) -> Option<Nfss> {
-        let mut base = tfm.to_string();
+        // Latin Modern names carry the encoding: ec-lmr10, ts1-lmr10, rm-lmr10 (family lmr).
+        let mut base = tfm.rsplit('-').next().unwrap_or(tfm).to_string();
         for (ec, cm) in [("ecrm", "cmr"), ("ecbx", "cmr"), ("ecti", "cmr"), ("ecsl", "cmr"), ("eccc", "cmr"), ("ecbi", "cmr"),
             ("ectt", "cmtt"), ("ecit", "cmtt"), ("ecss", "cmss"), ("ecsx", "cmss"), ("ecsi", "cmss")]
         {
@@ -426,4 +427,13 @@ pub fn ref_dir() -> PathBuf {
 /// The repo's TeX Live store client (`tools/texstore/tl-fetch`), relative to this crate.
 pub fn fetch_tool() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tools/texstore/tl-fetch")
+}
+
+impl Texmf {
+    /// The NFSS font of `tfm` in one family's `.fd` for an encoding (e.g. TS1/cmr may map to Latin Modern).
+    pub fn nfss_in(&mut self, enc: &str, fam: &str, tfm: &str, size_pt: f64) -> Option<Nfss> {
+        let fd = format!("{}{}.fd", enc.to_ascii_lowercase(), fam);
+        let text = std::fs::read_to_string(self.find(&fd)?).ok()?;
+        fd_lookup(&text, tfm, size_pt)
+    }
 }

@@ -32,6 +32,8 @@ pub struct Line {
     pub off_baseline: usize,
     /// Left edge of the column the line was taken in (set for paragraph lines).
     pub left: f64,
+    /// Right edge of that column.
+    pub right: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -62,6 +64,9 @@ pub struct Para {
     pub joined: bool,
     /// Hanging indent of lines after the first (bp; 0: none), as in bibliography entries.
     pub hang: f64,
+    /// A list item: the number of label glyphs at the start of the first line (0: none), and the gap after them.
+    pub label: usize,
+    pub label_sep: f64,
 }
 
 #[derive(Debug)]
@@ -69,6 +74,8 @@ pub struct Doc {
     pub pages: usize,
     pub lines: Vec<Line>,
     pub columns: Vec<Column>,
+    /// Columns before this index are page columns; the rest are indented blocks inside them (lists, quotes).
+    pub n_main: usize,
     pub body_size: f64,
     pub body_font: usize,
     pub parindent: f64,
@@ -112,14 +119,17 @@ pub fn lines_of(page: usize, glyphs: &[Glyph]) -> Vec<Line> {
         let x0 = gs.iter().map(|g| g.x).fold(f64::MAX, f64::min);
         let x1 = gs.iter().map(|g| g.x + g.adv).fold(f64::MIN, f64::max);
         let off = gs.iter().filter(|g| (g.y - by).abs() >= 0.01 || g.size < 0.0).count();
-        out.push(Line { page, y: by, x0, x1, font, size: sk as f64 * 0.001, off_baseline: off, left: x0, glyphs: gs });
+        out.push(Line { page, y: by, x0, x1, font, size: sk as f64 * 0.001, off_baseline: off, left: x0, right: x1, glyphs: gs });
     };
     for g in glyphs {
         if let Some(last) = cur.last() {
             let base = cur[0].y;
             let sz = cur[0].size.abs().max(g.size.abs()).max(1.0);
             let same_base = (g.y - last.y).abs() < 0.01 || (g.y - base).abs() < 0.01;
-            let script = (g.y - base).abs() < 0.6 * sz && g.size.abs() < cur[0].size.abs() * 0.95;
+            // Scripts (smaller, raised or lowered), and text-size glyphs moved off the baseline while the line goes on
+            // (big operators on the math axis, \raisebox).
+            let forward = g.x >= last.x + last.adv - 0.5 * sz;
+            let script = (g.y - base).abs() < 0.6 * sz && (g.size.abs() < cur[0].size.abs() * 0.95 || forward);
             // A script stacked under or over another one (x^a_b) moves left; that stays in the line.
             let back = g.x < last.x + last.adv - 0.5 * sz && !(same_base && g.x > last.x - 0.01) && !(script && g.x > cur[0].x);
             let far = g.x > last.x + last.adv + 3.0 * sz; // a gutter
@@ -171,6 +181,13 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
         }
         let (r, _) = mode(ls.iter().map(|l| l.x1), 0.002).unwrap();
         let (left, _) = mode(ls.iter().map(|l| l.x0), 0.002).unwrap();
+        if std::env::var("PDFSOURCE_COLS").is_ok() {
+            let mut h: HashMap<i64, usize> = HashMap::new();
+            for l in ls.iter() { *h.entry(key(l.x0, 0.01)).or_default() += 1; }
+            let mut v: Vec<_> = h.into_iter().collect();
+            v.sort_by_key(|e| std::cmp::Reverse(e.1));
+            eprintln!("group r={r:.3} n={} left={left:.3} top x0: {:?}", ls.len(), &v[..v.len().min(4)]);
+        }
         if !columns.iter().any(|c| (c.right - r).abs() < 1.5 || (c.left - left).abs() < 1.5) {
             columns.push(Column { left, right: r });
         }
@@ -215,16 +232,88 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
         if !((j > 0 && same(j - 1)) || (j + 1 < lines.len() && same(j + 1))) {
             continue;
         }
+        // Lines at a page column's own edge (an abstract's narrower column) aren't blocks.
+        let tol = if microtype { 0.4 * body_size } else { 0.01 };
+        if columns[..n_main].iter().any(|c| l.x0 <= c.left + 0.01 && l.x0 > c.left - tol && l.x1 <= c.right + 0.25 * body_size) {
+            continue;
+        }
         let Some(host) = columns[..n_main].iter().position(|c| l.x0 > c.left + 1.0 && l.x0 < c.left + 0.4 * (c.right - c.left) && l.x1 <= c.right + 0.25 * body_size) else { continue };
         let right = columns[host].right;
-        let idx = match columns.iter().position(|c| (c.left - l.x0).abs() < 0.01 && (c.right - right).abs() < 0.01) {
-            Some(i) => i,
+        let merge = if microtype { 0.4 * body_size } else { 0.01 };
+        // Only sub-columns merge (a page column's edge must not move).
+        let idx = match columns.iter().enumerate().skip(n_main).find(|(_, c)| (c.left - l.x0).abs() < merge && (c.right - right).abs() < 0.01).map(|e| e.0) {
+            Some(i) => {
+                columns[i].left = columns[i].left.max(l.x0); // protrusion only moves lines left
+                i
+            }
             None => {
                 columns.push(Column { left: l.x0, right });
                 columns.len() - 1
             }
         };
         block[j] = Some(idx);
+    }
+    // List items: a label (bullet, dash, 1., (a)) then a gap; the text's left edge is a sub-column, and the lines
+    // that follow at that edge continue the item.
+    let mut item: Vec<Option<(usize, usize, f64)>> = vec![None; lines.len()];
+    for j in 0..lines.len() {
+        let l = &lines[j];
+        if !is_body(l) || l.glyphs.len() < 3 {
+            continue;
+        }
+        let t: Vec<String> = l.glyphs.iter().take(5).map(|g| glyph_text(&pdf.fonts[g.font], g.code)).collect();
+        let alnum = |s: &str| s.chars().all(|c| c.is_ascii_alphanumeric());
+        let n = if ["•", "∙", "·", "–", "—", "∗", "*", "◦", "‣", "−"].contains(&t[0].as_str()) {
+            1
+        } else if t[0] == "(" {
+            (2..t.len()).find(|&k| t[k] == ")" && t[1..k].iter().all(|s| alnum(s))).map(|k| k + 1).unwrap_or(0)
+        } else {
+            (1..t.len().min(4)).find(|&k| (t[k] == "." || t[k] == ")") && t[..k].iter().all(|s| alnum(s))).map(|k| k + 1).unwrap_or(0)
+        };
+        if n == 0 || n >= l.glyphs.len() {
+            continue;
+        }
+        let (a, b) = (&l.glyphs[n - 1], &l.glyphs[n]);
+        let gap = b.x - (a.x + a.adv);
+        if gap < 0.25 * body_size {
+            continue;
+        }
+        // Under microtype the first text glyph may be protruded too: the next line (unprotruded, usually) decides.
+        let tol = if microtype { 0.4 * body_size } else { 0.01 };
+        let mut text_x = b.x;
+        if let Some(nl) = lines.get(j + 1) {
+            if nl.page == l.page && (nl.x0 - text_x).abs() < tol && ((l.y - nl.y) - baselineskip).abs() < 0.05 {
+                text_x = text_x.max(nl.x0);
+            }
+        }
+        // An item has structure: its next line continues at the text edge, or the label line starts off the column's
+        // edge and indent (a dash opening an ordinary line is text).
+        let next_at_text = lines.get(j + 1).is_some_and(|nl| nl.page == l.page && (nl.x0 - text_x).abs() < tol && ((l.y - nl.y) - baselineskip).abs() < 0.05);
+        let at_edge = columns[..n_main].iter().any(|c| (l.x0 - c.left).abs() < 0.01 || (parindent > 0.0 && (l.x0 - c.left - parindent).abs() < 0.01));
+        if !next_at_text && at_edge {
+            continue;
+        }
+        let Some(host) = columns[..n_main].iter().position(|c| l.x0 > c.left - 0.5 * body_size && text_x > c.left + 1.0 && text_x < c.left + 0.4 * (c.right - c.left) && l.x1 <= c.right + 0.25 * body_size) else { continue };
+        let right = columns[host].right;
+        // The text after a label is never protruded (the label starts the line): exact edges only.
+        let idx = match columns.iter().enumerate().skip(n_main).find(|(_, c)| (c.left - text_x).abs() < 0.01 && (c.right - right).abs() < 0.01).map(|e| e.0) {
+            Some(i) => {
+                columns[i].left = columns[i].left.max(text_x);
+                i
+            }
+            None => {
+                columns.push(Column { left: text_x, right });
+                columns.len() - 1
+            }
+        };
+        // \labelsep runs from the label to the item's edge (the first text glyph may be protruded left of it).
+        item[j] = Some((idx, n, text_x - (a.x + a.adv)));
+        block[j] = None;
+        let mut k = j + 1;
+        while k < lines.len() && lines[k].page == l.page && is_body(&lines[k]) && lines[k].x0 <= text_x + 0.01 && lines[k].x0 > text_x - tol && lines[k].x1 <= right + 0.25 * body_size && ((lines[k - 1].y - lines[k].y) - baselineskip).abs() < 0.05 {
+            block[k] = Some(idx);
+            k += 1;
+        }
     }
     let columns = columns;
     // Paragraphs: walk body lines in order per column.
@@ -242,7 +331,7 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
     let mut taken = 0usize;
     let mut prev: Option<(usize, usize, f64)> = None; // page, column, y of the last body line
     for (j, l) in lines.iter().enumerate() {
-        let ci = if !is_body(l) { None } else if block[j].is_some() { block[j] } else { in_col(l) };
+        let ci = if !is_body(l) { None } else if let Some((ix, _, _)) = item[j] { Some(ix) } else if block[j].is_some() { block[j] } else { in_col(l) };
         let Some(ci) = ci else {
             if let Some(p) = open.take() {
                 paras.push(p);
@@ -253,7 +342,7 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
         let c = columns[ci];
         let indented = parindent > 0.0 && l.x0 <= c.left + parindent + 0.01 && l.x0 > c.left + parindent - if microtype { 0.4 * body_size } else { 0.01 };
         let follows = prev.is_some_and(|(pg, pc, py)| pg == l.page && pc == ci && ((py - l.y) - baselineskip).abs() < 0.05);
-        let continues_open = open.as_ref().is_some_and(|p| !p.ends_short) && follows && !indented;
+        let continues_open = open.as_ref().is_some_and(|p| !p.ends_short) && follows && !indented && item[j].is_none();
         // An indented line right after a full line of a flush paragraph: a hanging indent (a bibliography entry).
         let hangs = indented && follows && open.as_ref().is_some_and(|p| !p.ends_short && p.start == Start::Flush && (p.lines.len() == 1 || p.hang > 0.0));
         if continues_open || hangs {
@@ -264,19 +353,22 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
             p.ends_short = !full(l, &c);
             let mut l = l.clone();
             l.left = c.left;
+            l.right = c.right;
             p.lines.push(l);
         } else {
             if let Some(p) = open.take() {
                 paras.push(p);
             }
             open = Some(Para {
-                lines: vec![Line { left: c.left, ..l.clone() }],
+                lines: vec![Line { left: c.left, right: c.right, ..l.clone() }],
                 column: c,
-                start: if indented { Start::Indented } else { Start::Flush },
+                start: if indented && item[j].is_none() { Start::Indented } else { Start::Flush },
                 ends_short: !full(l, &c),
                 at: vec![(l.page, ci)],
                 joined: false,
                 hang: 0.0,
+                label: item[j].map_or(0, |x| x.1),
+                label_sep: item[j].map_or(0.0, |x| x.2),
             });
         }
         taken += 1;
@@ -291,7 +383,7 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
         if let Some(last) = joined.last_mut() {
             let next_col = last.at.last().map(|&(pg, ci)| (pg, ci)) != Some((p.lines[0].page, columns.iter().position(|c| *c == p.column).unwrap_or(99)));
             let top = !p.lines.is_empty();
-            if !last.ends_short && p.start == Start::Flush && next_col && top && (colw(&last.column) - colw(&p.column)).abs() < 0.01 {
+            if !last.ends_short && p.start == Start::Flush && p.label == 0 && next_col && top && (colw(&last.column) - colw(&p.column)).abs() < 0.01 {
                 last.lines.extend(p.lines);
                 last.ends_short = p.ends_short;
                 last.at.extend(p.at);
@@ -302,7 +394,7 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
         joined.push(p);
     }
     let other = lines.len() - taken;
-    Doc { pages: n, lines, columns, body_size, body_font, parindent, baselineskip, paras: joined, other_lines: other }
+    Doc { pages: n, lines, columns, n_main, body_size, body_font, parindent, baselineskip, paras: joined, other_lines: other }
 }
 
 pub fn line_text(pdf: &Pdf, l: &Line) -> String {

@@ -25,6 +25,10 @@ pub struct TexFont {
     pub nfss: Option<crate::texmf::Nfss>,
 }
 
+pub fn colkey(left: f64, right: f64) -> i64 {
+    (left * 100.0).round() as i64 * 1_000_000 + (right * 100.0).round() as i64
+}
+
 pub const SP_PER_BP: f64 = 65536.0 * 72.27 / 72.0;
 
 pub fn sp(bp: f64) -> i64 {
@@ -96,10 +100,14 @@ pub fn candidates(tx: &mut Texmf, f: &Font, size_bp: f64, used: &[u32]) -> Vec<T
                     }
                 }
             }
-            if used.iter().all(|c| inv.contains_key(c)) && (scale - 1.0).abs() < 1e-6 {
+            // A VF needn't map every code (a bullet may come from TS1 while text is OT1): codes it lacks fail only the
+            // paragraphs that use them. Rank by coverage.
+            let cover = used.iter().filter(|c| inv.contains_key(c)).count();
+            if cover * 2 >= used.len() && (scale - 1.0).abs() < 1e-6 {
                 opts.push((v.clone(), inv, scale));
             }
         }
+        opts.sort_by_key(|o| std::cmp::Reverse(used.iter().filter(|c| o.1.contains_key(c)).count()));
         if tx.has(&format!("{raw}.tfm")) {
             opts.push((raw.clone(), used.iter().map(|&c| (c, c)).collect(), 1.0));
         }
@@ -166,6 +174,8 @@ pub struct Params {
     pub pretolerance: i32,
     pub emergencystretch_pt: f64,
     pub italic_correction: bool,
+    /// amsmath's \boldsymbol instead of bm's (when bm is loaded).
+    pub ams_bold: bool,
     /// Hanging indent after the first line (sp), 0 for none.
     pub hang_sp: i64,
 }
@@ -188,8 +198,8 @@ pub struct Hyp {
 }
 
 impl Hyp {
-    pub fn left_of(&self, left_bp: f64) -> i64 {
-        *self.lefts.get(&((left_bp * 100.0).round() as i64)).unwrap_or(&sp(left_bp))
+    pub fn left_of(&self, left_bp: f64, right_bp: f64) -> i64 {
+        *self.lefts.get(&colkey(left_bp, right_bp)).unwrap_or(&sp(left_bp))
     }
 }
 
@@ -347,6 +357,8 @@ impl<'a> Gen<'a> {
                 let boxed = line_expanded && font_expands && (g.hscale - 1.0).abs() < 1e-4;
                 let (font, code) = if span.is_some() { (main_font, u32::MAX) } else if accent_here { (self.k(g), u32::MAX) } else { (self.k(g), g.code) };
                 let sep = if skip { 0 } else { sep };
+                // The text after a list label starts at the item's left edge: no space, the label is in an \llap.
+                let sep = if li == 0 && p.label > 0 && gi == p.label { 0 } else { sep };
                 items.push(Item { font, code, sep, drop, gap, sf: None, pre, boxed: boxed && span.is_none(), math, skip });
             }
             let start = items.len() - l.glyphs.len();
@@ -355,6 +367,23 @@ impl<'a> Gen<'a> {
         let mut boxed_from: Option<Option<usize>> = None; // open box: the font before it
         for i in 0..items.len() {
             let it = &items[i];
+            if p.label > 0 && i == 0 {
+                // A colour literal at the text start goes before the label (a whatsit between them would stop
+                // pdfTeX's search for the character to protrude).
+                if let Some(t) = items.get(p.label).filter(|t| !t.pre.is_empty()) {
+                    let _ = write!(s, "{ESC}pdfcolorstack0 set\u{2}{}\u{3}", t.pre);
+                }
+                // As LaTeX's \item builds it: back by \labelwidth + \labelsep, the label right-aligned in a box of
+                // \labelwidth, then \labelsep (the label width here is any; positions don't depend on it).
+                let g = texgen_label_sep(p.label_sep);
+                let _ = write!(s, "\u{1}hskip-20pt\u{1}hskip-{g}sp\u{1}hbox to20pt\u{2}\u{1}hfil ");
+            }
+            if p.label > 0 && i == p.label {
+                // LaTeX's \item: the label ends \labelsep before the text (snapped to a nice length).
+                let g = texgen_label_sep(p.label_sep);
+                let _ = write!(s, "\u{3}\u{1}hskip{g}sp ");
+                cur = None;
+            }
             if let Some(saved) = boxed_from {
                 if !it.boxed || it.sep != 0 {
                     s.push('\u{3}');
@@ -415,7 +444,7 @@ impl<'a> Gen<'a> {
                 // An explicit kern before a word keeps TeX from hyphenating it (TeX §896); it moves nothing.
                 let _ = write!(s, "{ESC}kern0pt\u{2}\u{3}");
             }
-            if !it.pre.is_empty() {
+            if !it.pre.is_empty() && !(p.label > 0 && i == p.label) {
                 let _ = write!(s, "{ESC}pdfcolorstack0 set\u{2}{}\u{3}", it.pre);
             }
             if let Some(raw) = it.math.as_ref().and_then(|m| m.strip_prefix('\u{0}')) {
@@ -424,6 +453,7 @@ impl<'a> Gen<'a> {
             }
             if let Some(m) = &it.math {
                 // The text's catcodes are private (see PScats): translate the math source to them.
+                let m = if hyp.params.ams_bold { m.replace("\\boldsymbol", "\\amsboldsymbol") } else { m.clone() };
                 let _ = write!(s, "{ESC}(");
                 let mut esc = false;
                 for ch in m.chars() {
@@ -457,6 +487,10 @@ impl<'a> Gen<'a> {
             if it.drop {
                 continue;
             }
+            if p.label > 0 && i == p.label {
+                // microtype's patch of \item: the item text starts with \leftprotrusion (relax without microtype).
+                let _ = write!(s, "{ESC}csname leftprotrusion{ESC}endcsname ");
+            }
             let codes = f.input.get(&it.code).ok_or_else(|| format!("unmapped glyph {} in {}", it.code, f.tfm))?;
             for &c in codes {
                 let ch = char::from_u32(c).unwrap_or('?');
@@ -485,7 +519,15 @@ pub fn preamble(fonts: &HashMap<usize, Vec<TexFont>>, choice_of: &dyn Fn(usize) 
         let (mt, rm, size, pkgs) = (v[0], v.get(1).copied().unwrap_or("cmr"), v.get(2).copied().unwrap_or("10pt"), v.get(3).copied().unwrap_or(""));
         let _ = write!(s, "\\documentclass[{size}]{{article}}\\usepackage[TS1,T1,OT1]{{fontenc}}\\renewcommand\\rmdefault{{{rm}}}");
         if !pkgs.is_empty() {
-            let _ = write!(s, "\\usepackage{{{pkgs}}}");
+            // bm redefines \boldsymbol; keep amsmath's as \amsboldsymbol so a paragraph can use either.
+            let (before, bm) = match pkgs.strip_suffix(",bm") {
+                Some(b) => (b, true),
+                None => (pkgs, false),
+            };
+            let _ = write!(s, "\\usepackage{{{before}}}\\let\\amsboldsymbol\\boldsymbol");
+            if bm {
+                let _ = write!(s, "\\usepackage{{bm}}");
+            }
         }
         if mt != "-" {
             let _ = write!(s, "\\usepackage[{mt}]{{microtype}}");
@@ -720,8 +762,16 @@ impl<'a> Gen<'a> {
 /// object here starts at the printed grid, so the box moves by up to ~33 sp to make the residual equal.
 pub fn line_place(p: &Para, hyp: &Hyp, i: usize) -> i64 {
     let l = &p.lines[i.min(p.lines.len() - 1)];
-    let left = hyp.left_of(l.left);
-    let o = if i == 0 && p.start == crate::layout::Start::Indented { hyp.params.parindent_sp } else if i > 0 { hyp.params.hang_sp } else { 0 };
+    let left = hyp.left_of(l.left, l.right);
+    let o = if i == 0 && p.label > 0 {
+        sp(l.glyphs[0].x - l.left)
+    } else if i == 0 && p.start == crate::layout::Start::Indented {
+        hyp.params.parindent_sp
+    } else if i > 0 {
+        hyp.params.hang_sp
+    } else {
+        0
+    };
     if i >= p.lines.len() || std::env::var("PDFSOURCE_NORESID").is_ok() {
         return left;
     }
@@ -837,4 +887,10 @@ pub fn accent_cmd(name: &str) -> Option<&'static str> {
         "ring" => "r",
         _ => return None,
     })
+}
+
+/// The label separation in sp: the measured gap, snapped to the nicest TeX length within 80 sp.
+pub fn texgen_label_sep(gap_bp: f64) -> i64 {
+    let c = sp(gap_bp);
+    (c - 80..=c + 80).min_by_key(|v| (nice_rank(*v), (v - c).abs())).unwrap_or(c)
 }

@@ -21,6 +21,8 @@ pub struct Outcome {
     pub tries: usize,
     pub source: String,
     pub hyp: Option<Hyp>,
+    /// The LaTeX setup of the run that proved it ("microtype|family|size|packages"), if not the plain one.
+    pub pre: String,
 }
 
 pub struct Report {
@@ -237,6 +239,26 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         .collect();
     let work = std::env::var("PDFSOURCE_WORK").map(PathBuf::from).unwrap_or_else(|_| std::env::temp_dir().join("pdfsource"));
     let _ = std::fs::create_dir_all(&work);
+    // Under microtype, prefer the body family's own .fd where it maps the same TFM (microtype only treats the
+    // \rmdefault family; TS1/cmr maps to Latin Modern, for one).
+    if doc.paras.iter().flat_map(|p| p.lines.iter()).flat_map(|l| l.glyphs.iter()).any(|g| (g.hscale - 1.0).abs() > 1e-4) {
+        let mut h: HashMap<usize, usize> = HashMap::new();
+        for m in &main {
+            *h.entry(*m).or_default() += 1;
+        }
+        let _ = h;
+        let body = *fkey.get(&(doc.body_font, size_key(doc.body_size))).unwrap_or(&0);
+        let fam = fonts.get(&body).and_then(|c| c.iter().find_map(|f| f.nfss.as_ref())).map(|n| n.1.clone()).unwrap_or("cmr".into());
+        for c in fonts.values_mut().flatten() {
+            if let Some((e, f, _, _)) = c.nfss.clone() {
+                if f != fam {
+                    if let Some(n) = tx.nfss_in(&e, &fam, &c.tfm, c.size_pt) {
+                        c.nfss = Some(n);
+                    }
+                }
+            }
+        }
+    }
     let mut cx = Ctx { pdf, doc, tg: Gen { pdf, fonts: &fonts, fkey: &fkey }, fonts: &fonts, main, work, size: pdf_page_size(pdf), runs: 0, ms_tex: 0.0, latex: None };
     if doc.paras.iter().flat_map(|p| p.lines.iter()).flat_map(|l| l.glyphs.iter()).any(|g| (g.hscale - 1.0).abs() > 1e-4) {
         // The body font's NFSS family is \rmdefault.
@@ -244,7 +266,8 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         for m in &cx.main {
             *h.entry(*m).or_default() += 1;
         }
-        let body = h.into_iter().max_by_key(|e| e.1).map(|e| e.0).unwrap_or(0);
+        let _ = h;
+        let body = *fkey.get(&(doc.body_font, size_key(doc.body_size))).unwrap_or(&0);
         let fam = fonts.get(&body).and_then(|c| c.iter().find_map(|f| f.nfss.as_ref())).map(|n| n.1.clone()).unwrap_or("cmr".into());
         cx.latex = Some(format!("{}|{fam}", std::env::var("PDFSOURCE_MICROTYPE").unwrap_or_default()));
     }
@@ -253,7 +276,11 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
     if has(&|n: &str| crate::math::math_font(&crate::pdf::Font { name: n.to_string(), ..pdf.fonts[0].clone() }).is_some_and(|m| m != crate::math::MathFont::Roman && m != crate::math::MathFont::Bold)) {
         let pt = doc.body_size * 72.27 / 72.0;
         let size = if pt < 10.5 { "10pt" } else if pt < 11.5 { "11pt" } else { "12pt" };
-        let pk = if has(&|n: &str| n.starts_with("MSBM") || n.starts_with("MSAM")) { "amsmath,amssymb" } else { "amsmath" };
+        let mut pk = String::from(if has(&|n: &str| n.starts_with("MSBM") || n.starts_with("MSAM")) { "amsmath,amssymb" } else { "amsmath" });
+        // Bold math italic: with bm loaded \boldsymbol is \bm, whose scripts sit as on a plain character.
+        if has(&|n: &str| n.starts_with("CMMIB") || n.starts_with("CMBSY")) {
+            pk += ",bm";
+        }
         let (mt, rm) = match &cx.latex { Some(l) => { let v: Vec<&str> = l.split('|').collect(); (v[0].to_string(), v.get(1).unwrap_or(&"cmr").to_string()) } None => ("-".to_string(), "cmr".to_string()) };
         cx.latex = Some(format!("{mt}|{rm}|{size}|{pk}"));
     }
@@ -265,18 +292,20 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         }
     }
     // Column geometry: hsize per column (right − left), the paragraph indent.
-    let mut hsize: HashMap<i64, i64> = doc.columns.iter().map(|c| (ckey(c.left), texgen::sp(c.right - c.left))).collect();
+    let mut hsize: HashMap<i64, i64> = doc.columns.iter().map(|c| (ckey2(c.left, c.right), texgen::sp(c.right - c.left))).collect();
     let mut parindent = texgen::sp(doc.parindent);
     let mut lefts: HashMap<i64, i64> = HashMap::new();
+    derive_blocks(doc, &mut hsize, &mut lefts);
     let base = |p: &Para, hsize: &HashMap<i64, i64>, parindent: i64, lefts: &HashMap<i64, i64>| Hyp {
         params: Params {
-            hsize_sp: *hsize.get(&ckey(p.column.left)).unwrap_or(&texgen::sp(p.column.right - p.column.left)),
+            hsize_sp: *hsize.get(&ckey2(p.column.left, p.column.right)).unwrap_or(&texgen::sp(p.column.right - p.column.left)),
             parindent_sp: if p.start == Start::Indented { parindent } else { 0 },
             left_sp: 0,
             tolerance: 200,
             pretolerance: 100,
             emergencystretch_pt: 0.0,
             italic_correction: true,
+            ams_bold: false,
             hang_sp: if p.hang > 0.0 { if (texgen::sp(p.hang) - parindent).abs() < 200 { parindent } else { texgen::sp(p.hang) } } else { 0 },
         },
         font_choice: font_choice.clone(),
@@ -293,8 +322,8 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         .map(|p| State { hyp: base(p, &hsize, parindent, &lefts), break_set: 0, flipped: vec![], tries: 0, done: None, last_reason: String::new(), searched: Default::default() })
         .collect();
     for (i, p) in doc.paras.iter().enumerate() {
-        if let Some(r) = precheck(pdf, p) {
-            states[i].done = Some(Outcome { proven: false, reason: r, max_dx: 0.0, tries: 0, source: String::new(), hyp: None });
+        if let Some(r) = precheck(pdf, p).or_else(|| strays(doc, p)) {
+            states[i].done = Some(Outcome { proven: false, reason: r, max_dx: 0.0, tries: 0, source: String::new(), hyp: None, pre: String::new() });
         }
     }
 
@@ -303,13 +332,31 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         let v: Vec<i64> = f.split(',').filter_map(|s| s.parse().ok()).collect();
         for st in states.iter_mut() {
             st.hyp.params.hsize_sp = v[0];
-            if let Some(c) = doc.columns.first() { st.hyp.lefts.insert(ckey(c.left), v[1]); }
-            if let (Some(c), Some(&l2)) = (doc.columns.get(1), v.get(3)) { st.hyp.lefts.insert(ckey(c.left), l2); }
+            if let Some(c) = doc.columns.first() { st.hyp.lefts.insert(ckey2(c.left, c.right), v[1]); }
+            if let (Some(c), Some(&l2)) = (doc.columns.get(1), v.get(3)) { st.hyp.lefts.insert(ckey2(c.left, c.right), l2); }
             if st.hyp.params.parindent_sp != 0 { st.hyp.params.parindent_sp = v[2]; }
         }
     }
     let microtype = cx.latex.as_ref().is_some_and(|l| !l.starts_with('-'));
     let mut calibrated = std::env::var("PDFSOURCE_FORCE").is_ok();
+    // Preamble alternatives tried in turn on what is still unproven: with bm, then without (bm moves some scripts).
+    let mut variants = vec![cx.latex.clone()];
+    if let Some(l) = cx.latex.as_ref().filter(|l| l.ends_with(",bm")) {
+        variants.push(Some(l.trim_end_matches(",bm").to_string()));
+    }
+    for (vi, var) in variants.iter().enumerate() {
+    if vi > 0 {
+        cx.latex = var.clone();
+        for (i, st) in states.iter_mut().enumerate() {
+            if st.done.as_ref().is_some_and(|o| !o.proven && o.hyp.is_some()) {
+                st.done = None;
+                st.hyp = base(&doc.paras[i], &hsize, parindent, &lefts);
+                st.break_set = 0;
+                st.flipped.clear();
+                st.searched.clear();
+            }
+        }
+    }
     for _round in 0..40 {
         let todo: Vec<usize> = (0..states.len()).filter(|&i| states[i].done.is_none()).collect();
         if todo.is_empty() {
@@ -320,14 +367,14 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         for (&i, c) in todo.iter().zip(&res) {
             states[i].tries += 1;
             if c.ok {
-                states[i].done = Some(Outcome { proven: true, reason: String::new(), max_dx: c.max_dx, tries: states[i].tries, source: c.text.clone(), hyp: Some(states[i].hyp.clone()) });
+                states[i].done = Some(Outcome { proven: true, reason: String::new(), max_dx: c.max_dx, tries: states[i].tries, source: c.text.clone(), hyp: Some(states[i].hyp.clone()), pre: cx.latex.clone().unwrap_or_default() });
             }
         }
         // After the first round: calibrate each column's geometry on paragraphs whose lines already match.
         if !calibrated {
             calibrated = true;
             let mut changed = false;
-            for col in &doc.columns {
+            for col in &doc.columns[..doc.n_main] {
                 let mut cal: Vec<(usize, usize)> = todo
                     .iter()
                     .zip(&res)
@@ -340,7 +387,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                     continue;
                 }
                 let few: Vec<(usize, usize)> = cal.iter().take(6).copied().collect();
-                let k = ckey(col.left);
+                let k = ckey2(col.left, col.right);
                 let mk = |set: &[(usize, usize)], hs: &HashMap<i64, i64>, pi: i64, lf: &HashMap<i64, i64>| -> Vec<(usize, Hyp)> {
                     set.iter().map(|&(i, _)| (i, base(&doc.paras[i], hs, pi, lf))).collect()
                 };
@@ -355,17 +402,17 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                             // Columns of one width share it.
                             for c in &doc.columns {
                                 if ((c.right - c.left) - (col.right - col.left)).abs() < 0.02 {
-                                    hsize.insert(ckey(c.left), v);
+                                    hsize.insert(ckey2(c.left, c.right), v);
                                 }
                             }
                         }
                     }
-                    let l0 = *lefts.get(&ckey(col.left)).unwrap_or(&texgen::sp(col.left));
+                    let l0 = *lefts.get(&ckey2(col.left, col.right)).unwrap_or(&texgen::sp(col.left));
                     // Wide on the first pass with a few paragraphs, then narrow with all of them.
                     let (reach, set) = if pass == 0 { (40, &few) } else { (3, &cal) };
                     let cands: Vec<i64> = (-reach..=reach).map(|d| l0 + d).collect();
                     if let Some((v, _)) = cx.scan(&mk(set, &hsize, parindent, &lefts), &cands, &|h, v| {
-                        h.lefts.insert(ckey(col.left), v);
+                        h.lefts.insert(ckey2(col.left, col.right), v);
                     }) {
                         changed |= v != l0;
                         lefts.insert(k, v);
@@ -384,7 +431,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                                 lefts.insert(k, l0 + (h0 - v));
                                 for c in &doc.columns {
                                     if ((c.right - c.left) - (col.right - col.left)).abs() < 0.02 {
-                                        hsize.insert(ckey(c.left), v);
+                                        hsize.insert(ckey2(c.left, c.right), v);
                                     }
                                 }
                             }
@@ -405,6 +452,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                     }
                 }
             }
+            derive_blocks(doc, &mut hsize, &mut lefts);
             if changed {
                 for (i, st) in states.iter_mut().enumerate() {
                     if st.done.as_ref().is_some_and(|o| o.proven) {
@@ -462,12 +510,33 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                     rsearch.push((i, li));
                     moved = true;
                 }
+            } else if c.why.contains(" dy ") && !st.hyp.params.ams_bold && c.text.contains("boldsymbol") {
+                // Scripts on bold math sit differently under bm and amsmath.
+                st.hyp.params.ams_bold = true;
+                moved = true;
+            } else if c.why.starts_with("unmapped glyph") {
+                // Another candidate of the same font that maps every code this paragraph uses (a TS1 bullet among OT1 text).
+                for l in &p.lines {
+                    for g in &l.glyphs {
+                        let k = cx.tg.k(g);
+                        let Some(cands) = fonts.get(&k) else { continue };
+                        let cur = *st.hyp.font_choice.get(&k).unwrap_or(&0);
+                        if cands.get(cur).is_some_and(|f| f.input.contains_key(&g.code)) {
+                            continue;
+                        }
+                        let codes: Vec<u32> = p.lines.iter().flat_map(|q| q.glyphs.iter()).filter(|x| cx.tg.k(x) == k).map(|x| x.code).collect();
+                        if let Some(ni) = (0..cands.len()).find(|&ci| codes.iter().all(|c| cands[ci].input.contains_key(c))) {
+                            st.hyp.font_choice.insert(k, ni);
+                            moved = true;
+                        }
+                    }
+                }
             } else if st.hyp.params.italic_correction && c.why.contains("after-italic") {
                 st.hyp.params.italic_correction = false;
                 moved = true;
             }
             if !moved {
-                st.done = Some(Outcome { proven: false, reason: c.why.clone(), max_dx: c.max_dx, tries: st.tries, source: c.text.clone(), hyp: Some(st.hyp.clone()) });
+                st.done = Some(Outcome { proven: false, reason: c.why.clone(), max_dx: c.max_dx, tries: st.tries, source: c.text.clone(), hyp: Some(st.hyp.clone()), pre: String::new() });
             }
         }
         if !rsearch.is_empty() {
@@ -497,6 +566,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             }
         }
     }
+    }
     if let Ok(n) = std::env::var("PDFSOURCE_SHOW").map(|s| s.parse::<usize>().unwrap_or(0)) {
         if let Some(st) = states.get(n) {
             let p = &doc.paras[n];
@@ -523,7 +593,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         .enumerate()
         .map(|(i, s)| {
             let r = s.last_reason.clone();
-            (i, s.done.unwrap_or(Outcome { proven: false, reason: r, max_dx: 0.0, tries: s.tries, source: String::new(), hyp: None }))
+            (i, s.done.unwrap_or(Outcome { proven: false, reason: r, max_dx: 0.0, tries: s.tries, source: String::new(), hyp: None, pre: String::new() }))
         })
         .collect();
     Report {
@@ -538,15 +608,27 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         ms_total: t0.elapsed().as_secs_f64() * 1000.0,
         ms_tex: cx.ms_tex,
         fonts_tex: {
+            // The body font's NFSS family and size: its variants become \normalfont + \itshape, \bfseries ...
+            let bk = *fkey.get(&(doc.body_font, size_key(doc.body_size))).unwrap_or(&usize::MAX);
+            let body = fonts.get(&bk).and_then(|c| c.first()).and_then(|f| f.nfss.clone().map(|n| (n, f.size_pt)));
             let mut v: Vec<String> = fonts
                 .iter()
                 .filter_map(|(&k, c)| c.first().map(|f| (k, f)))
                 .map(|(k, f)| match &f.nfss {
+                    Some((_, fa, se, sh)) if body.as_ref().is_some_and(|((_, bf, _, _), bs)| bf == fa && (bs - f.size_pt).abs() < 0.01) => {
+                        let mut d = String::from("\\normalfont");
+                        if se.starts_with('b') { d += "\\bfseries"; }
+                        match sh.as_str() { "it" => d += "\\itshape", "sl" => d += "\\slshape", "sc" => d += "\\scshape", _ => {} }
+                        format!("\\newcommand\\{}{{{d}}}", texgen::font_cs(k))
+                    }
                     Some((e, fa, se, sh)) => format!("\\newcommand\\{}{{\\fontsize{{{}}}{{{}}}\\usefont{{{e}}}{{{fa}}}{{{se}}}{{{sh}}}}}", texgen::font_cs(k), f.size_pt, f.size_pt * 1.2),
                     None => format!("\\font\\{}={} at {}pt", texgen::font_cs(k), f.tfm, f.size_pt),
                 })
                 .collect();
             v.sort();
+            if let Some(((_, fam, _, _), _)) = &body {
+                v.insert(0, format!("\\renewcommand\\rmdefault{{{fam}}}"));
+            }
             v.join("\n")
         },
         geometry: format!(
@@ -560,6 +642,11 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
 
 fn ckey(left_bp: f64) -> i64 {
     (left_bp * 100.0).round() as i64
+}
+
+/// A column's key for its geometry: left and right edge (a list block can share an abstract's left edge).
+pub fn ckey2(left: f64, right: f64) -> i64 {
+    texgen::colkey(left, right)
 }
 fn words_in(p: &Para) -> usize {
     let mut n = 0;
@@ -618,7 +705,7 @@ fn compare(pdf: &Pdf, repro: &Pdf, p: &Para, lines: &[Line], hyp: &Hyp) -> Cmp {
     let n = p.lines.len().min(lines.len());
     for i in 0..n {
         let (a, b) = (&p.lines[i], &lines[i]);
-        let _ = hyp.left_of(a.left);
+        let _ = hyp.left_of(a.left, a.right);
         let same = |x: &crate::pdf::Glyph, y: &crate::pdf::Glyph| x.code == y.code && pdf.fonts[x.font].name == repro.fonts[y.font].name;
         if a.glyphs.len() != b.glyphs.len() || !a.glyphs.iter().zip(&b.glyphs).all(|(x, y)| same(x, y)) {
             misses += 1000;
@@ -656,7 +743,8 @@ fn compare(pdf: &Pdf, repro: &Pdf, p: &Para, lines: &[Line], hyp: &Hyp) -> Cmp {
                     let what = if after_font { " after-italic" } else { "" };
                     let ctx: String = a.glyphs.iter().skip(k.saturating_sub(4)).take(6).map(|g| txt(pdf, g)).collect();
                     let scale = if ds > 1e-4 { format!(" scale {:.3} vs {:.3}", x.hscale, y.hscale) } else { String::new() };
-                    first = Some((format!("positions: line {i} glyph {k} dx {dx:+.4}{scale}{what} ({ctx:?})"), i));
+                    let dys = if dy.abs() > TOL { format!(" dy {dy:+.4}") } else { String::new() };
+                    first = Some((format!("positions: line {i} glyph {k} dx {dx:+.4}{dys}{scale}{what} ({ctx:?})"), i));
                     first_dx = if ds > 1e-4 { 1.0 } else { dx.abs() };
                 }
             }
@@ -826,10 +914,10 @@ pub fn to_latex(src: &str) -> String {
 
 pub fn write_tex(r: &Report, doc: &Doc) -> String {
     let mut s = String::from("% Recovered by pdfsource. Each paragraph is either proven (re-typeset identically) or approximate.\n");
-    s += &format!("% {}\n\\documentclass{{article}}\n\\usepackage[T1,OT1]{{fontenc}}\\usepackage{{amsmath,amssymb}}\n{}\n\\begin{{document}}\n", r.file, r.fonts_tex);
+    s += &format!("% {}\n\\documentclass[{}]{{article}}\n\\usepackage[T1,OT1]{{fontenc}}\\usepackage{{amsmath,amssymb}}\n{}\n\\begin{{document}}\n", r.file, if doc.body_size * 72.27 / 72.0 < 10.5 { "10pt" } else if doc.body_size * 72.27 / 72.0 < 11.5 { "11pt" } else { "12pt" }, r.fonts_tex);
     for (i, o) in &r.paras {
         let p = &doc.paras[*i];
-        s += &format!("\n% ¶{i} page {} lines {}: {}\n", p.lines[0].page, p.lines.len(), if o.proven { "proven".into() } else { format!("approximate ({})", o.reason) });
+        s += &format!("\n% ¶{i} page {} lines {}: {}\n", p.lines[0].page, p.lines.len(), if o.proven && o.pre.ends_with(",bm") == r.paras.iter().filter(|(_, x)| x.proven).all(|(_, x)| x.pre.ends_with(",bm")) { "proven".into() } else if o.proven { format!("proven (with LaTeX setup {})", o.pre) } else { format!("approximate ({})", o.reason) });
         if !o.source.is_empty() {
             s += &to_latex(&o.source);
             s += "\n";
@@ -837,4 +925,45 @@ pub fn write_tex(r: &Report, doc: &Doc) -> String {
     }
     s += "\n\\end{document}\n";
     s
+}
+
+/// An indented block's geometry from its page column: the same right edge, the margin snapped to a nice length
+/// (lists: \leftmargin), so hsize = the column's − the margin (as LaTeX's list environments compute it).
+fn derive_blocks(doc: &Doc, hsize: &mut HashMap<i64, i64>, lefts: &mut HashMap<i64, i64>) {
+    for s in &doc.columns[doc.n_main..] {
+        // Geometry is keyed by the left edge: a page column with the same edge keeps its own.
+        if doc.columns[..doc.n_main].iter().any(|c| ckey2(c.left, c.right) == ckey2(s.left, s.right)) {
+            continue;
+        }
+        let Some(host) = doc.columns[..doc.n_main].iter().filter(|c| (c.right - s.right).abs() < 0.5 && c.left < s.left).max_by(|a, b| a.left.partial_cmp(&b.left).unwrap()) else { continue };
+        let hl = *lefts.get(&ckey2(host.left, host.right)).unwrap_or(&texgen::sp(host.left));
+        let hh = *hsize.get(&ckey2(host.left, host.right)).unwrap_or(&texgen::sp(host.right - host.left));
+        let m0 = texgen::sp(s.left - host.left);
+        let m = (m0 - 80..=m0 + 80).min_by_key(|v| (texgen::nice_rank(*v), (v - m0).abs())).unwrap_or(m0);
+        lefts.insert(ckey2(s.left, s.right), hl + m);
+        hsize.insert(ckey2(s.left, s.right), hh - m);
+    }
+}
+
+/// Glyphs inside a paragraph's region that aren't in its lines (an accent split off, an overlay): the comparison
+/// wouldn't see them, so the paragraph can't be proven.
+fn strays(doc: &Doc, p: &Para) -> Option<String> {
+    for part in p.lines.chunk_by(|a, b| a.page == b.page && a.left == b.left) {
+        let first = &part[0];
+        let last = &part[part.len() - 1];
+        let (top, bottom) = (first.y + 0.7 * first.size, last.y - 0.25 * last.size);
+        let (x0, x1) = (first.left - 0.5 * first.size, first.right + 0.5 * first.size);
+        for l in doc.lines.iter().filter(|l| l.page == first.page) {
+            if part.iter().any(|q| (q.y - l.y).abs() < 0.001 && (q.x0 - l.x0).abs() < 0.001) {
+                continue;
+            }
+            for g in &l.glyphs {
+                let cx = g.x + g.adv / 2.0;
+                if g.y < top && g.y > bottom && cx > x0 && cx < x1 && part.iter().all(|q| (q.y - g.y).abs() > 0.3 * q.size || cx < q.x0 || cx > q.x1) {
+                    return Some(format!("stray glyphs: a glyph at y {:.2} inside the paragraph", g.y));
+                }
+            }
+        }
+    }
+    None
 }
