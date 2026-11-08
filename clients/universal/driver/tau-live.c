@@ -25,6 +25,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <limits.h>
 
 extern char **environ;
 
@@ -334,6 +335,64 @@ static void spawn_engine(void) {
   from_page = 0;
 }
 
+// ---------------------------------------------------------------------------------------------------- paragraph preview
+
+#include "synctex.c"
+
+// Each edit's newline count change, so a paragraph's line in an older output's text can be found
+typedef struct { int applied; char rel[512]; long pos; int nl; } edit_rec;
+static edit_rec erecs[1024];
+static int nerecs;
+static void note_edit(const char *rel, long pos, int nl) {
+  edit_rec *e = &erecs[nerecs++ % 1024];
+  e->applied = applied, e->pos = pos, e->nl = nl;
+  snprintf(e->rel, sizeof e->rel, "%s", rel);
+}
+// The outputs announced lately (the newest that shows the paragraph's old lines is the one the preview goes on)
+typedef struct { char path[4600], sx[4600]; int applied; } out_rec;
+static out_rec outs[8];
+static int nouts;
+static sx_index sxs[8];
+// The pass in flight: what it typesets, for its event
+static struct { int seq; char rel[512]; long end; int line; } pass;
+// The reader (tau-tdl serve): one process, requests in order, one answer line each
+static pid_t reader = -1;
+static int reader_in = -1, reader_out = -1;
+static char tdl_bin[2048];
+typedef struct { char *head; int seq; int64_t t_sent; int pdf; } reader_job;
+static reader_job jobs[16];
+static int njobs;
+static int npreviews;
+static void reader_start(void) {
+  int a[2], b[2];
+  if (access(tdl_bin, X_OK) || pipe(a) || pipe(b)) return;
+  posix_spawn_file_actions_t fa;
+  posix_spawn_file_actions_init(&fa);
+  posix_spawn_file_actions_adddup2(&fa, a[0], 0);
+  posix_spawn_file_actions_adddup2(&fa, b[1], 1);
+  posix_spawn_file_actions_addclose(&fa, a[1]);
+  posix_spawn_file_actions_addclose(&fa, b[0]);
+  char lg[4200];  // (the DVI interpreter talks on stderr)
+  snprintf(lg, sizeof lg, "%s/reader.log", tdir);
+  posix_spawn_file_actions_addopen(&fa, 2, lg, O_WRONLY | O_CREAT | O_APPEND, 0644);
+  char *av[] = {tdl_bin, "serve", NULL};
+  extern char **environ;
+  if (posix_spawn(&reader, tdl_bin, &fa, NULL, av, environ)) reader = -1;
+  posix_spawn_file_actions_destroy(&fa);
+  close(a[0]), close(b[1]);
+  if (reader < 0) { close(a[1]), close(b[0]); return; }
+  reader_in = a[1], reader_out = b[0];
+  fcntl(reader_in, F_SETFD, FD_CLOEXEC), fcntl(reader_out, F_SETFD, FD_CLOEXEC);
+}
+static void reader_stop(void) {
+  if (reader > 0) { kill(reader, SIGKILL); waitpid(reader, NULL, 0); }
+  if (reader_in >= 0) close(reader_in);
+  if (reader_out >= 0) close(reader_out);
+  reader = -1, reader_in = reader_out = -1;
+  for (int i = 0; i < njobs; i++) free(jobs[i].head);
+  njobs = 0;
+}
+
 // ---------------------------------------------------------------------------------------------------- edits
 
 typedef struct {
@@ -381,12 +440,17 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
     else snprintf(p, sizeof p, "%s/ctl-para-%d", tdir, s->pid);
     FILE *f = fopen(p, "w");
     fprintf(f, "seq %d\nfile %s\nend %ld\n", seq, ch[0].rel, para_end(t, ch[0].k));
+    pass.seq = seq;
+    snprintf(pass.rel, sizeof pass.rel, "%s", ch[0].rel);
+    pass.end = para_end(t, ch[0].k);
+    pass.line = 1;
+    for (long i = 0; i < pass.end && (size_t)i < t->len; i++) pass.line += t->data[i] == '\n';
     // LaTeX's own output routine still handles its float penalties (below -10000); a page break ships at natural
     // height through LaTeX's \shipout (its hooks define what the page's \write nodes expand to; no headers)
     // at the pass's own break (\taudotpg defined: the paragraph is over) only its last \prevgraf lines are shipped,
     // taken off with \lastbox, through the primitive \shipout; if anything but lines, glue and penalties is in the
     // way (a footnote's insert, a mark, a whatsit) the page so far ships instead, as at a break inside the paragraph
-    fprintf(f, "prefix \\gdef\\taudotown{0}\\gdef\\taudotn{0}\\toks255=\\expandafter{\\the\\output}\\output={\\taudotout}%%\n");
+    fprintf(f, "prefix \\gdef\\taudotg{}\\gdef\\taudotown{0}\\gdef\\taudotn{0}\\toks255=\\expandafter{\\the\\output}\\output={\\taudotout}%%\n");
     fprintf(f, "flush \\taudotflush%%\n");
     {  // the paragraph's new text from the resume point, so the pass needn't reread the file
       long E = para_end(t, ch[0].k), P = s->cur_pos;
@@ -475,6 +539,14 @@ static void emit_pdf(const char *tag, int s, pid_t pid, int pages, int final, in
   snprintf(sx, sizeof sx, "%s/%s.synctex", d, job_stem());
   if (!exists(sx)) snprintf(sx, sizeof sx, "%s/%s.synctex.gz", d, job_stem());
   int64_t fs = t_fin_start[pid & 0xffff];
+  int sx_slot = -1;
+  if (exists(sx)) {
+    sx_slot = nouts % 8;
+    out_rec *o = &outs[nouts++ % 8];
+    snprintf(o->path, sizeof o->path, "%s", pdf);
+    snprintf(o->sx, sizeof o->sx, "%s", sx);
+    o->applied = applied_at_run;
+  }
   fprintf(stdout, "{\"ev\":\"pdf\",\"seq\":%d,\"run\":%d,\"applied\":%d,\"pages\":%d,\"final\":%s,\"from_page\":%d,"
           "\"path\":", s, run_no, applied_at_run, pages, final ? "true" : "false", from_page);
   jstr(stdout, pdf, strlen(pdf));
@@ -483,6 +555,11 @@ static void emit_pdf(const char *tag, int s, pid_t pid, int pages, int final, in
   fprintf(stdout, ",\"edit_us\":%lld,\"finish_us\":%lld}\n", (long long)(t - t_apply),
           (long long)(!final && fs ? t - fs : 0));
   fflush(stdout);
+  if (sx_slot >= 0 && hook && para) {  // its SyncTeX, read now rather than when the next pass is waiting on it
+    int64_t t0 = now_us();
+    sx_load(&sxs[sx_slot], outs[sx_slot].sx);
+    if (dbg) fprintf(dbg, "synctex %s: %d records, %lld us\n", outs[sx_slot].sx, sxs[sx_slot].n, (long long)(now_us() - t0));
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------- latexmk's rule
@@ -744,7 +821,30 @@ static int run_tools(rchange *ch, int max, int n) {
 
 // A run ended: its written files into the clone; BibTeX & co.; a rerun from the snapshot before the first changed
 // byte of any changed file the run had read; else the compile has settled (done).
+// A run that made nothing: was it the format? (TeX says so on its terminal before it reads anything)
+static void check_format(int code, int pages) {
+  if (code == 0 || pages > 0) return;
+  char p[4200];
+  snprintf(p, sizeof p, "%s/engine.out", tdir);
+  size_t n;
+  char *b = slurp_file(p, &n);
+  if (!b) return;
+  size_t from = n > 4096 ? n - 4096 : 0;
+  char *m = strstr(b + from, "can't find the format file");
+  if (!m) m = strstr(b + from, "Fatal format file error");
+  if (m) {
+    char msg[300];
+    snprintf(msg, sizeof msg, "%.*s", (int)strcspn(m, "\n"), m);
+    fprintf(stdout, "{\"ev\":\"error\",\"what\":\"format\",\"message\":");
+    jstr(stdout, msg, strlen(msg));
+    fputs("}\n", stdout);
+    fflush(stdout);
+  }
+  free(b);
+}
+
 static void rule_step(pid_t pid, int pages, int64_t t, int code) {
+  check_format(code, pages);
   char d[4096];
   snprintf(d, sizeof d, "%s/run-%d-%d", tdir, seq, pid);
   static rchange ch[256];
@@ -808,6 +908,146 @@ static void drop_deferred(void) {
   ndeferred = 0;
 }
 
+// ---------------------------------------------------------------------------------------------------- para events
+// docs/live-protocol.md `para`, as the patched pdfTeX gives it: state, page, the lines as a TDL (path) and as a
+// one-page PDF (overlay, pdfTeX/LuaTeX), erase rects. The old lines' place comes from the newest output's SyncTeX.
+
+static void para_none(int s, const char *why, int lines, int pieces, const char *bin) {
+  fprintf(stdout, "{\"ev\":\"para\",\"go\":%d,\"seq\":%d,\"applied\":%d,\"file\":", s, s, applied_at_run);
+  jstr(stdout, pass.rel, strlen(pass.rel));
+  fprintf(stdout, ",\"state\":\"none\",\"why\":\"%s\",\"lines\":%d,\"pieces\":%d", why, lines, pieces);
+  if (bin && *bin) { fputs(",\"bin\":", stdout); jstr(stdout, bin, strlen(bin)); }
+  fprintf(stdout, ",\"us\":%lld}\n", (long long)(now_us() - t_apply));
+  fflush(stdout);
+}
+
+static const double SP_BP = 72.0 / 72.27 / 65536.0;
+
+static void para_lines(const char *line, int s, int lines, int pieces, const char *bin, int64_t t_q) {
+  int own = 1, geo = 0;
+  long gb = 0, gs = 0, gh = 0;
+  long long tstart = 0;
+  const char *p = strstr(line, " own ");
+  if (p) own = atoi(p + 5);
+  p = strstr(line, " geo ");
+  if (p) geo = sscanf(p, " geo %d %ld %ld %ld", &geo, &gb, &gs, &gh) == 4 && geo;
+  {
+    long long a_, b_;
+    char path_[2048];
+    int x_, y_, z_, w_;
+    if (sscanf(line, "Q %d %d %d %d %lld %2047s %lld", &x_, &y_, &z_, &w_, &a_, path_, &b_) == 7) tstart = b_;
+  }
+  if (!own) return para_none(s, "insert", lines, pieces, bin);  // in a box: a float, a caption, a minipage
+  if (pieces > 1) return para_none(s, "split", lines, pieces, bin);  // the new lines cross a page or column
+  if (!geo || lines <= 0) return para_none(s, lines <= 0 ? "end" : "insert", lines, pieces, bin);  // (insert, mark)
+  // the old lines: the newest output whose SyncTeX has them (the paragraph's \par line in that output's text)
+  sx_index *x = NULL;
+  sx_para o = {0};
+  out_rec *src = NULL;
+  for (int k = 0; k < 8 && k < nouts && !src; k++) {
+    int slot = (nouts - 1 - k) % 8;
+    out_rec *r = &outs[slot];
+    int L = pass.line, ok = 1;
+    for (int i = 0; i < nerecs && i < 1024; i++) {
+      edit_rec *e = &erecs[(nerecs - 1 - i) % 1024];
+      if (e->applied <= r->applied) break;
+      if (strcmp(e->rel, pass.rel) || e->pos >= pass.end) continue;
+      if (e->nl == INT_MIN) { ok = 0; break; }
+      L -= e->nl;
+    }
+    if (!ok || !sx_load(&sxs[slot], r->sx)) continue;
+    o = sx_find(&sxs[slot], pass.rel, L);
+    if (dbg) fprintf(dbg, "para anchor: %s line %d (now %d) in %s: %d records, found %d\n", pass.rel, L, pass.line, r->sx,
+                     sxs[slot].n, o.found), fflush(dbg);
+    if (o.found) { x = &sxs[slot], src = r; }
+  }
+  if (!src) return para_none(s, "noanchor", lines, pieces, bin);
+  if (o.found == -1) return para_none(s, "split", lines, pieces, bin);
+  if (o.found == -2) return para_none(s, "segment", lines, pieces, bin);
+  const sx_rec *r1 = &x->r[o.first], *rn = r1;
+  for (int i = o.first + 1, k = 1; i < x->n && k < o.n; i++)
+    if (x->r[i].parent == r1->parent) rn = &x->r[i], k++;
+  double u = x->unit > 0 ? x->unit : 1;
+  if (dbg) fprintf(dbg, "para geo: r1 h %d v %d W %d H %d D %d page %d n %d; pass b %ld s %ld h %ld lines %d\n", r1->h, r1->v,
+                   r1->W, r1->H, r1->D, r1->page, o.n, gb, gs, gh, lines), fflush(dbg);
+  long top_old = r1->v - r1->H, bot_old = rn->v + rn->D;
+  long base_new = 4736286 + gb;  // (1in: the shipped page's origin)
+  long oy = r1->v - base_new;    // the pass's page moved down by this: its first baseline on the old one
+  long top_new = r1->v - gh, bot_new = top_new + gs;
+  double pad = 1.0 / SP_BP;  // half the gap to the next line (1 pt for a one-line paragraph)
+  if (o.n > 1) {
+    const sx_rec *r2 = NULL;
+    for (int i = o.first + 1; i < x->n && !r2; i++)
+      if (x->r[i].parent == r1->parent) r2 = &x->r[i];
+    double gap = (r2->v - r2->H) - (r1->v + r1->D);
+    pad = gap > 0 ? gap / 2 : 0;
+  }
+  const char *state = "exact", *why = NULL;
+  if (o.n != lines) state = "provisional", why = "lines";
+  else if (labs(gh - r1->H) > 64 || labs(gs - (bot_old - top_old)) > 64) state = "provisional", why = "heights";
+  double X0 = r1->h * u * SP_BP - 3, X1 = (r1->h + r1->W) * u * SP_BP + 3;  // (3: protruded punctuation)
+  // the request to the reader; the event goes out with its answer
+  if (reader < 0) reader_start();
+  if (reader < 0 || njobs == 16) return para_none(s, "reader", lines, pieces, bin);
+  int k = npreviews++ % 5;  // (files are reused after four more previews)
+  char tdl[4300], ovl[4300], req[16384];
+  snprintf(tdl, sizeof tdl, "%s/para-%d.tdl", tdir, k);
+  snprintf(ovl, sizeof ovl, "%s/para-%d.pdf", tdir, k);
+  int is_pdf = strcmp(out_ext(), "xdv") != 0;
+  int page = r1->page;
+  if (is_pdf)
+    snprintf(req, sizeof req, "pdf\t%s\t%d\t%s\t%s\t%s\t%.4f\n", src->path, page, bin, ovl, tdl, -oy * u * SP_BP);
+  else
+    snprintf(req, sizeof req, "xdv\t%s\t%s\t%s\t%.4f\n", src->path, bin, tdl, oy * u * SP_BP);
+  if (write(reader_in, req, strlen(req)) != (ssize_t)strlen(req)) {
+    reader_stop();
+    return para_none(s, "reader", lines, pieces, bin);
+  }
+  char *head = NULL;
+  size_t hn = 0;
+  FILE *h = open_memstream(&head, &hn);
+  fprintf(h, "{\"ev\":\"para\",\"go\":%d,\"seq\":%d,\"applied\":%d,\"file\":", s, s, applied_at_run);
+  jstr(h, pass.rel, strlen(pass.rel));
+  fprintf(h, ",\"state\":\"%s\"", state);
+  if (why) fprintf(h, ",\"why\":\"%s\"", why);
+  fputs(",\"pdf\":", h);
+  jstr(h, src->path, strlen(src->path));
+  fprintf(h, ",\"page\":%d,\"path\":", page);
+  jstr(h, tdl, strlen(tdl));
+  if (is_pdf) {
+    fputs(",\"overlay\":", h);
+    jstr(h, ovl, strlen(ovl));
+    fputs(",\"origin\":[0,0]", h);
+  }
+  fprintf(h, ",\"erase\":[[%.3f,%.3f,%.3f,%.3f],[%.3f,%.3f,%.3f,%.3f]]", X0, top_old * u * SP_BP - pad * SP_BP, X1,
+          bot_old * u * SP_BP + pad * SP_BP, X0, top_new * u * SP_BP - pad * SP_BP, X1, bot_new * u * SP_BP + pad * SP_BP);
+  fprintf(h, ",\"lines\":%d,\"old_lines\":%d,\"pieces\":%d,\"bin\":", lines, o.n, pieces);
+  jstr(h, bin, strlen(bin));
+  fprintf(h, ",\"engine_us\":%lld", tstart ? (long long)(t_q - tstart) : 0LL);
+  fclose(h);
+  jobs[njobs++] = (reader_job){head, s, now_us(), is_pdf};
+}
+
+// An answer from the reader: the oldest request's event goes out
+static void reader_answer(const char *l) {
+  if (!njobs) return;
+  reader_job j = jobs[0];
+  memmove(jobs, jobs + 1, --njobs * sizeof *jobs);
+  if (!strstr(l, "\"ok\":true")) {
+    if (dbg) fprintf(dbg, "reader: %s\n", l), fflush(dbg);
+    free(j.head);
+    if (j.seq == seq) para_none(j.seq, "reader", 0, 0, NULL);
+    return;
+  }
+  if (j.seq == seq) {  // (an older edit's preview, once a newer edit came, isn't sent)
+    const char *u = strstr(l, "\"us\":");
+    fprintf(stdout, "%s,\"draw_us\":%lld,\"us\":%lld}\n", j.head, u ? atoll(u + 5) : 0LL,
+            (long long)(now_us() - t_apply));
+    fflush(stdout);
+  }
+  free(j.head);
+}
+
 static void on_msg(char *line) {
   if (dbg) fprintf(dbg, "%lld msg %s\n", (long long)now_us(), line), fflush(dbg);
   char kind;
@@ -816,6 +1056,22 @@ static void on_msg(char *line) {
   char tag[64];
   if (sscanf(line, "H %d %lld", &a, &t) == 2) return;
   if (line[0] == 'B') return;
+  if (!strncmp(line, "g offline ", 10)) {  // a TeX Live file couldn't be fetched: no network (once per file)
+    static char *said[256];
+    static int nsaid;
+    for (int i = 0; i < nsaid; i++)
+      if (!strcmp(said[i], line + 10)) return;
+    if (nsaid < 256) said[nsaid++] = strdup(line + 10);
+    char m[2300];
+    snprintf(m, sizeof m, "can't fetch %s: no network", line + 10);
+    fprintf(stdout, "{\"ev\":\"error\",\"what\":\"offline\",\"message\":");
+    jstr(stdout, m, strlen(m));
+    fputs(",\"file\":", stdout);
+    jstr(stdout, line + 10, strlen(line + 10));
+    fputs("}\n", stdout);
+    fflush(stdout);
+    return;
+  }
   if (line[0] == 'G' && line[1] == ' ') {
     nfetch++;
     fprintf(stdout, "{\"ev\":\"fetch\",\"file\":");
@@ -879,25 +1135,14 @@ static void on_msg(char *line) {
       emit_pdf("fin", b, a, c, 0, t);
     } else if (!strcmp(tag, "para")) {
       // the pass ended without its stop signal (an error, the input ran out): no lines to show
-      emit("{\"ev\":\"para\",\"seq\":%d,\"applied\":%d,\"lines\":0,\"us\":%lld,\"path\":\"\"}", b,
-           applied_at_run, (long long)(t - t_apply));
+      para_none(b, "end", 0, 0, NULL);
     }
     return;
   }
   char qpath[2048];
   int qlines, qships;
-  int qown = 1;
   if (sscanf(line, "Q %d %d %d %d %lld %2047s", &a, &b, &qlines, &qships, &t, qpath) == 6) {
-    char *own = strstr(line, " own ");
-    if (own) qown = atoi(own + 5);
-    if (!qown) qpath[0] = 0;  // its own break never shipped (the paragraph is in a box): no overlay
-    if (b == seq) {  // pieces > 1: the paragraph crosses a page or column (the overlay would be provisional)
-      fprintf(stdout, "{\"ev\":\"para\",\"seq\":%d,\"applied\":%d,\"lines\":%d,\"pieces\":%d,\"us\":%lld,\"path\":",
-              b, applied_at_run, qlines, qships, (long long)(t - t_apply));
-      jstr(stdout, qpath, strlen(qpath));
-      fputs("}\n", stdout);
-      fflush(stdout);
-    }
+    if (b == seq) para_lines(line, b, qlines, qships, qpath, t);
     return;
   }
   if (sscanf(line, "X %d %d %d", &a, &b, &c) == 3) {
@@ -939,6 +1184,12 @@ static void on_cmd(char *line) {
     if (pos > t->len) pos = t->len;
     if (pos + del > t->len) del = t->len - pos;
     size_t len = t->len - del + v[4].n;
+    {
+      int nl = 0;
+      for (size_t i = 0; i < del; i++) nl -= t->data[pos + i] == '\n';
+      for (size_t i = 0; i < v[4].n; i++) nl += v[4].s[i] == '\n';
+      note_edit(v[1].s, (long)pos, nl);
+    }
     char *d = malloc(len + 1);
     memcpy(d, t->data, pos);
     memcpy(d + pos, v[4].s, v[4].n);
@@ -946,6 +1197,7 @@ static void on_cmd(char *line) {
     set_text(v[1].s, d, len, "edit");
   } else if (!strcmp(c, "open") && n == 3 && v[1].is_str && v[2].is_str) {
     applied++;
+    note_edit(v[1].s, 0, INT_MIN);  // (lines unknown: older outputs can't place this file's paragraphs)
     char *d = malloc(v[2].n + 1);
     memcpy(d, v[2].s, v[2].n);
     set_text(v[1].s, d, v[2].n, "open");
@@ -1003,6 +1255,7 @@ int main(int argc, char **argv) {
   char *sl = strrchr(lib, '/');
   if (sl) snprintf(sl + 1, lib + sizeof lib - sl - 1, "libtau.dylib");
   else snprintf(lib, sizeof lib, "libtau.dylib");
+  snprintf(tdl_bin, sizeof tdl_bin, "%.*stau-tdl", sl ? (int)(sl + 1 - lib) : 0, lib);  // (beside tau-live)
   for (; i < argc && argv[i][0] == '-' && strcmp(argv[i], "--"); i++) {
     if (!strcmp(argv[i], "--lib") && i + 1 < argc) snprintf(lib, sizeof lib, "%s", argv[++i]);
     else if (!strcmp(argv[i], "--snapshot-ms") && i + 1 < argc) snapshot_ms = atol(argv[++i]);
@@ -1068,8 +1321,13 @@ int main(int argc, char **argv) {
         "\\advance\\dimen0\\dimexpr\\textwidth-\\columnwidth\\relax\\fi\\fi}"
         "\\def\\taudotgrab{\\gdef\\taudotown{1}\\setbox0\\vbox{\\unvbox255 \\global\\setbox2\\vbox{}\\global\\let\\taudotok=T"
         "\\count255=0\\taudotpg\\relax\\loop\\ifnum\\count255>0 \\ifnum\\lastnodetype=1 "
-        "\\setbox4\\lastbox\\skip0=\\lastskip\\unskip\\unpenalty\\global\\setbox2\\vbox{\\vskip\\skip0\\box4\\unvbox2}"
-        "\\advance\\count255-1 \\else\\global\\let\\taudotok=F\\count255=0 \\fi\\repeat}\\taudotmark{2}\\taudotx"
+        "\\setbox4\\lastbox\\dimen2=\\ht4 \\skip0=\\lastskip\\unskip\\unpenalty"
+        "\\global\\setbox2\\vbox{\\vskip\\skip0\\box4\\unvbox2}"
+        "\\advance\\count255-1 \\else\\global\\let\\taudotok=F\\count255=0 \\fi\\repeat"
+        // the lines' geometry for the driver: first baseline below the shipped page's top (less 1in), the span from
+        // the first line's top to the last one's bottom, the first line's height (sp)
+        "\\if T\\taudotok\\xdef\\taudotg{-g\\number\\dimexpr\\voffset+\\skip0+\\dimen2\\relax x"
+        "\\number\\dimexpr\\ht2+\\dp2-\\skip0\\relax x\\number\\dimen2}\\fi}\\taudotmark{2}\\taudotx"
         "\\if T\\taudotok\\csname tex_shipout:D\\endcsname\\vbox{\\moveright\\dimen0\\box2}\\taudotmark{3}"
         "\\else\\shipout\\vbox{\\moveright\\dimen0\\vbox{\\unvbox0\\unvbox2}}\\fi\\taudotpad\\taudotmark{5}}"
         "\\def\\taudotpage{\\taudotx\\shipout\\vbox{\\moveright\\dimen0\\vbox{\\unvbox255}}}"
@@ -1077,7 +1335,7 @@ int main(int argc, char **argv) {
         "\\xdef\\taudotn{\\the\\numexpr\\taudotn+1}\\ifdefined\\taudotpg\\taudotgrab\\else\\taudotpage\\fi"
         "\\deadcycles=0 \\taudotmark{6}\\fi}"
         "\\def\\taudotflush{\\taudotmark{0}\\par\\taudotmark{1}\\edef\\taudotpg{\\the\\prevgraf}\\penalty-10000 "
-        "\\taudotmark{4}\\taudotsig{stop/\\taudotpg-\\taudotn-\\taudotown}}";
+        "\\taudotmark{4}\\taudotsig{stop/\\taudotpg-\\taudotn-\\taudotown\\taudotg}}";
     // XeTeX keeps up to dvi_buf_size (16 KiB) of its output in memory: a page of padding pushes the pass's out
     static char pad[17300];
     if (strstr(a[0], "xe")) {
@@ -1119,6 +1377,7 @@ int main(int argc, char **argv) {
   signal(SIGPIPE, SIG_IGN);
   if (getenv("TAU_LIVE_LOG")) dbg = fopen(getenv("TAU_LIVE_LOG"), "w");
   restore_state();
+  if (hook && para) reader_start();  // (the paragraph preview's reader, ready before the first pass)
   {
     fprintf(stdout, "{\"ev\":\"hello\",\"protocol\":1,\"engine\":");
     jstr(stdout, eng_argv[0], strlen(eng_argv[0]));
@@ -1135,8 +1394,28 @@ int main(int argc, char **argv) {
   size_t ilen = 0, mlen = 0;
   for (;;) {
     while (waitpid(-1, NULL, WNOHANG) > 0) {}
-    struct pollfd pf[2] = {{0, POLLIN, 0}, {msg_r, POLLIN, 0}};
-    if (poll(pf, 2, 200) < 0 && errno != EINTR) die("poll");
+    struct pollfd pf[3] = {{0, POLLIN, 0}, {msg_r, POLLIN, 0}, {reader_out, POLLIN, 0}};
+    if (poll(pf, reader_out >= 0 ? 3 : 2, 200) < 0 && errno != EINTR) die("poll");
+    if (reader_out >= 0 && (pf[2].revents & (POLLIN | POLLHUP))) {
+      static char rbuf[65536];
+      static size_t rlen;
+      ssize_t r = read(reader_out, rbuf + rlen, sizeof rbuf - rlen - 1);
+      if (r <= 0) {  // the reader died: its requests get no preview; the next pass starts another
+        for (int i = 0; i < njobs; i++) if (jobs[i].seq == seq) para_none(seq, "reader", 0, 0, NULL);
+        reader_stop();
+        rlen = 0;
+      } else {
+        rlen += r;
+        char *s = rbuf, *nl;
+        while ((nl = memchr(s, '\n', rbuf + rlen - s))) {
+          *nl = 0;
+          reader_answer(s);
+          s = nl + 1;
+        }
+        rlen = rbuf + rlen - s;
+        memmove(rbuf, s, rlen);
+      }
+    }
     if (pf[1].revents & POLLIN) {
       ssize_t r = read(msg_r, mbuf + mlen, sizeof mbuf - mlen - 1);
       if (r > 0) {
@@ -1167,6 +1446,7 @@ int main(int argc, char **argv) {
     }
   }
   kill_all();
+  reader_stop();
   keep_state();
   close(life_w);
   return 0;

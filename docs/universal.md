@@ -16,7 +16,7 @@ interposer over the C library) and one above it (a few TeX tokens) give what our
 | engines | **stock** pdfTeX, XeTeX, LuaHBTeX from TeX Live 2026's release source (tag `release`), no patches | `build-engines.sh` |
 | tests | exactness and timing against stock runs and against patched pdfTeX | `tests/uni.py` |
 
-Licence: MIT for everything in `clients/universal/` (`clients/universal/LICENSE`; libtau is meant to be embedded by other editors). The engines stay separate GPL processes, unmodified.
+Licence: MIT for everything in `clients/universal/` (the engines stay separate GPL processes, unmodified).
 
 ## Below the engine: libtau
 
@@ -266,6 +266,74 @@ and the paragraph pass on; the older `DIR MAIN OUT -- ENGINE ARGS...` form stays
 - Left to the app: hiding the old paragraph under the overlay (its rect from SyncTeX or the previous list), and
   placement when no line of the pass is on the exact page (`dy` null: the edit is in every line).
 
+## The `para` event as the patched one, TeX Live on demand, errors (2026-11-08)
+
+**`para`** is now the event of `docs/live-protocol.md` (`go`, `applied`, `file`, `state` + `why`, `pdf`, `page`,
+`path` = the TDL, `overlay` + `origin`, `erase`, `lines`, `old_lines`, times). The app's `ParaOverlay` reads it
+unchanged; all the locating is in C:
+
+- *The pass's geometry.* `\taudotgrab` already takes the paragraph's lines off with `\lastbox`; it now also records
+  the first line's height and the skip above it, and puts in the stop signal `-gBASExSPANxHT` (sp): the first
+  baseline below the shipped page's top (less 1in), the span from the first line's top to the last one's bottom,
+  the first line's height. libtau passes it on in `Q ... geo 1 B S H`.
+- *The old lines.* SyncTeX records every line box of a paragraph with the source line its `\par` was read on (the
+  blank or structural line after it), on all three engines. The driver knows that line in the edited text
+  (`para_end`), maps it back to the text of each recent output (each `change` keeps its newline count), and looks
+  in that output's SyncTeX (`driver/synctex.c`, read when the output is announced: 2.7 MB, ~3 ms) for hbox records
+  with that line directly inside one vbox. One run of them: the old lines, their page, x and width. In two vboxes:
+  `none`/`split`; something else between them: `none`/`segment`; none at all: `none`/`noanchor` (an edit in a
+  comment). Needs `-synctex=-1`, which the app's command line has.
+- *State.* `exact` when the line counts, the first line's height and the span agree with the old lines (64 sp);
+  else `provisional` (`lines`, `heights`). `none`: `insert` (the lines weren't the last thing on the page: a
+  footnote, a mark; or the paragraph is in a box), `split` (the new lines cross a page or column), `end`,
+  `reader`.
+- *Placement.* The pass's page moves down by the old first baseline less its own: tau-tdl gets that as `DY`
+  instead of matching lines (the matching remains for the CLI without `DY`).
+- *erase*: the old lines' box and the new lines' box (x from the column, 3 pt either side for protruded
+  punctuation), each padded by half the gap between the paragraph's first two lines.
+- *The reader runs inside tau-live*: `tau-tdl serve`, started with the driver, one request per line on its stdin;
+  the event goes out with its answer. Its interpreter keeps the fonts loaded between passes (XDV). `overlay` is
+  now a one-page PDF: the incremental update also writes a page tree with only that page and a new catalog.
+  `pdfmini.c` keeps decoded object streams (the page walk read the same few over and over): 6 → 2.3 ms.
+
+Checked with `uni.py paragraph` (20 edits per engine × paper; the event drawn as the app draws it: the overlay's
+page at `origin` against the exact page, over the new lines' erase rect, every pixel counted):
+
+| | exact events | placed with 0 px differing | provisional / none | edit → event p50 |
+|---|---|---|---|---|
+| pdfTeX, paper-a | 8 | 8/8 | 0 / 10 | 4.9 ms |
+| pdfTeX, paper-b | 11 | 11/11 | 0 / 7 | 5.7 ms |
+| LuaTeX, paper-a | 8 | 8/8 | 0 / 10 | 9.0 ms |
+| LuaTeX, paper-b | 4 | 4/4 | 0 / 14 | 10.6 ms |
+| XeTeX | 11 | **not yet**: the TDL's baselines are 0.27–5.7 pt off | | 4.6 ms |
+
+The pixel misses of the line-matched placement (above: up to 0.008 pt) are gone: the offset now comes from
+SyncTeX's integer sp, not from printed PDF numbers. XeTeX: the old lines' place is right, but the list's y differs
+from the exact page's (as `xdvipdfmx` draws it, which is what the app shows); being looked at.
+
+**TeX Live on demand.** A lookup that misses under the tree used to run `TAU_FETCH` (uv + Python, ~100 ms) for
+every miss: kpathsea's probes of other directories and names TeX Live doesn't have included, every session.
+paper-b's first compile on a complete tree: 162 fetches (XeLaTeX) and 112 (LuaLaTeX) for nothing. Now:
+
+- Only paths that the tree's `ls-R` files list are fetched (the image's whole file list; read at the first miss,
+  209k entries as 64-bit hashes, inherited by snapshots), plus the boot files (`ls-R`, `texmf.cnf`). paper-b on a
+  complete tree: **0 fetches**, XeLaTeX 1.70 → 0.61 s, LuaLaTeX 2.00 → 1.59 s with a stand-in `TAU_FETCH` that
+  only logs (real `tl-fetch` costs ~100 ms more per call).
+- A listed path the store doesn't give (not the network's fault) goes into `TREE/.taudot-fetch-misses` and isn't
+  asked for again in later sessions.
+- **Native client** (`interpose/store.c`, MIT, written from `docs/texstore.md`): with `TEXSTORE_URL` set (and no
+  `TAU_FETCH`), libtau fetches itself. The index (pinned `TEXSTORE_INDEX`, else `images/NAME/rREV`, kept), the
+  owner's `F` row by binary search, the package manifest, the object from the cache by hash or from the store,
+  gunzipped, SHA-512 checked, written atomically. The cache is the reference client's
+  (`TEXSTORE_CACHE/objects/xx/<sha512>`), so both share it. libcurl and zlib are the system's, loaded with
+  `dlopen` at the first fetch; a fresh curl handle per fetch (a snapshot never shares its parent's connection).
+  No svn fallback and no prefetch of a package's other files yet. Checked on a clone of the tree with a needed
+  `.sty` removed: fetched, checked, placed, the compile completes (cold cache 1.7 s, warm 0.8 s, vs 0.6 s).
+- **Errors**: `{"ev":"error","what":"offline","message":"can't fetch PATH: no network","file":PATH}` once per
+  file when the store can't be reached (libtau's `g offline` message; such misses aren't remembered), and
+  `{"ev":"error","what":"format",...}` with TeX's own line when a run made nothing and the engine said it couldn't
+  find or read its format.
+
 ## Results (TeX Live 2026, M-series Mac, 2026-11-07)
 
 Papers: paper-a (32 pages, one column, review-mode line numbers) and paper-b (the corpus's arXiv 2103.00020, 48 pages, two columns). "Stock" is TeX Live's
@@ -332,9 +400,7 @@ pdfTeX 25 MiB (max single snapshot).
 
 ## Open
 
-- Step 5: ≤ 2 ms of TeX time (the warm pass is in; the ship and the wake are what's left), the two far-snapshot
-  misses, a C reader into TDL, the pane overlay.
-- The latexmk rule (reruns, BibTeX) is not in `tau-live` yet: one run per edit.
-- `goal`/`finish` commands are accepted but not acted on; `--state` and `fetch` events are missing.
-- Readers into TDL (PDF content streams, XDV) for the paragraph pass.
+- XeTeX's `para` placement (the TDL's y against the page `xdvipdfmx` draws).
+- The native fetcher: prefetch a package's other files in parallel; an svn fallback for a store outage.
+- A provisional pass could stop at its first inside break; the reader could skip pages whose fonts it has.
 - A real memory measurement (free memory with N snapshots).

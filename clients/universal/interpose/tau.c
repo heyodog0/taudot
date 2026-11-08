@@ -749,10 +749,19 @@ static int magic(const char *path) {  // 1 if PATH is a TeX-side signal (handled
       if (fd >= 0) close_nc(fd);
       const char *dash = w[4] == '/' ? strchr(w + 5, '-') : NULL;  // stop/LINES-PIECES-OWN(.tex)
       const char *dash2 = dash ? strchr(dash + 1, '-') : NULL;
-      msg("Q %d %d %d %d %lld %s %lld %lld %zu own %d", getpid(), seq, w[4] == '/' ? atoi(w + 5) : 0, dash ? atoi(dash + 1) : 0,
-          (long long)now_us(), p,
+      // -gBASExSPANxHT: the lines' geometry (sp), when the pass took its own lines off the page
+      const char *g = dash2 ? strstr(dash2, "-g") : NULL;
+      long gb = 0, gs = 0, gh = 0;
+      int geo = 0;
+      if (g) {
+        char *q;
+        gb = strtol(g + 2, &q, 10);
+        if (*q == 'x') { gs = strtol(q + 1, &q, 10); if (*q == 'x') { gh = strtol(q + 1, &q, 10); geo = 1; } }
+      }
+      msg("Q %d %d %d %d %lld %s %lld %lld %zu own %d geo %d %ld %ld %ld", getpid(), seq, w[4] == '/' ? atoi(w + 5) : 0,
+          dash ? atoi(dash + 1) : 0, (long long)now_us(), p,
           (long long)t_para_start, (long long)t_para_flush, para_out ? para_out->len - para_base : 0,
-          dash2 ? atoi(dash2 + 1) : 1);
+          dash2 ? atoi(dash2 + 1) : 1, geo, gb, gs, gh);
       {  // the pages this pass copied (written after the fork): the next warm pass pre-touches just these
         char hp[2048], tmp[2100];
         snprintf(hp, sizeof hp, "%s/hot", out);
@@ -876,17 +885,159 @@ static void at_exit(void) {
 
 // ---------------------------------------------------------------------------------------------------- TeX Live
 
-// A lookup missed under TAU_TLROOT: run TAU_FETCH PATH once (the store client), return 1 if it may be there now.
+#include "store.c"
+
+// Which paths may be fetched: only those the tree's ls-R files list (the image's whole file list; kpathsea's probes
+// of other directories and names TeX Live doesn't have never reach the network), less the ones that failed before.
+// Read at the first miss and kept for the process (snapshots inherit it). Misses that aren't the network's are
+// remembered across sessions in TREE/.taudot-fetch-misses (one path per line, relative to the tree).
+static uint64_t *ls_set;  // open addressing over 64-bit hashes of tree-relative paths (0: empty)
+static size_t ls_cap;
+static int ls_state;  // 0 not read, 1 read, -1 no ls-R (only the boot files may be fetched)
+static uint64_t ls_hash(const char *s, size_t n) {
+  uint64_t h = 1469598103934665603ull;
+  for (size_t i = 0; i < n; i++) h = (h ^ (unsigned char)s[i]) * 1099511628211ull;
+  return h ? h : 1;
+}
+static void ls_add(const char *s, size_t n) {
+  uint64_t h = ls_hash(s, n);
+  for (size_t i = h & (ls_cap - 1);; i = (i + 1) & (ls_cap - 1)) {
+    if (ls_set[i] == h) return;
+    if (!ls_set[i]) { ls_set[i] = h; return; }
+  }
+}
+static int ls_has(const char *s) {
+  if (!ls_set) return 0;
+  uint64_t h = ls_hash(s, strlen(s));
+  for (size_t i = h & (ls_cap - 1); ls_set[i]; i = (i + 1) & (ls_cap - 1))
+    if (ls_set[i] == h) return 1;
+  return 0;
+}
+static char *ls_slurp(const char *p, size_t *n) {
+  int fd = open(p, O_RDONLY);
+  if (fd < 0) return NULL;
+  struct stat s;
+  if (fstat(fd, &s)) { close(fd); return NULL; }
+  char *b = malloc(s.st_size + 1);
+  size_t k = 0;
+  while (k < (size_t)s.st_size) {
+    ssize_t r = read(fd, b + k, s.st_size - k);
+    if (r <= 0) break;
+    k += r;
+  }
+  close(fd);
+  b[k] = 0;
+  *n = k;
+  return b;
+}
+static void ls_misses_path(char *p, size_t cap) { snprintf(p, cap, "%s.taudot-fetch-misses", tlroot); }
+static void ls_load(void) {
+  if (ls_state) return;
+  ls_state = -1;
+  free(ls_set), ls_set = NULL;
+  static const char *trees[] = {"texmf-dist", "texmf-var", "texmf-local", "texmf-config", NULL};
+  char *buf[4] = {0};
+  size_t len[4] = {0}, lines = 0;
+  for (int t = 0; trees[t]; t++) {
+    char p[2048];
+    snprintf(p, sizeof p, "%s%s/ls-R", tlroot, trees[t]);
+    buf[t] = ls_slurp(p, &len[t]);
+    for (size_t i = 0; buf[t] && i < len[t]; i++) lines += buf[t][i] == '\n';
+  }
+  if (!lines) return;
+  for (ls_cap = 1024; ls_cap < 2 * lines + 64; ls_cap *= 2) {}
+  ls_set = calloc(ls_cap, sizeof *ls_set);
+  for (int t = 0; trees[t]; t++) {
+    if (!buf[t]) continue;
+    char path[2048];
+    size_t tl = strlen(trees[t]), dl = 0;  // path = TREE/DIR/ (dir from the last "DIR:" line)
+    memcpy(path, trees[t], tl);
+    path[tl] = '/';
+    dl = tl + 1;
+    for (char *l = buf[t], *e; l < buf[t] + len[t]; l = e + 1) {
+      e = memchr(l, '\n', buf[t] + len[t] - l);
+      if (!e) e = buf[t] + len[t];
+      size_t n = e - l;
+      if (!n || l[0] == '%') continue;
+      if (l[n - 1] == ':') {  // a directory: "./tex/latex/base:" or "/abs/.../tex/latex/base:"
+        const char *d = l;
+        size_t dn = n - 1;
+        if (dn >= 2 && d[0] == '.' && d[1] == '/') d += 2, dn -= 2;
+        else if (dn == 1 && d[0] == '.') dn = 0;
+        if (tl + 1 + dn + 1 >= sizeof path) continue;
+        memcpy(path + tl + 1, d, dn);
+        dl = tl + 1 + dn;
+        if (dn) path[dl++] = '/';
+        continue;
+      }
+      if (dl + n >= sizeof path) continue;
+      memcpy(path + dl, l, n);
+      ls_add(path, dl + n);
+    }
+    free(buf[t]);
+  }
+  // misses kept from earlier sessions: not listed any more
+  char mp[2048];
+  ls_misses_path(mp, sizeof mp);
+  size_t mn;
+  char *m = ls_slurp(mp, &mn);
+  for (char *l = m, *e; m && l < m + mn; l = e + 1) {
+    e = memchr(l, '\n', m + mn - l);
+    if (!e) e = m + mn;
+    uint64_t h = ls_hash(l, e - l);
+    for (size_t i = h & (ls_cap - 1); ls_set[i]; i = (i + 1) & (ls_cap - 1))
+      if (ls_set[i] == h) { ls_set[i] = 2; break; }  // (2: a tombstone no path hashes to... almost: harmless)
+  }
+  free(m);
+  ls_state = 1;
+}
+static void ls_forget(const char *rel) {  // a listed path that couldn't be had (not the network's fault)
+  char mp[2048], line[2100];
+  ls_misses_path(mp, sizeof mp);
+  int fd = open(mp, O_WRONLY | O_CREAT | O_APPEND, 0644);
+  int l = snprintf(line, sizeof line, "%s\n", rel);
+  if (fd >= 0) { write(fd, line, l); close(fd); }
+  uint64_t h = ls_hash(rel, strlen(rel));
+  for (size_t i = h & (ls_cap - 1); ls_set && ls_set[i]; i = (i + 1) & (ls_cap - 1))
+    if (ls_set[i] == h) { ls_set[i] = 2; break; }
+}
+static int ls_boot(const char *rel) {  // what a tree needs before its ls-R can be read
+  return !strcmp(rel, "texmf-dist/ls-R") || !strcmp(rel, "texmf-var/ls-R") || !strcmp(rel, "texmf-dist/web2c/texmf.cnf");
+}
+
+// A lookup missed under the TeX Live tree: fetch PATH once if ls-R lists it, from the store in this process
+// (TEXSTORE_URL, store.c), or by the program TAU_FETCH when that is set (a stand-in client); 1 if it is there now.
 static int tl_fetch(const char *path) {
-  if (!fetch_cmd || !tlroot[0] || strncmp(path, tlroot, strlen(tlroot))) return 0;
+  const char *url = getenv("TEXSTORE_URL");
+  int native = !fetch_cmd && url && *url;
+  if ((!fetch_cmd && !native) || !tlroot[0] || strncmp(path, tlroot, strlen(tlroot))) return 0;
+  const char *rel = path + strlen(tlroot);
+  if (!ls_boot(rel)) {
+    ls_load();
+    if (ls_state < 0 || !ls_has(rel)) return 0;  // not in this TeX Live: no fetch
+  }
   for (int i = 0; i < nfailed; i++)
     if (!strcmp(fetch_failed[i], path)) return 0;
-  if (tau_fd >= 0) msg("G %s", path + strlen(tlroot));  // the driver's fetch event
-  char *argv[] = {"/bin/sh", "-c", "exec $TAU_FETCH \"$1\" </dev/null >/dev/null 2>&1", "sh", (char *)path, NULL};
-  pid_t pid;
-  int st = 1;
-  if (posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, environ) == 0) waitpid(pid, &st, 0);
-  if (st == 0) return 1;
+  if (tau_fd >= 0) msg("G %s", rel);  // the driver's fetch event
+  int offline = 0;
+  if (native) {
+    if (store_fetch(path)) {
+      if (ls_boot(rel)) ls_state = 0;  // (a new ls-R: read it again at the next miss)
+      return 1;
+    }
+    offline = st_offline;
+    if (offline && tau_fd >= 0) msg("g offline %s", rel);  // the driver's error event
+  } else {
+    char *argv[] = {"/bin/sh", "-c", "exec $TAU_FETCH \"$1\" </dev/null >/dev/null 2>&1", "sh", (char *)path, NULL};
+    pid_t pid;
+    int st = 1;
+    if (posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, environ) == 0) waitpid(pid, &st, 0);
+    if (st == 0) {
+      if (ls_boot(rel)) ls_state = 0;
+      return 1;
+    }
+  }
+  if (native && !offline && !ls_boot(rel)) ls_forget(rel);  // (TAU_FETCH can't say why it failed)
   fetch_failed = realloc(fetch_failed, (nfailed + 1) * sizeof *fetch_failed);
   fetch_failed[nfailed++] = strdup(path);
   return 0;
@@ -915,7 +1066,8 @@ __attribute__((constructor)) static void tau_init(void) {
   s = getenv("TAU_WARM_QOS");  // only an exec'd process may set its QoS (EPERM after fork); children inherit it
   if (s && !strcmp(s, "ui")) pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
   s = getenv("TAU_TLROOT");
-  if (s) snprintf(tlroot, sizeof tlroot, "%s/", s);
+  if (!s || !*s) s = getenv("TEXSTORE_ROOT");  // (the app's name for the tree)
+  if (s && *s) snprintf(tlroot, sizeof tlroot, "%s/", s);
   fetch_cmd = getenv("TAU_FETCH");
   t0 = last_snap = now_us();
   // children (xdvipdfmx, bibtex, kpsewhich) must not inherit us

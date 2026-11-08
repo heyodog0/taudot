@@ -1,6 +1,6 @@
 #!/bin/sh
 # MIT. pdflatex.fmt, xelatex.fmt, lualatex.fmt built by the stock engines in BIN (fmtutil.cnf's lines), into FMT.
-# TeX Live files missing from the tree are fetched through libtau (TAU_TLROOT, TAU_FETCH; see env.sh).
+# TeX Live files missing from the tree are fetched through libtau (TAU_TLROOT, TEXSTORE_URL; see env.sh).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/env.sh"

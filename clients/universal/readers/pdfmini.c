@@ -15,7 +15,17 @@ typedef struct {
   long *idx;    // index within that stream
   long nobj;
   long root, prev_xref, size;
+  // decoded object streams, most recent first (a page walk reads the same few streams over and over)
+  long zs_num[8];
+  unsigned char *zs_data[8];
+  size_t zs_n[8];
 } pdf;
+
+static void pdf_close(pdf *d)
+{
+  free(d->off), free(d->stm), free(d->idx);
+  for (int i = 0; i < 8; i++) free(d->zs_data[i]);
+}
 
 static const char *skip_ws(const char *p, const char *e)
 {
@@ -231,9 +241,21 @@ char *pdf_object(pdf *d, long num)
     const char *ds = strstr(p, "<<"), *de = strstr(p, "stream");
     long first = dict_int(ds, de, "First", 0), cnt = dict_int(ds, de, "N", 0);
     free(sd);
-    size_t n;
-    unsigned char *data = stream_data(d, ds, de, &n);
-    if (!data) return NULL;
+    size_t n = 0;
+    unsigned char *data = NULL;
+    int hit = -1;
+    for (int i = 0; i < 8; i++)
+      if (d->zs_data[i] && d->zs_num[i] == d->stm[num]) { hit = i; break; }
+    if (hit >= 0) data = d->zs_data[hit], n = d->zs_n[hit];
+    else {
+      data = stream_data(d, ds, de, &n);
+      if (!data) return NULL;
+      free(d->zs_data[7]);
+      memmove(d->zs_num + 1, d->zs_num, 7 * sizeof *d->zs_num);
+      memmove(d->zs_data + 1, d->zs_data, 7 * sizeof *d->zs_data);
+      memmove(d->zs_n + 1, d->zs_n, 7 * sizeof *d->zs_n);
+      d->zs_num[0] = d->stm[num], d->zs_data[0] = data, d->zs_n[0] = n;
+    }
     char *q = (char *)data;
     long start = -1, stop = n - first;
     for (long i = 0; i < cnt; i++) {
@@ -248,7 +270,6 @@ char *pdf_object(pdf *d, long num)
       memcpy(r, data + first + start, l);
       r[l] = 0;
     }
-    free(data);
     return r;
   }
   return NULL;

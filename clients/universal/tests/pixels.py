@@ -93,3 +93,23 @@ def diff(exact_path, page_index, content, dx, dy, baselines, x_start):
             n += 1
             vis += d > 64
     return n, vis, w * h
+
+
+def page_height(pdf_bytes, page_index):
+    data = NSData.dataWithBytes_length_(pdf_bytes, len(pdf_bytes))
+    doc = Quartz.CGPDFDocumentCreateWithProvider(Quartz.CGDataProviderCreateWithCFData(data))
+    r = Quartz.CGPDFPageGetBoxRect(Quartz.CGPDFDocumentGetPage(doc, page_index + 1), Quartz.kCGPDFMediaBox)
+    return r.origin.y + r.size.height
+
+
+def event_check(ev, exact_path):
+    """A para event as the app draws it: the overlay's page (at origin) against the exact page, over the new
+    lines' erase rect. Differing pixels (no tolerance)."""
+    ov = open(ev["overlay"], "rb").read()
+    ex = open(exact_path, "rb").read()
+    H = page_height(ex, ev["page"])
+    x0, y0, x1, y1 = ev["erase"][1]
+    ox, oy = ev.get("origin", [0, 0])
+    a, w, h = render(ov, 0, (x0 - ox, H - y1 + oy, x1 - ox, H - y0 + oy))
+    b, _, _ = render(ex, ev["page"], (x0, H - y1, x1, H - y0))
+    return sum(1 for i in range(0, len(a), 4) if a[i:i + 3] != b[i:i + 3]), w * h

@@ -52,6 +52,7 @@ def run_tau(engine, d, main, out, fetch=False):
     e = dict(os.environ, DYLD_INSERT_LIBRARIES=f"{UBIN}/libtau.dylib", TAU_OUT=out, TAU_PROJECT=d)
     if not fetch:
         e.pop("TAU_FETCH", None)
+        e.pop("TEXSTORE_URL", None)
     t = time.monotonic()
     subprocess.run(cmd(engine, main), cwd=d, env=e, stdin=subprocess.DEVNULL,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -115,10 +116,14 @@ def newer_run(live):
 
 
 class Live:
-    def __init__(self, engine, d, main, out, *opts):
+    def __init__(self, engine, d, main, out, *opts, synctex=False):
         env = dict(os.environ)
         env.pop("TAU_FETCH", None)
-        argv = [f"{UBIN}/tau-live", *opts, d, main, out, "--", *cmd(engine, main)]
+        env.pop("TEXSTORE_URL", None)
+        c = cmd(engine, main)
+        if synctex:  # as the app runs it (the paragraph preview finds the old lines with SyncTeX)
+            c.insert(-1, "-synctex=-1")
+        argv = [f"{UBIN}/tau-live", *opts, d, main, out, "--", *c]
         if os.environ.get("PATCHED"):  # the patched pdfTeX of clients/pdftex, for comparison (same protocol)
             pb = os.path.join(os.environ.get("TAUDOT_REF", os.path.expanduser("~/code/lab/taudot-ref")), "pdftex-build-2026")
             env.update(TEXFORMATS=f".:{pb}/fmt-live", TEXSTORE_URL="https://texlive.taudot.app")
@@ -359,7 +364,7 @@ def paragraph(engine, src, main, n=20, seed=4):
     base = settle(engine, src, main, name)
     out = f"{WORK}/p-out"
     shutil.rmtree(out, ignore_errors=True)
-    live = Live(engine, base, main, out, "--hook")
+    live = Live(engine, base, main, out, "--hook", synctex=True)
     live.until(lambda e: e["ev"] == "done")
     rng = random.Random(seed)
     text = open(f"{base}/{main}", "rb").read()
@@ -369,6 +374,8 @@ def paragraph(engine, src, main, n=20, seed=4):
     pix = []
     tdlstats = []
     times = []
+    evs = []
+    place = {"exact": 0, "provisional": 0, "none": 0, "px0": 0, "worst": 0}
     for i in range(n):
         time.sleep(0.15)
         pos, dl, ins = random_edit(rng, text, lo)
@@ -387,15 +394,42 @@ def paragraph(engine, src, main, n=20, seed=4):
             continue
         ev = ev[0]
         times.append(ev["us"] / 1000)
-        blob = open(ev["path"], "rb").read() if ev["path"] else b""
+        evs.append(ev)
+        placed = ""
+        if ev.get("state") in ("exact", "provisional"):  # the event as the app takes it (docs/live-protocol.md)
+            place[ev["state"]] += 1
+            if ev["state"] == "exact" and pdf:
+                import pixels
+                nd, tot = pixels.event_check(ev, done["path"])
+                place["px0"] += nd == 0
+                place["worst"] = max(place["worst"], nd)
+                placed = f"; event {ev['state']} page {ev['page']}: {nd} px differ of {tot} in the new lines' rect"
+            elif ev["state"] == "exact":  # XeTeX: the list's glyph baselines on the exact page's lines
+                import tdl as tdlr
+                import xdv
+                _, rs = tdlr.runs(ev["path"])
+                ys = sorted({round(y, 3) for f_, gl in rs for x_, y, t_ in gl})
+                pg = xdv.pages(open(done["path"], "rb").read())[ev["page"]]
+                base = sorted({(v + 4736286) * 72 / 72.27 / 65536 for v, *_ in para.xdv_runs(pg)})
+                off = max((min(abs(y - b) for b in base) for y in ys), default=99)
+                place["px0"] += off < 0.01
+                place["worst"] = max(place["worst"], off)
+                if off >= 0.01 and os.environ.get("EV_DEBUG"):
+                    print("    tdl ys", ys[:12], "\n    page bases", [round(b, 3) for b in base if ys and ys[0] - 30 < b < ys[-1] + 30], "\n   ", ev)
+                placed = f"; event exact page {ev['page']}: TDL baselines within {off:.4f} pt of the exact page's"
+            placed += f", {ev['us'] / 1000:.1f} ms to the event (reader {ev.get('draw_us', 0) / 1000:.1f} ms)"
+        else:
+            place["none"] += 1
+            placed = f"; event none ({ev.get('why')})"
+        blob = open(ev["bin"], "rb").read() if ev.get("bin") else b""
         if not blob:
             stats["box"] += 1
-            print(f"  edit {i:2d} @{pos:6d} no overlay (no page: a box, a float, a caption) {ev['us'] / 1000:.1f} ms")
+            print(f"  edit {i:2d} @{pos:6d} no overlay (no page: a box, a float, a caption) {ev['us'] / 1000:.1f} ms{placed}")
             continue
         shipped = ev.get("pieces", 1)
         if shipped > 1:  # a page break inside the paragraph: the overlay would be provisional
             stats["provisional"] += 1
-            print(f"  edit {i:2d} @{pos:6d} provisional (the paragraph crosses a page or column) {ev['us'] / 1000:.1f} ms")
+            print(f"  edit {i:2d} @{pos:6d} provisional (the paragraph crosses a page or column) {ev['us'] / 1000:.1f} ms{placed}")
             continue
         if pdf:
             ours = para.lines(para.text_runs(para.pdf_runs(b"".join(para.streams(blob)))))
@@ -439,7 +473,7 @@ def paragraph(engine, src, main, n=20, seed=4):
                 delta = max(delta, min(cands) if cands else float("inf"))
             pix.append((d, vis, tot, delta))
             if os.environ.get("TDL"):  # the reader: overlay PDF + TDL FIGURE, drawn as the app would
-                r = subprocess.run([f"{UBIN}/tau-tdl", "pdf", done["path"], str(hit[0]), ev["path"],
+                r = subprocess.run([f"{UBIN}/tau-tdl", "pdf", done["path"], str(hit[0]), ev["bin"],
                                     f"{out}/ov.pdf", f"{out}/ov.tdl"], capture_output=True, text=True)
                 info = json.loads(r.stdout.strip().splitlines()[-1]) if r.stdout.strip() else {"ok": False}
                 if info.get("ok") and info.get("dy") is not None:
@@ -457,17 +491,21 @@ def paragraph(engine, src, main, n=20, seed=4):
                     tdlstats.append((None, 0))
                     px += f"; reader: {info}"
             px = f", {d} px differ ({vis} visibly) of {tot}; positions differ by at most {delta:.4f} pt"
-        if os.environ.get("PARA_DEBUG"): print("   ", ev["path"], done["path"], len(ours), len(pages), len(blob), para.__file__); import pickle; pickle.dump((ours, pages), open(ev["path"] + ".pkl", "wb"))
+        if os.environ.get("PARA_DEBUG"): print("   ", ev["bin"], done["path"], len(ours), len(pages), len(blob), para.__file__); import pickle; pickle.dump((ours, pages), open(ev["path"] + ".pkl", "wb"))
         k = max([m for m in range(1, min(len(ours), 40) + 1) if any(para.match_lines(ours, pg, m, tol, pdf) for pg in flat)] or [0])
         stats["identical" if ok else "different"] += 1
         print(f"  edit {i:2d} @{pos:6d} {'identical' if ok else 'DIFFERENT'} {ev['lines']} lines (last {k} match) "
-              f"{ev['us'] / 1000:.1f} ms{px}")
+              f"{ev['us'] / 1000:.1f} ms{px}{placed}")
     live.close()
     q = statistics.quantiles(times, n=20) if len(times) > 1 else [0] * 19
     ov = stats["identical"] + stats["different"]
     print(f"paragraph {engine} {name}: {stats}; overlay on {ov}/{n} edits ({stats['provisional']} provisional, "
           f"{stats['box'] + stats['none']} none); edit -> lines written p50 {statistics.median(times):.1f} ms, "
           f"p95 {q[18]:.1f} ms")
+    ev_us = [e["us"] / 1000 for e in evs if e.get("state") != "none"]
+    print(f"  events: exact {place['exact']}, provisional {place['provisional']}, none {place['none']}; exact ones placed "
+          f"{'with 0 px differing' if pdf else 'on the exact baselines'}: {place['px0']}/{place['exact']} "
+          f"(worst {place['worst']}); edit -> event p50 {statistics.median(ev_us or [0]):.1f} ms")
     if tdlstats:
         ok_ = [d for d, u in tdlstats if d is not None]
         print(f"  reader (overlay PDF + TDL FIGURE): placed {len(ok_)}/{len(tdlstats)}, 0 px differing in "
@@ -617,6 +655,7 @@ def serve(engine, src, main):
     shutil.rmtree(state, ignore_errors=True)
     env = dict(os.environ)
     env.pop("TAU_FETCH", None)
+    env.pop("TEXSTORE_URL", None)
 
     def start(out):
         shutil.rmtree(out, ignore_errors=True)

@@ -115,12 +115,12 @@ static int fail(const char *m)
   return 1;
 }
 
-static int cmd_xdv(const char *doc_path, const char *pass_path, const char *out_path)
+static int cmd_xdv(const char *doc_path, const char *pass_path, const char *out_path, int has_dy, double dy)
 {
   int64_t t0 = now_us();
   size_t dn, pn;
   unsigned char *doc = slurp(doc_path, &dn), *pass = slurp(pass_path, &pn);
-  if (!doc || !pass) return fail("cannot read the inputs");
+  if (!doc || !pass) { free(doc); free(pass); return fail("cannot read the inputs"); }
   // the document up to its postamble (pre, every page: the font definitions) ...
   size_t cut = dn;
   for (size_t i = dn; i > 0; i--)
@@ -139,14 +139,19 @@ static int cmd_xdv(const char *doc_path, const char *pass_path, const char *out_
       size_t e = page_end(pass, pn, i - 1, v);
       if (e && e - (i - 1) > 60) { pb = i - 1, pe = e; break; }  // (60: skip an empty padding page)
     }
-  if (!pe) return fail("no page in the pass's output");
+  if (!pe) { free(doc); free(pass); return fail("no page in the pass's output"); }
   fz_buffer *buf = fz_new_buffer(ctx, cut + (pe - pb));
   fz_append_data(ctx, buf, doc, cut);
   fz_append_data(ctx, buf, pass + pb, pe - pb);
-  incdvi_t *d = incdvi_new(ctx, dvi_texlive_hooks(ctx, "."));
+  free(doc);
+  free(pass);
+  // one interpreter for the process (tau-tdl serve): its resource manager keeps the fonts loaded between passes
+  static incdvi_t *d;
+  if (!d) d = incdvi_new(ctx, dvi_texlive_hooks(ctx, "."));
+  else incdvi_reset(d);
   incdvi_update(ctx, d, buf);
   int page = incdvi_page_count(d) - 1;
-  if (page < 0) return fail("no pages");
+  if (page < 0) { fz_drop_buffer(ctx, buf); return fail("no pages"); }
   float w, h;
   bool landscape;
   incdvi_page_dim(d, buf, page, &w, &h, &landscape);
@@ -155,19 +160,25 @@ static int cmd_xdv(const char *doc_path, const char *pass_path, const char *out_
   incdvi_render_page(ctx, d, buf, page, ldev);
   fz_close_device(ctx, ldev);
   fz_drop_device(ctx, ldev);
-  // record it as dlist.c does for a txp-render page
-  tdl_ink = fz_malloc_struct(ctx, glyph_dev);
+  // record it as dlist.c does for a txp-render page (the ink cache stays valid: the fonts live as long as we do),
+  // moved down by DY (page points): the pass's lines onto the old ones
+  if (!tdl_ink) tdl_ink = fz_malloc_struct(ctx, glyph_dev);
   tdl_dev *td = new_tdl_dev();
   td->ink = tdl_ink;
   fz_rect bounds = fz_make_rect(0, 0, w, h);
-  fz_run_display_list(ctx, dl, &td->base, fz_identity, fz_infinite_rect, NULL);
+  fz_run_display_list(ctx, dl, &td->base, fz_translate(0, has_dy ? (float)dy : 0), fz_infinite_rect, NULL);
   fz_close_device(ctx, &td->base);
   tdl_buf tb = {0};
   make_tdl(&tb, page, bounds, td);
+  int nops = td->nops, nfonts = td->nfonts;
+  free_tdl_dev(td);
+  fz_drop_display_list(ctx, dl);
+  fz_drop_buffer(ctx, buf);
   FILE *f = fopen(out_path, "wb");
-  if (!f || fwrite(tb.p, 1, tb.n, f) != tb.n || fclose(f)) return fail("cannot write the list");
-  printf("{\"ok\":true,\"page\":%d,\"ops\":%d,\"fonts\":%d,\"bytes\":%zu,\"us\":%lld}\n", page, td->nops, td->nfonts,
-         tb.n, (long long)(now_us() - t0));
+  if (!f || fwrite(tb.p, 1, tb.n, f) != tb.n || fclose(f)) { free(tb.p); return fail("cannot write the list"); }
+  free(tb.p);
+  printf("{\"ok\":true,\"page\":%d,\"ops\":%d,\"fonts\":%d,\"bytes\":%zu,\"us\":%lld}\n", page, nops, nfonts, tb.n,
+         (long long)(now_us() - t0));
   return 0;
 }
 
@@ -249,7 +260,8 @@ static int text_lines(const unsigned char *c, size_t n, tline *out, int max)
 
 static void put(FILE *f, const char *s) { fputs(s, f); }
 
-static int cmd_pdf(const char *exact_path, long page, const char *pass_path, const char *out_pdf, const char *out_tdl)
+static int cmd_pdf(const char *exact_path, long page, const char *pass_path, const char *out_pdf, const char *out_tdl,
+                   int has_dy, double dy_in)
 {
   int64_t t0 = now_us();
   size_t en, pn, cn;
@@ -257,7 +269,7 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   if (!ex || !pb) return fail("cannot read the inputs");
   unsigned char *content = pass_content(pb, pn, &cn);
   if (!content) return fail("no content stream in the pass's output");
-  pdf d;
+  pdf d = {0};
   if (pdf_open(&d, ex, en)) return fail("cannot read the exact PDF's cross-references");
   long pg = pdf_page(&d, page);
   if (pg <= 0) return fail("no such page");
@@ -275,8 +287,8 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   }
   static tline pl[4096], el[8192];
   int np = text_lines(content, cn, pl, 4096), ne = xc ? text_lines(xc, xn, el, 8192) : 0;
-  int placed = 0;
-  double dy = 0;
+  int placed = has_dy;
+  double dy = has_dy ? dy_in : 0;  // given (the driver knows the old lines' place): no matching
   for (int i = np - 1; i >= 0 && !placed; i--)  // the pass's lines are last (earlier ones: the page above)
     for (int j = 0; j < ne; j++)
       if (strlen(pl[i].key) >= 12 && !strcmp(pl[i].key, el[j].key)) { dy = el[j].y - pl[i].y; placed = 1; break; }
@@ -339,8 +351,8 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   }
   if (!f) return fail("cannot write the PDF");
   long next = d.size > 0 ? d.size : d.nobj;
-  long a = next, r = next + 1, x = next + 2;
-  long offs[3];
+  long a = next, r = next + 1, pp = next + 2, cat = next + 3, x = next + 4;
+  long offs[5];
   if (ex[en - 1] != '\n') put(f, "\n");
   char head[128];
   int hl = snprintf(head, sizeof head, "q 1 0 0 1 0 %.4f cm\n", dy);
@@ -352,29 +364,35 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   fprintf(f, "%ld 0 obj\n<< /ProcSet [/PDF /Text /ImageB /ImageC /ImageI] /Font << %s>> /XObject << %s>> >>\nendobj\n", r,
           fonts, xobjs);
   offs[2] = ftell(f);
-  fprintf(f, "%ld 0 obj\n<< /Type /Page", pg);
-  const char *keys[] = {"Parent", "MediaBox", "CropBox", "Rotate", NULL};
+  // a one-page document: the page under a new page tree and catalog (the other pages' objects stay, unreferenced)
+  fprintf(f, "%ld 0 obj\n<< /Type /Page /Parent %ld 0 R /MediaBox [%g %g %g %g]", pg, pp, box[0], box[1], box[2], box[3]);
+  const char *keys[] = {"CropBox", "Rotate", NULL};
   for (int i = 0; keys[i]; i++)
     if (dict_get(pd, pe, keys[i], &vs, &ve)) fprintf(f, " /%s %.*s", keys[i], (int)(ve - vs), vs);
   fprintf(f, " /Contents %ld 0 R /Resources %ld 0 R >>\nendobj\n", a, r);
+  offs[3] = ftell(f);
+  fprintf(f, "%ld 0 obj\n<< /Type /Pages /Kids [%ld 0 R] /Count 1 >>\nendobj\n", pp, pg);
+  offs[4] = ftell(f);
+  fprintf(f, "%ld 0 obj\n<< /Type /Catalog /Pages %ld 0 R >>\nendobj\n", cat, pp);
   long xoff = ftell(f);
-  unsigned char rows[4][7];
-  long nums[4] = {a, r, pg, x}, offv[4] = {offs[0], offs[1], offs[2], xoff};
-  for (int i = 0; i < 4; i++) {
+  enum { NO = 6 };
+  unsigned char rows[NO][7];
+  long nums[NO] = {a, r, pg, pp, cat, x}, offv[NO] = {offs[0], offs[1], offs[2], offs[3], offs[4], xoff};
+  for (int i = 0; i < NO; i++) {
     rows[i][0] = 1;
     for (int b = 0; b < 4; b++) rows[i][1 + b] = (offv[i] >> (24 - 8 * b)) & 255;
     rows[i][5] = rows[i][6] = 0;
   }
   // /Index: the new objects in increasing order (a < r < x; pg may be anywhere)
-  long order[4] = {0, 1, 2, 3};
-  for (int i = 0; i < 4; i++)
-    for (int j = i + 1; j < 4; j++)
+  long order[NO] = {0, 1, 2, 3, 4, 5};
+  for (int i = 0; i < NO; i++)
+    for (int j = i + 1; j < NO; j++)
       if (nums[order[j]] < nums[order[i]]) { long t = order[i]; order[i] = order[j]; order[j] = t; }
-  fprintf(f, "%ld 0 obj\n<< /Type /XRef /Size %ld /Root %ld 0 R /Prev %ld /W [1 4 2] /Index [", x, x + 1, d.root,
+  fprintf(f, "%ld 0 obj\n<< /Type /XRef /Size %ld /Root %ld 0 R /Prev %ld /W [1 4 2] /Index [", x, x + 1, cat,
           d.prev_xref);
-  for (int i = 0; i < 4; i++) fprintf(f, "%ld 1 ", nums[order[i]]);
-  fprintf(f, "] /Length 28 >>\nstream\n");
-  for (int i = 0; i < 4; i++) fwrite(rows[order[i]], 1, 7, f);
+  for (int i = 0; i < NO; i++) fprintf(f, "%ld 1 ", nums[order[i]]);
+  fprintf(f, "] /Length %d >>\nstream\n", NO * 7);
+  for (int i = 0; i < NO; i++) fwrite(rows[order[i]], 1, 7, f);
   fprintf(f, "\nendstream\nendobj\nstartxref\n%ld\n%%%%EOF\n", xoff);
   fclose(f);
   // the list: one FIGURE op, the updated page, in the page frame (y down)
@@ -392,13 +410,17 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   tb_f32(&tb, 1), tb_f32(&tb, 0), tb_f32(&tb, 0), tb_f32(&tb, -1);      // PDF space -> page (y down)
   tb_f32(&tb, (float)-box[0]), tb_f32(&tb, (float)box[3]);
   for (int i = 0; i < 4; i++) tb_f32(&tb, (float)box[i]);
-  tb_u32(&tb, (uint32_t)page + 1);
+  tb_u32(&tb, 1);  // (the overlay's only page)
   tb_str(&tb, out_pdf);
   rec_end(&tb, at);
   at = rec_begin(&tb, 0x00);
   rec_end(&tb, at);
   FILE *g = fopen(out_tdl, "wb");
-  if (!g || fwrite(tb.p, 1, tb.n, g) != tb.n || fclose(g)) return fail("cannot write the list");
+  int wrote = g && fwrite(tb.p, 1, tb.n, g) == tb.n;
+  if (g && fclose(g)) wrote = 0;
+  free(tb.p), free(fonts), free(xobjs), free(xc), free(pd), free(content), free(ex), free(pb);
+  pdf_close(&d);
+  if (!wrote) return fail("cannot write the list");
   if (placed) printf("{\"ok\":true,\"page\":%ld,\"dy\":%.4f,\"us\":%lld}\n", page, dy, (long long)(now_us() - t0));
   else printf("{\"ok\":true,\"page\":%ld,\"dy\":null,\"us\":%lld}\n", page, (long long)(now_us() - t0));
   return 0;
@@ -411,8 +433,26 @@ int main(int argc, char **argv)
   ctx = fz_new_context(NULL, NULL, FZ_STORE_DEFAULT);
   if (!ctx) return fail("no context");
   fz_register_document_handlers(ctx);
-  if (argc == 5 && !strcmp(argv[1], "xdv")) return cmd_xdv(argv[2], argv[3], argv[4]);
-  if (argc == 7 && !strcmp(argv[1], "pdf")) return cmd_pdf(argv[2], atol(argv[3]), argv[4], argv[5], argv[6]);
-  fprintf(stderr, "usage: tau-tdl xdv DOC.xdv PASS.bin OUT.tdl | pdf EXACT.pdf PAGE PASS.bin OUT.pdf OUT.tdl\n");
+  if ((argc == 5 || argc == 6) && !strcmp(argv[1], "xdv"))
+    return cmd_xdv(argv[2], argv[3], argv[4], argc == 6, argc == 6 ? atof(argv[5]) : 0);
+  if ((argc == 7 || argc == 8) && !strcmp(argv[1], "pdf"))
+    return cmd_pdf(argv[2], atol(argv[3]), argv[4], argv[5], argv[6], argc == 8, argc == 8 ? atof(argv[7]) : 0);
+  if (argc == 2 && !strcmp(argv[1], "serve")) {  // the same commands, one per line on stdin, one answer per line
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    char line[16384];
+    while (fgets(line, sizeof line, stdin)) {
+      char *w[8];
+      int n = 0;
+      for (char *s = strtok(line, "\t\n"); s && n < 8; s = strtok(NULL, "\t\n")) w[n++] = s;
+      if ((n == 4 || n == 5) && !strcmp(w[0], "xdv")) cmd_xdv(w[1], w[2], w[3], n == 5, n == 5 ? atof(w[4]) : 0);
+      else if ((n == 6 || n == 7) && !strcmp(w[0], "pdf"))
+        cmd_pdf(w[1], atol(w[2]), w[3], w[4], w[5], n == 7, n == 7 ? atof(w[6]) : 0);
+      else fail("bad command");
+      fflush(stdout);
+    }
+    return 0;
+  }
+  fprintf(stderr, "usage: tau-tdl xdv DOC.xdv PASS.bin OUT.tdl [DY] | pdf EXACT.pdf PAGE PASS.bin OUT.pdf OUT.tdl [DY]"
+                  " | serve (those commands, tab-separated, one per line)\n");
   return 2;
 }
