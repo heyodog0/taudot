@@ -67,6 +67,10 @@ pub struct Para {
     /// A list item: the number of label glyphs at the start of the first line (0: none), and the gap after them.
     pub label: usize,
     pub label_sep: f64,
+    /// A footnote: the label (its mark) is right-aligned in a box this wide at the column's left (bp; 0: none).
+    pub label_box: f64,
+    /// The paragraph indent of this paragraph's text size (bp).
+    pub indent: f64,
 }
 
 #[derive(Debug)]
@@ -369,6 +373,8 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
                 hang: 0.0,
                 label: item[j].map_or(0, |x| x.1),
                 label_sep: item[j].map_or(0.0, |x| x.2),
+                label_box: 0.0,
+                indent: parindent,
             });
         }
         taken += 1;
@@ -392,6 +398,80 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
             }
         }
         joined.push(p);
+    }
+    let mut taken = taken;
+    // Other text sizes (footnotes, small abstracts and captions): the page columns, their own indent and leading.
+    // A footnote opens with its mark raised in a box at the column's left (\@makefntext: \hbox to 1.8em{\hss mark}).
+    let mut sizes: HashMap<i64, usize> = HashMap::new();
+    for l in &lines {
+        if l.glyphs.len() >= 3 && l.size < body_size - 0.3 && l.size > 0.6 * body_size {
+            *sizes.entry(key(l.size, 0.001)).or_default() += 1;
+        }
+    }
+    let mut sv: Vec<(i64, usize)> = sizes.into_iter().filter(|e| e.1 >= 6).collect();
+    sv.sort_by_key(|e| std::cmp::Reverse(e.1));
+    for (sk, _) in sv.into_iter().take(3) {
+        let s = sk as f64 * 0.001;
+        let is_s = |l: &Line| (l.size - s).abs() < 0.01 && l.glyphs.len() >= 3;
+        let bskip = mode(lines.windows(2).filter(|w| w[0].page == w[1].page && is_s(&w[0]) && is_s(&w[1])).map(|w| w[0].y - w[1].y).filter(|d| *d > 0.0), 0.002).map(|m| m.0).unwrap_or(s * 1.2);
+        let pind = mode(
+            lines.windows(2).filter(|w| is_s(&w[0]) && w[0].page == w[1].page).filter_map(|w| {
+                columns[..n_main].iter().find(|c| w[0].x1 <= c.right + 3.0 && w[0].x0 > c.left + 1.0 && w[0].x0 < c.left + 0.12 * colw(c) && (w[1].x0 - c.left).abs() < 0.01).map(|c| w[0].x0 - c.left)
+            }),
+            0.002,
+        )
+        .map(|m| m.0)
+        .unwrap_or(0.0);
+        let mut open: Option<Para> = None;
+        let mut prev: Option<(usize, usize, f64)> = None;
+        for l in &lines {
+            if !is_s(l) {
+                if let Some(p) = open.take() { joined.push(p); }
+                prev = None;
+                continue;
+            }
+            // A raised, smaller mark first, then text inside the first few ems: a footnote.
+            let nmark = l.glyphs.iter().take_while(|g| g.y > l.y + 0.01 && g.size.abs() < s - 0.01).count();
+            let mark = (nmark > 0 && nmark < l.glyphs.len()).then(|| l.glyphs[nmark].x);
+            let near = |x: f64, edge: f64| x <= edge + 0.01 && x > edge - if microtype { 0.4 * s } else { 0.01 };
+            let fits = |c: &Column| l.x1 <= c.right + 0.25 * s;
+            let ci = (0..n_main).find(|&i| {
+                let c = &columns[i];
+                fits(c) && match mark { Some(tx) => tx > c.left && tx < c.left + 3.0 * s && l.x0 >= c.left - 0.01, None => near(l.x0, c.left) || (pind > 0.0 && near(l.x0, c.left + pind)) }
+            });
+            let Some(ci) = ci else {
+                if let Some(p) = open.take() { joined.push(p); }
+                prev = None;
+                continue;
+            };
+            let c = columns[ci];
+            let indented = mark.is_none() && pind > 0.0 && near(l.x0, c.left + pind);
+            let follows = prev.is_some_and(|(pg, pc, py)| pg == l.page && pc == ci && ((py - l.y) - bskip).abs() < 0.05);
+            let full = (l.x1 - c.right).abs() < 0.02 || (l.x1 > c.right && l.x1 < c.right + 0.3 * s);
+            if open.as_ref().is_some_and(|p| !p.ends_short) && follows && !indented && mark.is_none() {
+                let p = open.as_mut().unwrap();
+                p.ends_short = !full;
+                p.lines.push(Line { left: c.left, right: c.right, ..l.clone() });
+            } else {
+                if let Some(p) = open.take() { joined.push(p); }
+                open = Some(Para {
+                    lines: vec![Line { left: c.left, right: c.right, ..l.clone() }],
+                    column: c,
+                    start: if indented { Start::Indented } else { Start::Flush },
+                    ends_short: !full,
+                    at: vec![(l.page, ci)],
+                    joined: false,
+                    hang: 0.0,
+                    label: if mark.is_some() { nmark } else { 0 },
+                    label_sep: 0.0,
+                    label_box: mark.map_or(0.0, |tx| tx - c.left),
+                    indent: pind,
+                });
+            }
+            taken += 1;
+            prev = Some((l.page, ci, l.y));
+        }
+        if let Some(p) = open.take() { joined.push(p); }
     }
     let other = lines.len() - taken;
     Doc { pages: n, lines, columns, n_main, body_size, body_font, parindent, baselineskip, paras: joined, other_lines: other }

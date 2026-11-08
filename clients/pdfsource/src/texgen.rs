@@ -180,6 +180,8 @@ pub struct Params {
     pub french: bool,
     /// Control spaces after , and ; inside citation brackets.
     pub cite_spaces: bool,
+    /// sp added to the snapped \labelsep of a list item.
+    pub labelsep_adj: i64,
     /// Hanging indent after the first line (sp), 0 for none.
     pub hang_sp: i64,
 }
@@ -397,7 +399,10 @@ impl<'a> Gen<'a> {
         let mut boxed_from: Option<Option<usize>> = None; // open box: the font before it
         for i in 0..items.len() {
             let it = &items[i];
-            if p.label > 0 && i == 0 {
+            if p.label_box > 0.0 && i == 0 {
+                // A footnote: \hbox to <box>{\hss mark}, then the text.
+                let _ = write!(s, "{ESC}PSnoindent{ESC}hbox to{}sp\u{2}{ESC}hss ", sp(p.label_box));
+            } else if p.label > 0 && i == 0 {
                 // A colour literal at the text start goes before the label (a whatsit between them would stop
                 // pdfTeX's search for the character to protrude).
                 if let Some(t) = items.get(p.label).filter(|t| !t.pre.is_empty()) {
@@ -405,12 +410,15 @@ impl<'a> Gen<'a> {
                 }
                 // As LaTeX's \item builds it: back by \labelwidth + \labelsep, the label right-aligned in a box of
                 // \labelwidth, then \labelsep (the label width here is any; positions don't depend on it).
-                let g = texgen_label_sep(p.label_sep);
+                let g = texgen_label_sep(p.label_sep) + hyp.params.labelsep_adj;
                 let _ = write!(s, "\u{1}hskip-20pt\u{1}hskip-{g}sp\u{1}hbox to20pt\u{2}\u{1}hfil ");
             }
-            if p.label > 0 && i == p.label {
+            if p.label_box > 0.0 && i == p.label {
+                s.push('\u{3}');
+                cur = None;
+            } else if p.label > 0 && i == p.label {
                 // LaTeX's \item: the label ends \labelsep before the text (snapped to a nice length).
-                let g = texgen_label_sep(p.label_sep);
+                let g = texgen_label_sep(p.label_sep) + hyp.params.labelsep_adj;
                 let _ = write!(s, "\u{3}\u{1}hskip{g}sp ");
                 cur = None;
             }
@@ -459,6 +467,12 @@ impl<'a> Gen<'a> {
                     }
                     Some(4) => {
                         let _ = write!(s, "{ESC}quad ");
+                    }
+                    Some(5) => {
+                        let _ = write!(s, "{ESC}enspace ");
+                    }
+                    Some(6) => {
+                        let _ = write!(s, "{ESC},");
                     }
                     Some(v) => {
                         let _ = write!(s, "{ESC}spacefactor{v}\u{2}\u{3} ");
@@ -517,8 +531,10 @@ impl<'a> Gen<'a> {
             if it.drop {
                 continue;
             }
-            if p.label > 0 && i == p.label {
-                // microtype's patch of \item: the item text starts with \leftprotrusion (relax without microtype).
+            let protruded = p.lines[0].glyphs.get(p.label).is_some_and(|g| g.x < p.lines[0].left - 0.01);
+            if p.label > 0 && i == p.label && protruded {
+                // microtype's patch of \item: the item text starts with \leftprotrusion (relax without microtype). It
+                // protrudes only a character it can see: text opening with a font command (\textbf{...}) isn't.
                 let _ = write!(s, "{ESC}csname leftprotrusion{ESC}endcsname ");
             }
             let codes = f.input.get(&it.code).ok_or_else(|| format!("unmapped glyph {} in {}", it.code, f.tfm))?;
@@ -738,12 +754,15 @@ impl<'a> Gen<'a> {
         // Default factor before each space in the line, from what was typed since the line start.
         let mut typed: Vec<u32> = vec![];
         let mut gaps: Vec<(usize, u32, f64)> = vec![];
+        let mut others: Vec<(usize, f64)> = vec![];
         for i in 0..items.len() {
             let (font, code, sep, gap) = get(&items[i]);
             if sep == 1 && i > 0 {
                 let left = get(&items[i - 1]).0;
                 if left == main_font && font == main_font {
                     gaps.push((i, self.default_sf(&typed), gap));
+                } else {
+                    others.push((i, gap));
                 }
                 typed.clear();
             }
@@ -764,10 +783,22 @@ impl<'a> Gen<'a> {
             let extra = if sf >= 2000.0 { x } else { 0.0 };
             w + extra + if r >= 0.0 { r * y * sf / 1000.0 } else { r * z * 1000.0 / sf }
         };
+        // Rigid gaps: \quad (section numbers, run-in heads), \enspace, \, (thin space): the exact width, clearly
+        // not this line's ordinary space.
+        let rigid = |g: f64, normal: f64| -> Option<u32> {
+            if (normal - g).abs() < 0.02 {
+                return None;
+            }
+            [(quad, 4u32), (quad / 2.0, 5), (quad * 0.16667, 6)].iter().find(|(w, _)| (g - w).abs() < 0.006).map(|x| x.1)
+        };
+        for &(i, g) in &others {
+            if let Some(m) = rigid(g, pred(1000.0)) {
+                set(&mut items[i], Some(m));
+            }
+        }
         for (i, d, g) in gaps {
-            // A gap of exactly one em is a rigid \quad (section numbers, run-in heads).
-            if (g - quad).abs() < 0.003 && (pred(d as f64) - g).abs() > 0.01 {
-                set(&mut items[i], Some(4));
+            if let Some(m) = rigid(g, pred(d as f64)) {
+                set(&mut items[i], Some(m));
                 continue;
             }
             let ed = (pred(d as f64) - g).abs();

@@ -299,7 +299,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
     let base = |p: &Para, hsize: &HashMap<i64, i64>, parindent: i64, lefts: &HashMap<i64, i64>| Hyp {
         params: Params {
             hsize_sp: *hsize.get(&ckey2(p.column.left, p.column.right)).unwrap_or(&texgen::sp(p.column.right - p.column.left)),
-            parindent_sp: if p.start == Start::Indented { parindent } else { 0 },
+            parindent_sp: if p.start != Start::Indented { 0 } else if (texgen::sp(p.indent) - parindent).abs() < 300 { parindent } else { texgen::sp(p.indent) },
             left_sp: 0,
             tolerance: 200,
             pretolerance: 100,
@@ -308,6 +308,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             ams_bold: false,
             french: false,
             cite_spaces: true,
+            labelsep_adj: 0,
             hang_sp: if p.hang > 0.0 { if (texgen::sp(p.hang) - parindent).abs() < 200 { parindent } else { texgen::sp(p.hang) } } else { 0 },
         },
         font_choice: font_choice.clone(),
@@ -470,6 +471,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             }
         }
         let mut rsearch: Vec<(usize, usize)> = vec![];
+        let mut lsearch: Vec<usize> = vec![];
         for (&i, c) in todo.iter().zip(&res) {
             let st = &mut states[i];
             if st.done.is_some() {
@@ -508,7 +510,11 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             } else if c.why.starts_with("positions") && c.first_dx < 0.0125 && c.bad_line.is_some() {
                 // One unit off: the line start's residual (known to a few sp) is searched below, once per line.
                 let li = c.bad_line.unwrap();
-                if st.searched.insert(li) {
+                if li == 0 && p.label > 0 && st.searched.insert(usize::MAX) {
+                    // A list item's first line: \labelsep to the sp decides the kerns after the label.
+                    lsearch.push(i);
+                    moved = true;
+                } else if st.searched.insert(li) {
                     rsearch.push((i, li));
                     moved = true;
                 }
@@ -543,6 +549,24 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             }
             if !moved {
                 st.done = Some(Outcome { proven: false, reason: c.why.clone(), max_dx: c.max_dx, tries: st.tries, source: c.text.clone(), hyp: Some(st.hyp.clone()), pre: String::new() });
+            }
+        }
+        if !lsearch.is_empty() {
+            let offs: Vec<i64> = (-60..=60).collect();
+            let mut items = vec![];
+            for &i in &lsearch {
+                for &d in &offs {
+                    let mut h = states[i].hyp.clone();
+                    h.params.labelsep_adj = d;
+                    items.push((i, h));
+                }
+            }
+            let res = cx.batch(&items);
+            for (n, &i) in lsearch.iter().enumerate() {
+                let best = offs.iter().enumerate().map(|(k, &d)| (&res[n * offs.len() + k], d)).filter(|(c, _)| c.ok || c.bad_line.unwrap_or(0) > 0).min_by_key(|(c, d)| (!c.ok, d.abs()));
+                if let Some((_, d)) = best {
+                    states[i].hyp.params.labelsep_adj = d;
+                }
             }
         }
         if !rsearch.is_empty() {

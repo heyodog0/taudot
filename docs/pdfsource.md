@@ -112,6 +112,31 @@ one-TJ-unit residual search now also fires for 11–12 pt fonts (a unit is 0.010
 0.0105). 1810.04805 went from 40 to 70 proven paragraphs, 2302.13971 from 144 to 172. Also `\frenchspacing` as a
 hypothesis (bibliographies). 1.19 s per page.
 
+### 5. Body text after rigid gaps and item fixes (2026-11-08)
+
+| body text | proven | of | % |
+|---|---|---|---|
+| paragraphs | 2 379 | 5 732 | 41.5 |
+| paragraphs of 2+ lines | 1 671 | 3 371 | 49.6 |
+| lines | 11 470 | 21 765 | 52.7 |
+| words | 118 320 | 225 618 | 52.4 |
+
+Rigid gaps anywhere (`\quad` after run-in heads, `\enspace`, `\,` in numbers), `\leftprotrusion` on items only
+when observed. 1.22 s per page. Next measurement adds the other text sizes (captions, references, footnotes).
+
+### 6. All text sizes (2026-11-08): captions, references, footnotes
+
+| all sizes | proven | of | % |
+|---|---|---|---|
+| paragraphs | 2 878 | 8 845 | 32.5 |
+| paragraphs of 2+ lines | 1 701 | 3 523 | 48.3 |
+| lines | 12 047 | 25 330 | 47.6 |
+| words | 121 514 | 253 375 | 48.0 |
+
+The text analysed grows from 21 765 to 25 330 of the corpus's 47 635 text lines; proven lines +577, words
++3 194. Most new one-line "paragraphs" are table cells and figure labels in small type (they fail, as they
+should). 1.56 s per page.
+
 ### Baselines (prior art, not run here)
 
 - **go-pdfkit/latex** (BSD-3, Go, 2026): heuristic PDF → LaTeX for TeX PDFs, 275 arXiv papers: 99.6 % compile,
