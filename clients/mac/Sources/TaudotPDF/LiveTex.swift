@@ -155,11 +155,15 @@ final class LivePDF: @unchecked Sendable {
   let synctex: String?
   let log: String?
   let seq: Int, run: Int
+  /// The document page of this PDF's first page: XeTeX's PDFs hold only the pages an event brought (XDV.toPDF).
+  let first: Int
+  /// One past the last document page it holds.
+  var end: Int { first + sizes.count }
   private let lock = NSLock()
   private var figures: [Int: [CGRect]] = [:]
   private var kit: PDFDocument?
 
-  init?(path: String, synctex: String?, log: String?, seq: Int, run: Int) {
+  init?(path: String, synctex: String?, log: String?, seq: Int, run: Int, first: Int = 0) {
     guard let d = try? Data(contentsOf: URL(fileURLWithPath: path)), let provider = CGDataProvider(data: d as CFData),
       let doc = CGPDFDocument(provider)
     else { return nil }
@@ -178,6 +182,7 @@ final class LivePDF: @unchecked Sendable {
     (logEvents, firstError) = self.log.map(LivePDF.logEvents) ?? ([], nil)
     self.seq = seq
     self.run = run
+    self.first = first
   }
 
   /// SyncTeX as text: `.synctex.gz` (pdfTeX's `-synctex=1`) or plain.
@@ -632,11 +637,26 @@ final class Trash: @unchecked Sendable {
   /// through `setenv`, which every test running in parallel would see.
   let env: [String: String]
 
-  public init(main: URL, year: String, state: URL? = nil, env: [String: String] = ProcessInfo.processInfo.environment) {
+  /// Universal's engine (tau-live, stock engines, docs/universal.md); nil: the patched pdfTeX (`pdftex-live`).
+  public let universal: TexEngine?
+  /// What the status line calls it.
+  nonisolated var label: String { universal.map { "\($0.title) (universal)" } ?? "pdfTeX" }
+  /// Pages the shown list has, read when converting XeTeX's pages off the main actor.
+  private nonisolated let shownCount = LockedInt()
+  /// XeTeX on universal: xdvipdfmx and its environment.
+  private nonisolated let xdv: (tool: String, env: [String: String])?
+  /// The last XDV → PDF conversion's time (ms; tests and the latency notes).
+  nonisolated let xdvMs = LockedInt()
+
+  public init(main: URL, year: String, state: URL? = nil, env: [String: String] = ProcessInfo.processInfo.environment,
+              universal: TexEngine? = nil) {
     self.main = main
     self.env = env
-    self.year = year
+    self.year = universal == nil ? year : UniversalPaths.year
     self.state = state
+    self.universal = universal
+    if let universal { engineName = universal.title }
+    xdv = universal?.writesXDV == true ? UniversalPaths.xdvipdfmx(env).map { ($0, UniversalPaths.environment(base: env)) } : nil
     out = FileManager.default.temporaryDirectory.appendingPathComponent("taudot-live-\(getpid())-\(UUID().uuidString.prefix(6))")
     try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
   }
@@ -646,17 +666,25 @@ final class Trash: @unchecked Sendable {
     ready = false
     bibSent = false
     let p = Process()
-    let cmd = LiveTexPaths.driver(year, env: env)
+    let cmd: [String]
+    var args: [String]
+    if let universal {
+      cmd = [UniversalPaths.driver(env)]
+      args = ["--serve", "--engine", UniversalPaths.engine(universal, env: env)]
+      if let b = UniversalPaths.bibtex(env) { args += ["--bibtex", b] }
+    } else {
+      cmd = LiveTexPaths.driver(year, env: env)
+      args = Array(cmd.dropFirst()) + ["--serve", "--engine", LiveTexPaths.engine(year, env: env)]
+      if let b = LiveTexPaths.bibtex(year) { args += ["--bibtex", b] }
+    }
     p.executableURL = URL(fileURLWithPath: cmd[0])
-    var args = Array(cmd.dropFirst()) + ["--serve", "--engine", LiveTexPaths.engine(year, env: env)]
-    if let b = LiveTexPaths.bibtex(year) { args += ["--bibtex", b] }
-    if let state, !LiveTexPaths.isFake(year, env: env) {
+    if let state, universal != nil || !LiveTexPaths.isFake(year, env: env) {
       try? FileManager.default.createDirectory(at: state, withIntermediateDirectories: true)
       args += ["--state", state.path]
     }
     args += [main.deletingLastPathComponent().path, main.lastPathComponent, out.appendingPathComponent("run\(restarts)").path]
     p.arguments = args
-    p.environment = LiveTexPaths.environment(year, base: env)
+    p.environment = universal == nil ? LiveTexPaths.environment(year, base: env) : UniversalPaths.environment(base: env)
     p.currentDirectoryURL = out
     let i = Pipe(), o = Pipe(), e = Pipe()
     TxpProcess.ignoreSigpipe
@@ -680,7 +708,7 @@ final class Trash: @unchecked Sendable {
       log?.write(d)
       let lines = errBuf.take(d).map { String(decoding: $0, as: UTF8.self) }
       guard !lines.isEmpty else { return }
-      DispatchQueue.main.async { MainActor.assumeIsolated { for l in lines { self?.onNote?("pdfTeX: \(l)") } } }
+      DispatchQueue.main.async { MainActor.assumeIsolated { for l in lines { self?.onNote?("\(self?.label ?? "pdfTeX"): \(l)") } } }
     }
     p.terminationHandler = { [weak self, weak p] q in
       let code = q.terminationStatus
@@ -693,7 +721,7 @@ final class Trash: @unchecked Sendable {
       }
     }
     do { try p.run() } catch {
-      onNote?("pdfTeX: can't start \(cmd[0]): \(error)")
+      onNote?("\(label): can't start \(cmd[0]): \(error)")
       exited(-1)  // tried again with backoff, as when it exits (P5)
       return
     }
@@ -710,7 +738,7 @@ final class Trash: @unchecked Sendable {
     guard !stopped else { return }
     restarts += 1
     backoff += 1
-    onNote?(code < 0 ? "pdfTeX: restarting" : "pdfTeX: driver exited (\(code)), restarting")
+    onNote?(code < 0 ? "\(label): restarting" : "\(label): driver exited (\(code)), restarting")
     let delay = min(0.5 * pow(2, Double(min(backoff - 1, 4))), 8)
     restartDelays.append(delay)
     DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
@@ -777,10 +805,27 @@ final class Trash: @unchecked Sendable {
       let kept = ev == "done" && m["blg"] == nil ? keptBlg : nil
       loadQ.async { [weak self] in
         var pdf: LivePDF?
-        if ev == "pdf", let path = m["path"] as? String {
+        if ev == "pdf", var path = m["path"] as? String {
+          var first = 0
+          let n = m["pages"] as? Int ?? 0
+          if path.hasSuffix(".xdv"), let self {
+            // XeTeX: only the pages this event brought (from `from_page`, never past what is shown: no gap)
+            first = max(0, min(m["from_page"] as? Int ?? 0, self.shownCount.value, n - 1))
+            let t0 = CFAbsoluteTimeGetCurrent()
+            guard let tool = self.xdv?.tool,
+              let made = XDV.toPDF(path, first: first, last: n - 1, out: self.out.appendingPathComponent("xdv-\(UUID().uuidString.prefix(8)).pdf").path,
+                                   tool: tool, env: self.xdv?.env ?? [:], cwd: self.main.deletingLastPathComponent())
+            else {
+              DispatchQueue.main.async { MainActor.assumeIsolated { self.onNote?("\(self.label): xdvipdfmx failed on \(path)") } }
+              return
+            }
+            self.xdvMs.set(Int((CFAbsoluteTimeGetCurrent() - t0) * 1000))
+            path = made
+          }
           pdf = LivePDF(path: path, synctex: m["synctex"] as? String, log: m["log"] as? String,
-                        seq: m["seq"] as? Int ?? 0, run: m["run"] as? Int ?? 0)
-          if let pdf { for i in min(m["from_page"] as? Int ?? 0, pdf.pageCount)..<pdf.pageCount { _ = pdf.digest(i) } }
+                        seq: m["seq"] as? Int ?? 0, run: m["run"] as? Int ?? 0, first: first)
+          if path != m["path"] as? String { try? FileManager.default.removeItem(atPath: path) }  // read into memory
+          if let pdf { for i in max(0, min((m["from_page"] as? Int ?? 0) - first, pdf.pageCount))..<pdf.pageCount { _ = pdf.digest(i) } }
         }
         var blg: String?
         if let b = m["blg"] as? String { blg = try? String(contentsOf: URL(fileURLWithPath: b), encoding: .isoLatin1) }
@@ -821,7 +866,7 @@ final class Trash: @unchecked Sendable {
     case "pdf":
       Latency.shared.record(.pdfReady, key: Latency.shared.lastKey, value: Int64(m["applied"] as? Int ?? -1))
       guard let pdf else {
-        onNote?("pdfTeX: can't read \(m["path"] as? String ?? "?")")
+        onNote?("\(label): can't read \(m["path"] as? String ?? "?")")
         return
       }
       shown(pdf, final: m["final"] as? Bool ?? false, m)
@@ -838,7 +883,7 @@ final class Trash: @unchecked Sendable {
     case "error":
       let what = m["what"] as? String ?? "error"
       let msg = m["message"] as? String ?? ""
-      onNote?(what == "offline" ? "offline: \(msg)" : "pdfTeX: \(msg)")
+      onNote?(what == "offline" ? "offline: \(msg)" : "\(label): \(msg)")
     default: break
     }
   }
@@ -849,17 +894,19 @@ final class Trash: @unchecked Sendable {
     var changed: [Int] = []
     let fromPage = m["from_page"] as? Int ?? 0
     var next = pages
-    for i in 0..<pdf.pageCount {
+    for k in 0..<pdf.pageCount {
+      let i = pdf.first + k  // the document's page (XeTeX's PDFs start at their event's `from_page`)
       if i < next.count {
         let old = next[i]
         // before `from_page` the page was shipped before the snapshot the run resumed from: the same page
-        if i >= fromPage, old.pdf.digest(old.index) != pdf.digest(i) || old.pdf.sizes[old.index] != pdf.sizes[i] { changed.append(i) }
-        next[i] = (pdf, i)
+        if i >= fromPage, old.pdf.digest(old.index) != pdf.digest(k) || old.pdf.sizes[old.index] != pdf.sizes[k] { changed.append(i) }
+        next[i] = (pdf, k)
       } else {
         changed.append(i)
-        next.append((pdf, i))
+        next.append((pdf, k))
       }
     }
+    shownCount.set(next.count)
     let trash = Trash(pages.map(\.pdf) + (isFinal ? [final].compactMap { $0 } : []))
     pages = next
     if isFinal { final = pdf }
@@ -867,7 +914,7 @@ final class Trash: @unchecked Sendable {
     // "done" only once the compile settles (`done`): a run's end may be followed by latexmk's reruns, which move
     // pages; SyncTeX, comment anchors and the issues list wait for the settled document
     let ev: [String: Any] = [
-      "ev": "pages", "gen": gen, "n": pdf.pageCount, "typeset": pdf.pageCount, "done": false,
+      "ev": "pages", "gen": gen, "n": pdf.end, "typeset": pdf.end, "done": false,
       "sizes": pages.map { [Double($0.pdf.sizes[$0.index].width), Double($0.pdf.sizes[$0.index].height)] },
       "changed": changed, "edit_us": m["edit_us"] as? Int ?? -1, "applied": m["applied"] as? Int ?? -1,
     ]
@@ -882,9 +929,10 @@ final class Trash: @unchecked Sendable {
   /// `done` has a `log` and no `path`), the pages shown stay (none on a first run) and its log is shown (P1).
   private func settled(_ m: [String: Any], log: String?) {
     let madePDF = m["path"] != nil
-    if madePDF, let pdf = final, pages.count > pdf.pageCount {
+    if madePDF, let pdf = final, pages.count > pdf.end {
       let trash = Trash(pages.map(\.pdf))
-      pages.removeLast(pages.count - pdf.pageCount)
+      pages.removeLast(pages.count - pdf.end)
+      shownCount.set(pages.count)
       trash.empty(on: loadQ)
     }
     if let log {

@@ -42,6 +42,8 @@ public enum EngineChoice: Equatable, Sendable {
   case texpresso
   /// The live pdfTeX for this TeX Live year ("2026").
   case live(year: String)
+  /// Universal: a stock engine run live by tau-live (docs/universal.md), TeX Live 2026.
+  case universal(TexEngine)
 
   /// Settings ▸ PDF: "auto" (pdfLaTeX projects on the live pdfTeX) or "texpresso" (everything on TeXpresso).
   public static let defaultsKey = "taudot.pdfEngine"
@@ -50,23 +52,28 @@ public enum EngineChoice: Equatable, Sendable {
   public static let years = ["2026", "2025", "2024"]
 
   /// `compiler` and `image` as the engine's project.open gives them (`pdflatex`, `texlive-full:2026.1`); nil
-  /// compiler: not known (a folder without the engine), then the source decides.
-  public static func choose(compiler: String?, image: String?, mainText: String?,
+  /// compiler: not known (a folder without the engine), then the source decides. `engine`: the project's own choice
+  /// (Settings ▸ PDF), over Overleaf's. `universal`: Settings' switches (XeLaTeX/LuaLaTeX on universal, pdfLaTeX too).
+  public static func choose(compiler: String?, image: String?, mainText: String?, engine: TexEngine? = nil,
                             setting: String? = UserDefaults.standard.string(forKey: defaultsKey),
+                            universal: (unicode: Bool, pdflatex: Bool) = (UniversalSettings.unicode(), UniversalSettings.pdflatex()),
                             env: [String: String] = ProcessInfo.processInfo.environment) -> EngineChoice {
     if let e = env["TAUDOT_ENGINE"] {
       if e == "texpresso" { return .texpresso }
       if e.hasPrefix("live") { return .live(year: year(image) ?? (e.count > 5 ? String(e.dropFirst(5)) : years[0])) }
+      // universal, universal-xelatex, ...: that engine, or the project's
+      if e.hasPrefix("universal") {
+        let named = TexEngine(rawValue: String(e.dropFirst("universal-".count)))
+        return .universal(named ?? engine ?? TexEngine(compiler: compiler) ?? TexEngine.fromSource(mainText ?? ""))
+      }
     }
     if setting == "texpresso" { return .texpresso }
-    let pdf: Bool
-    switch compiler {
-    case "pdflatex": pdf = true
-    case "xelatex", "lualatex": pdf = false
-    case "latex": pdf = false  // DVI mode: not the live pdfTeX's (yet)
-    default: pdf = !needsUnicodeEngine(mainText ?? "")
+    if engine == nil, compiler == "latex" { return .texpresso }  // DVI mode: not the live engines' (yet)
+    let e = engine ?? TexEngine(compiler: compiler) ?? TexEngine.fromSource(mainText ?? "")
+    switch e {
+    case .pdflatex: return universal.pdflatex ? .universal(.pdflatex) : .live(year: year(image) ?? years[0])
+    case .xelatex, .lualatex: return universal.unicode ? .universal(e) : .texpresso
     }
-    return pdf ? .live(year: year(image) ?? years[0]) : .texpresso
   }
 
   /// `texlive-full:2025.1` → "2025", the nearest year we have for older ones (Overleaf still offers 2020–2023), nil

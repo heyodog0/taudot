@@ -99,19 +99,19 @@ private let twoPages: String = {
 
 @Test func engineChoice() {
   let env: [String: String] = [:]
-  #expect(EngineChoice.choose(compiler: "pdflatex", image: "texlive-full:2025.1", mainText: nil, setting: nil, env: env) == .live(year: "2025"))
-  #expect(EngineChoice.choose(compiler: "pdflatex", image: "", mainText: nil, setting: nil, env: env) == .live(year: "2026"))
-  #expect(EngineChoice.choose(compiler: "pdflatex", image: "texlive-full:2022.1", mainText: nil, setting: nil, env: env) == .live(year: "2024"))
-  #expect(EngineChoice.choose(compiler: "xelatex", image: "texlive-full:2025.1", mainText: nil, setting: nil, env: env) == .texpresso)
-  #expect(EngineChoice.choose(compiler: "lualatex", image: nil, mainText: nil, setting: nil, env: env) == .texpresso)
-  #expect(EngineChoice.choose(compiler: "pdflatex", image: nil, mainText: nil, setting: "texpresso", env: env) == .texpresso)
+  #expect(EngineChoice.choose(compiler: "pdflatex", image: "texlive-full:2025.1", mainText: nil, setting: nil, universal: (false, false), env: env) == .live(year: "2025"))
+  #expect(EngineChoice.choose(compiler: "pdflatex", image: "", mainText: nil, setting: nil, universal: (false, false), env: env) == .live(year: "2026"))
+  #expect(EngineChoice.choose(compiler: "pdflatex", image: "texlive-full:2022.1", mainText: nil, setting: nil, universal: (false, false), env: env) == .live(year: "2024"))
+  #expect(EngineChoice.choose(compiler: "xelatex", image: "texlive-full:2025.1", mainText: nil, setting: nil, universal: (false, false), env: env) == .texpresso)
+  #expect(EngineChoice.choose(compiler: "lualatex", image: nil, mainText: nil, setting: nil, universal: (false, false), env: env) == .texpresso)
+  #expect(EngineChoice.choose(compiler: "pdflatex", image: nil, mainText: nil, setting: "texpresso", universal: (false, false), env: env) == .texpresso)
   // no engine: the source decides
   let xe = "% !TEX program = xelatex\n\\documentclass{article}\n"
-  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: xe, setting: nil, env: env) == .texpresso)
+  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: xe, setting: nil, universal: (false, false), env: env) == .texpresso)
   let fs = "\\documentclass{article}\n\\usepackage{fontspec}\n\\begin{document}\n"
-  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: fs, setting: nil, env: env) == .texpresso)
+  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: fs, setting: nil, universal: (false, false), env: env) == .texpresso)
   let commented = "\\documentclass{article}\n% \\usepackage{fontspec}\n\\begin{document}\n\\usepackage{fontspec}"
-  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: commented, setting: nil, env: env) == .live(year: "2026"))
+  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: commented, setting: nil, universal: (false, false), env: env) == .live(year: "2026"))
   #expect(EngineChoice.choose(compiler: "xelatex", image: nil, mainText: nil, setting: nil, env: ["TAUDOT_ENGINE": "live"]) == .live(year: "2026"))
 }
 

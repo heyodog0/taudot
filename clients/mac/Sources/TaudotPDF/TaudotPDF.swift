@@ -188,13 +188,13 @@ import TaudotShared
     showCache(folder: folder, main: main)
     let mainText = try? String(contentsOf: folder.appendingPathComponent(main), encoding: .utf8)
     if engineSocket == nil {
-      startTypesetter(EngineChoice.choose(compiler: nil, image: nil, mainText: mainText))
+      startTypesetter(EngineChoice.choose(compiler: nil, image: nil, mainText: mainText, engine: UniversalSettings.engine(for: folder)))
     } else {
       // the project's compiler and TeX Live image come with project.open; a slow or absent engine: the source decides
       DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
         MainActor.assumeIsolated {
           guard let self, self.folder == folder, self.txp == nil else { return }
-          self.startTypesetter(EngineChoice.choose(compiler: nil, image: nil, mainText: mainText))
+          self.startTypesetter(EngineChoice.choose(compiler: nil, image: nil, mainText: mainText, engine: UniversalSettings.engine(for: folder)))
         }
       }
     }
@@ -204,7 +204,10 @@ import TaudotShared
       f.onEdit = { [weak self] path in if self?.held.contains(path) == false { self?.edited() } }
       f.onProject = { [weak self] compiler, image in
         guard let self else { return }
-        let c = EngineChoice.choose(compiler: compiler.isEmpty ? nil : compiler, image: image, mainText: mainText)
+        self.overleafCompiler = compiler.isEmpty ? nil : compiler
+        self.lastImage = image
+        let c = EngineChoice.choose(compiler: compiler.isEmpty ? nil : compiler, image: image, mainText: mainText,
+                                    engine: UniversalSettings.engine(for: folder))
         self.check("project: compiler \(compiler) image \(image) → \(c)")
         self.engineChosen(c)  // the docs are opened (again) right after this
       }
@@ -237,19 +240,77 @@ import TaudotShared
     txp?.stop()
     requested = choice
     var choice = choice
+    if makeTypesetter == nil, case .universal(let e) = choice, let why = UniversalPaths.missing(e) {
+      // pdfLaTeX falls back to the patched pdfTeX, the others to TeXpresso
+      choice = e == .pdflatex ? .live(year: EngineChoice.years[0]) : .texpresso
+      onStatus?("universal: \(why); typesetting with \(e == .pdflatex ? "pdfTeX" : "TeXpresso")")
+    }
     if case .live(let year) = choice, let why = LiveTexPaths.missing(year) {
       onStatus?("pdfTeX: \(why); typesetting with TeXpresso")
       choice = .texpresso
     }
+    defer { publishProject() }
     let t: any Typesetter
     if let make = makeTypesetter { install(make(choice), choice: choice); return }
+    let cache = cacheOff ? nil : PageCache.dir(folder, root: cacheRoot)
     switch choice {
-    case .texpresso: t = Txp(main: folder.appendingPathComponent(main), bibCache: cacheOff ? nil : PageCache.dir(folder, root: cacheRoot))
+    case .texpresso: t = Txp(main: folder.appendingPathComponent(main), bibCache: cache)
     case .live(let year):
-      t = LiveTex(main: folder.appendingPathComponent(main), year: year,
-                  state: cacheOff ? nil : PageCache.dir(folder, root: cacheRoot).appendingPathComponent("live-\(year)"))
+      t = LiveTex(main: folder.appendingPathComponent(main), year: year, state: cache?.appendingPathComponent("live-\(year)"))
+    case .universal(let e):
+      t = LiveTex(main: folder.appendingPathComponent(main), year: UniversalPaths.year,
+                  state: cache?.appendingPathComponent("universal-\(e.rawValue)"), universal: e)
     }
     install(t, choice: choice)
+  }
+
+  /// Overleaf's compiler for this project (project.open), nil before it comes or without the engine.
+  var overleafCompiler: String?
+  /// The TeX Live image project.open named.
+  var lastImage: String?
+  /// The engine the project names: Overleaf's compiler, else its main file's.
+  var projectEngine: TexEngine? {
+    if let c = overleafCompiler { return TexEngine(compiler: c) }
+    guard let folder, let main = openedMainName,
+      let s = try? String(contentsOf: folder.appendingPathComponent(main), encoding: .utf8) else { return nil }
+    return TexEngine.fromSource(s)
+  }
+  /// What runs the project, in words (Settings ▸ PDF).
+  var runningName: String? {
+    switch engine {
+    case .texpresso: return "TeXpresso"
+    case .live: return "pdfTeX (patched, live)"
+    case .universal(let e): return "\(e.title) on universal"
+    case nil: return nil
+    }
+  }
+  /// Tells Settings ▸ PDF this is the project it talks about (opened, came to the front, or its engine changed).
+  func publishProject() {
+    CurrentProject.set(folder: folder, engine: projectEngine, running: runningName)
+    if projectObservers.isEmpty {
+      let nc = NotificationCenter.default
+      projectObservers.append(nc.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] n in
+        let w = UncheckedBox(n.object as AnyObject?)
+        MainActor.assumeIsolated {
+          guard let self, w.v != nil, w.v === self.pane.window, self.folder != nil else { return }
+          self.publishProject()
+        }
+      })
+      projectObservers.append(nc.addObserver(forName: UniversalSettings.changed, object: nil, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.engineSettingsChanged() }
+      })
+    }
+  }
+  private var projectObservers: [NSObjectProtocol] = []
+
+  /// Settings ▸ PDF changed an engine switch or this project's engine: the typesetter it names now, if another.
+  func engineSettingsChanged() {
+    guard let folder, let main = openedMainName, engine != nil else { return }
+    let text = try? String(contentsOf: folder.appendingPathComponent(main), encoding: .utf8)
+    let c = EngineChoice.choose(compiler: overleafCompiler, image: lastImage, mainText: text, engine: UniversalSettings.engine(for: folder))
+    guard c != requested else { return }
+    check("settings: engine → \(c)")
+    startTypesetter(c)
   }
 
   /// Runs `t` as the pane's typesetter (`choice`: which one it is, nil for a saved PDF).
@@ -291,7 +352,7 @@ import TaudotShared
     pane.queueRefresh()  // renders may go out again
     // the open editor buffers TeXpresso had (a switch after project.open, or a start after the fallback timer)
     for (path, b) in sources.sorted(by: { $0.key < $1.key }) { t.open(path, String(decoding: b, as: UTF8.self)) }
-    let name = choice == nil ? "saved PDF" : choice == .texpresso ? "texpresso" : "pdfTeX"
+    let name = choice == nil ? "saved PDF" : choice == .texpresso ? "texpresso" : (t as? LiveTex)?.label ?? "pdfTeX"
     onStatus?(cacheShown ? "the last PDF; typesetting…" : "\(name): first run")
   }
 
@@ -373,6 +434,8 @@ import TaudotShared
   public func close() {
     saveCacheIndex()
     openGen += 1
+    overleafCompiler = nil
+    lastImage = nil
     // every generation moves on, so in-flight placements, reads and jumps drop their results
     syncGen += 1
     notesGen += 1
