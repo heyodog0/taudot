@@ -305,11 +305,20 @@ page at `origin` against the exact page, over the new lines' erase rect, every p
 | pdfTeX, paper-b | 11 | 11/11 | 0 / 7 | 5.7 ms |
 | LuaTeX, paper-a | 8 | 8/8 | 0 / 10 | 9.0 ms |
 | LuaTeX, paper-b | 4 | 4/4 | 0 / 14 | 10.6 ms |
-| XeTeX | 11 | **not yet**: the TDL's baselines are 0.27–5.7 pt off | | 4.6 ms |
+| XeTeX, paper-a | 7 | 7/7 on the exact baselines (≤ 0.0005 pt) | 0 / 12 | 4.5 ms |
+| XeTeX, paper-b | 5 | 5/5 on the exact baselines (≤ 0.0005 pt) | 1 / 12 | 3.6 ms |
 
-The pixel misses of the line-matched placement (above: up to 0.008 pt) are gone: the offset now comes from
-SyncTeX's integer sp, not from printed PDF numbers. XeTeX: the old lines' place is right, but the list's y differs
-from the exact page's (as `xdvipdfmx` draws it, which is what the app shows); being looked at.
+XeTeX has no overlay PDF (the app's page is `xdvipdfmx`'s; the list is the fallback drawing), so its check is the
+list's glyph baselines against the exact XDV page's (1in + v, as `xdvipdfmx` places them; checked against
+`xdvipdfmx`'s output too). The pixel misses of the line-matched placement (above: up to 0.008 pt) are gone: the
+offset now comes from SyncTeX's integer sp, not from printed PDF numbers. Two XeTeX details on the way:
+
+- XeTeX's SyncTeX puts 1in in its preamble (`X Offset`, `Y Offset`) and leaves it out of the records (pdfTeX and
+  LuaTeX write 0 there); the reader adds them.
+- A pass forked before XeTeX had flushed anything writes a whole DVI (from its preamble, with its own font
+  numbers); tau-tdl then renders the pass's own bytes, and otherwise appends everything the pass wrote (its font
+  definitions since the snapshot) to the exact output, not just its last page.
+- The first XDV event of a session costs ~45 ms (the reader loads the fonts); later ones 1–1.7 ms.
 
 **TeX Live on demand.** A lookup that misses under the tree used to run `TAU_FETCH` (uv + Python, ~100 ms) for
 every miss: kpathsea's probes of other directories and names TeX Live doesn't have included, every session.
@@ -400,7 +409,7 @@ pdfTeX 25 MiB (max single snapshot).
 
 ## Open
 
-- XeTeX's `para` placement (the TDL's y against the page `xdvipdfmx` draws).
+- The reader's first XDV request loads the fonts (~45 ms): warm it on the first exact XDV.
 - The native fetcher: prefetch a package's other files in parallel; an svn fallback for a store outage.
 - A provisional pass could stop at its first inside break; the reader could skip pages whose fonts it has.
 - A real memory measurement (free memory with N snapshots).

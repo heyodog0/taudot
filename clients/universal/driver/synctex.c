@@ -3,7 +3,8 @@
 // Every line box of a paragraph is recorded with the source line its \par was read on (the blank line or the
 // structural line after it), on pdfTeX, XeTeX and LuaTeX alike. So the lines of the paragraph that ends at line L of
 // FILE are the hbox records `(tag,L:h,v:W,H,D` directly inside one vbox (a column), one after another.
-// Positions are in sp from the paper's top-left (1in offsets included), v at the baseline. Included by tau-live.c.
+// Positions are in sp from the paper's top-left (1in offsets included: the preamble's X/Y Offset added), v at the
+// baseline. Included by tau-live.c.
 
 typedef struct {
   int page;    // 0-based
@@ -78,6 +79,7 @@ static int sx_load(sx_index *x, const char *path) {
   int stk_id[DEPTH];
   char stk_kind[DEPTH];
   int depth = 0, ids = 0, page = -1;
+  long xoff = 0, yoff = 0;  // the preamble's offsets: XeTeX writes 1in here and leaves it out of the records
   for (char *l = b, *e; l < b + n; l = e + 1) {
     e = memchr(l, '\n', b + n - l);
     if (!e) e = b + n;
@@ -87,6 +89,7 @@ static int sx_load(sx_index *x, const char *path) {
       if (page >= 0 && depth > 0 && stk_kind[depth - 1] == '[') {
         sx_rec r = {.page = page, .parent = stk_id[depth - 1], .kind = c};
         if (sx_box(l, &r)) {
+          r.h += xoff, r.v += yoff;
           if (x->n == x->cap) x->cap = x->cap ? 2 * x->cap : 4096, x->r = realloc(x->r, x->cap * sizeof *x->r);
           x->r[x->n++] = r;
         }
@@ -112,6 +115,10 @@ static int sx_load(sx_index *x, const char *path) {
       }
     } else if (!strncmp(l, "Unit:", 5)) {
       x->unit = atof(l + 5);
+    } else if (!strncmp(l, "X Offset:", 9)) {
+      xoff = atol(l + 9);
+    } else if (!strncmp(l, "Y Offset:", 9)) {
+      yoff = atol(l + 9);
     }
   }
   free(b);

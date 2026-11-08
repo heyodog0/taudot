@@ -140,9 +140,19 @@ static int cmd_xdv(const char *doc_path, const char *pass_path, const char *out_
       if (e && e - (i - 1) > 60) { pb = i - 1, pe = e; break; }  // (60: skip an empty padding page)
     }
   if (!pe) { free(doc); free(pass); return fail("no page in the pass's output"); }
-  fz_buffer *buf = fz_new_buffer(ctx, cut + (pe - pb));
-  fz_append_data(ctx, buf, doc, cut);
-  fz_append_data(ctx, buf, pass + pb, pe - pb);
+  // with everything the pass wrote before its page: the fonts it defined since the snapshot (its numbers can differ
+  // from the exact output's for fonts first used after it). A pass that wrote from the very start (XeTeX had
+  // flushed nothing yet) is a document by itself.
+  size_t p0 = pb;
+  for (size_t i = 0; i < pb; i++)
+    if (pass[i] == 139 && page_end(pass, pn, i, v)) { p0 = i; break; }
+  int whole = pn > 0 && pass[0] == 247;  // pre
+  fz_buffer *buf = fz_new_buffer(ctx, (whole ? 0 : cut) + (pe - (whole ? 0 : p0)));
+  if (whole) fz_append_data(ctx, buf, pass, pe);
+  else {
+    fz_append_data(ctx, buf, doc, cut);
+    fz_append_data(ctx, buf, pass + p0, pe - p0);
+  }
   free(doc);
   free(pass);
   // one interpreter for the process (tau-tdl serve): its resource manager keeps the fonts loaded between passes
