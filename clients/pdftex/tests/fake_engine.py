@@ -1,6 +1,6 @@
 """A fake live pdfTeX engine for the driver's tests (GPL-2.0-or-later, like the rest of clients/pdftex).
 
-It speaks the engine's side of the driver protocol (clients/pdftex/README.md, "Messages") with real fork snapshots,
+It speaks the engine's side of the driver protocol (clients/pdftex/DESIGN.md, "Messages") with real fork snapshots,
 the way lib/taudot-live.c does: before a line of a project file, at most every TAUDOT_SNAPSHOT_MS, the runner forks;
 the parent waits as the snapshot; when the driver SIGKILLs the snapshot's child, the snapshot forks a new runner that
 reloads the project files, reads OUT/ctl and sends R. When the driver retires the child (SIGTERM, a snapshot thinned
