@@ -1,0 +1,12 @@
+% Patch 0107: graphicx transforms. \scalebox with different x and y factors, mirroring, \resizebox, \rotatebox, and
+% a scaled figure. Compare with Tectonic's PDF drawn by mutool.
+\documentclass{article}
+\usepackage{graphicx}
+\pagestyle{empty}
+\begin{document}
+\Huge
+\scalebox{2}[0.7]{wide} \scalebox{0.6}[1.8]{tall} \scalebox{-1}[1]{mirror} \scalebox{1}[-1]{flip}\par
+\resizebox{6cm}{1cm}{resized box} \scalebox{1.5}{uniform}\par
+\rotatebox{30}{turned} \rotatebox[origin=c]{-90}{down} \scalebox{2}[0.5]{\rotatebox{45}{both}}\par
+\fbox{\scalebox{3}[1]{\rule{1cm}{5mm}}}
+\end{document}

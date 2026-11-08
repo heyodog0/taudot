@@ -1,0 +1,7 @@
+{
+  "tasks": {
+    "start": "deno run -A main.ts --folder example --bot",
+    "test": "deno test -A"
+  },
+  "fmt": { "lineWidth": 120 }
+}

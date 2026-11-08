@@ -1,0 +1,369 @@
+# The fidelity corpus (harness/corpus.py). Sources live outside the repo in ~/code/lab/taudot-ref/corpus/<id>/
+# (papers keep their own licences). tags, main, maths_envs, tex_bytes: from `corpus.py scan`; tectonic, txp,
+# pages: from `corpus.py check`; note: by hand. Papers that don't compile under texpresso-xetex stay listed.
+smoke = ["synthetic-page", "synthetic-features", "synthetic-pgf", "synthetic-fonts-by-name", "1706.03762"]
+
+[paper."1207.7214"]
+main = "TheATLASJulyPaper.tex"
+tags = ["eps-figures", "maths", "two-column"]
+maths_envs = 92
+tex_bytes = 255262
+
+[paper."1312.5602"]
+main = "deepqnet.tex"
+tags = ["class-neurips", "colour", "pdf-figures", "raster-figures"]
+maths_envs = 3
+tex_bytes = 37437
+tectonic = true
+pages = 10
+txp = true
+txp_pages = 10
+
+[paper."1312.6114"]
+main = "iclr14_sva.tex"
+tags = ["class-neurips", "pdf-figures", "tikz"]
+maths_envs = 30
+tex_bytes = 54092
+note = "txp-render: txp-render exited (-5)"
+tectonic = true
+pages = 15
+txp = false
+
+[paper."1406.2661"]
+main = "adversarial.tex"
+tags = ["class-neurips", "pdf-figures", "raster-figures"]
+maths_envs = 11
+tex_bytes = 31713
+tectonic = true
+pages = 9
+txp = true
+txp_pages = 9
+
+[paper."1409.0473"]
+main = "search.tex"
+tags = ["class-iclr", "colour", "pdf-figures"]
+maths_envs = 25
+tex_bytes = 55211
+tectonic = true
+pages = 17
+txp = true
+txp_pages = 17
+
+[paper."1409.1556"]
+main = "ilsvrc14.tex"
+tags = ["class-iclr", "colour"]
+maths_envs = 0
+tex_bytes = 57086
+
+[paper."1412.6980"]
+main = "arxiv.tex"
+tags = ["pdf-figures", "pdfpages", "plain-text"]
+maths_envs = 0
+tex_bytes = 298
+tectonic = true
+txp = true
+txp_pages = 16
+pages = 16
+
+[paper."1502.03167"]
+main = "arx.tex"
+tags = ["class-icml", "eps-figures", "two-column"]
+maths_envs = 33
+tex_bytes = 48595
+tectonic = false
+txp = true
+txp_pages = 11
+
+[paper."1505.04597"]
+main = "paper459.tex"
+tags = ["colour", "pdf-figures", "raster-figures"]
+maths_envs = 3
+tex_bytes = 21299
+tectonic = true
+pages = 8
+txp = true
+txp_pages = 8
+
+[paper."1506.02640"]
+main = "yolo.tex"
+tags = ["class-cvpr", "colour", "pdf-figures", "raster-figures", "two-column"]
+maths_envs = 3
+tex_bytes = 43810
+tectonic = false
+txp = true
+txp_pages = 10
+
+[paper."1512.03385"]
+main = "residual_v1_arxiv_release.tex"
+tags = ["class-cvpr", "colour", "pdf-figures", "two-column"]
+maths_envs = 5
+tex_bytes = 66185
+tectonic = true
+pages = 15
+txp = true
+txp_pages = 15
+
+[paper."1602.03837"]
+tags = ["plain-text"]
+maths_envs = 0
+tex_bytes = 0
+note = "no LaTeX source (pdf only)"
+
+[paper."1606.03498"]
+main = "gan.tex"
+tags = ["class-neurips", "colour", "raster-figures"]
+maths_envs = 3
+tex_bytes = 48260
+
+[paper."1608.06993"]
+main = "main.tex"
+tags = ["class-cvpr", "colour", "pdf-figures", "two-column"]
+maths_envs = 4
+tex_bytes = 107875
+
+[paper."1609.02907"]
+main = "main.tex"
+tags = ["class-iclr", "pdf-figures", "raster-figures"]
+maths_envs = 26
+tex_bytes = 47039
+tectonic = true
+pages = 16
+txp = true
+txp_pages = 16
+
+[paper."1611.07004"]
+main = "main.tex"
+tags = ["class-cvpr", "pdf-figures", "raster-figures", "two-column"]
+maths_envs = 4
+tex_bytes = 85176
+tectonic = true
+pages = 18
+txp = true
+txp_pages = 18
+
+[paper."1703.06870"]
+main = "maskrcnn_arxiv.tex"
+tags = ["colour", "pdf-figures", "two-column"]
+maths_envs = 11
+tex_bytes = 60577
+tectonic = true
+pages = 13
+txp = true
+txp_pages = 13
+
+[paper."1706.03762"]
+main = "ms.tex"
+tags = ["class-neurips", "colour", "pdf-figures", "raster-figures"]
+maths_envs = 8
+tex_bytes = 54013
+tectonic = true
+pages = 15
+txp = true
+txp_pages = 15
+
+[paper."1707.06347"]
+main = "ppo-arxiv.tex"
+tags = ["pdf-figures", "pdfpages", "plain-text"]
+maths_envs = 0
+tex_bytes = 220
+tectonic = true
+txp = true
+txp_pages = 13
+pages = 13
+
+[paper."1710.10903"]
+oracle_wrong = [{ page = 4, why = "MuPDF draws a giant phi over the text column; mutool on Tectonic's PDF does too, Core Graphics and our backend draw it at its size (harness-figs/gat-p4-mupdf-giant-glyph.png, log entry 4)", judge = "cg-pdf" }]
+main = "iclr2018_conference.tex"
+tags = ["class-iclr", "raster-figures", "tikz", "transparency"]
+maths_envs = 6
+tex_bytes = 43633
+tectonic = true
+pages = 13
+txp = true
+txp_pages = 13
+
+[paper."1802.05365"]
+main = "deep_representations_bilm.tex"
+tags = ["class-iclr", "colour", "pdf-figures"]
+maths_envs = 5
+tex_bytes = 55966
+
+[paper."1803.05316"]
+main = "C8b-SolutionsB.tex"
+tags = ["colour", "long", "maths", "rotated", "tikz", "transparency"]
+maths_envs = 789
+tex_bytes = 1385556
+
+[paper."1804.02767"]
+main = "supplementary.tex"
+tags = ["class-cvpr", "colour", "pdf-figures", "two-column"]
+maths_envs = 4
+tex_bytes = 86451
+
+[paper."1807.03748"]
+main = "main.tex"
+tags = ["class-neurips", "colour", "pdf-figures", "raster-figures", "tikz"]
+maths_envs = 9
+tex_bytes = 39680
+
+[paper."1810.04805"]
+main = "main.tex"
+tags = ["class-acl", "pdf-figures", "tikz"]
+maths_envs = 1
+tex_bytes = 65594
+tectonic = false
+txp = true
+txp_pages = 3
+
+[paper."1905.11946"]
+main = "arxiv-stripped.tex"
+tags = ["class-icml", "colour", "pdf-figures", "two-column"]
+maths_envs = 4
+tex_bytes = 50422
+
+[paper."1907.11692"]
+main = "main.tex"
+tags = ["class-acl", "colour"]
+maths_envs = 2
+tex_bytes = 49093
+tectonic = true
+txp = true
+txp_pages = 14
+pages = 14
+
+[paper."1910.10683"]
+main = "20-074.tex"
+tags = ["class-jmlr", "colour", "pdf-figures"]
+maths_envs = 0
+tex_bytes = 215947
+
+[paper."2001.08361"]
+main = "main.tex"
+tags = ["class-neurips", "colour", "pdf-figures"]
+maths_envs = 15
+tex_bytes = 94810
+
+[paper."2005.14165"]
+main = "main.tex"
+tags = ["class-neurips", "colour", "raster-figures"]
+maths_envs = 1
+tex_bytes = 287438
+tectonic = true
+txp = true
+txp_pages = 83
+pages = 83
+
+[paper."2006.11239"]
+main = "main.tex"
+tags = ["class-neurips", "colour", "pdf-figures", "raster-figures", "tikz"]
+maths_envs = 16
+tex_bytes = 60920
+tectonic = true
+pages = 26
+txp = true
+txp_pages = 26
+
+[paper."2010.11929"]
+fix = [{ file = "main.tex", old = "\\usepackage[pdftex]{graphicx}", new = "\\usepackage{graphicx}", why = "[pdftex] makes PGF load the pdfTeX driver under XeTeX (found by the interp agent)" }]
+main = "main.tex"
+tags = ["class-iclr", "colour", "pdf-figures", "raster-figures", "rotated", "tikz"]
+maths_envs = 3
+tex_bytes = 82220
+tectonic = false
+txp = false
+txp_pages = 0
+
+[paper."2103.00020"]
+main = "clip_paper.tex"
+tags = ["class-icml", "pdf-figures", "raster-figures", "rotated", "two-column"]
+maths_envs = 0
+tex_bytes = 262828
+tectonic = true
+pages = 51
+txp = true
+txp_pages = 51
+
+[paper."2106.09685"]
+main = "iclr2022_conference.tex"
+tags = ["class-iclr", "colour", "pdf-figures"]
+maths_envs = 8
+tex_bytes = 106914
+tectonic = true
+pages = 28
+txp = true
+txp_pages = 28
+
+[paper."2112.10752"]
+main = "ms.tex"
+tags = ["class-icml", "colour", "pdf-figures", "raster-figures", "two-column"]
+maths_envs = 19
+tex_bytes = 210224
+
+[paper."2302.13971"]
+main = "acl2023.tex"
+tags = ["class-acl", "colour", "pdf-figures"]
+maths_envs = 4
+tex_bytes = 82975
+
+[paper."hep-th_9711200"]
+tags = []
+maths_envs = 1
+tex_bytes = 59087
+note = "no LaTeX source (single tex)"
+
+[paper."paper-a"]
+main = "main.tex"
+tags = ["class-iclr", "colour", "pdf-figures", "raster-figures", "tikz"]
+maths_envs = 2
+tex_bytes = 128669
+tectonic = false
+txp = true
+txp_pages = 32
+
+[paper."math_0211159"]
+main = "main.tex"
+tags = ["maths"]
+maths_envs = 128
+tex_bytes = 106528
+
+[paper."quant-ph_9508027"]
+tags = ["maths"]
+maths_envs = 48
+tex_bytes = 110051
+note = "no LaTeX source (single tex)"
+
+[paper."synthetic-features"]
+main = "main.tex"
+tags = ["colour", "fontspec", "plain-text", "rotated", "special", "tikz", "transparency"]
+maths_envs = 0
+tex_bytes = 1713
+tectonic = true
+pages = 1
+txp = true
+txp_pages = 1
+
+[paper."synthetic-fonts-by-name"]
+main = "main.tex"
+tags = ["fontspec", "plain-text"]
+maths_envs = 0
+tex_bytes = 670
+
+[paper."synthetic-page"]
+main = "main.tex"
+tags = ["colour", "plain-text", "raster-figures"]
+maths_envs = 1
+tex_bytes = 943
+tectonic = true
+pages = 1
+txp = true
+txp_pages = 1
+
+[paper."synthetic-pgf"]
+main = "main.tex"
+tags = ["plain-text", "tikz", "transparency"]
+maths_envs = 0
+tex_bytes = 2167
+tectonic = true
+pages = 1
+txp = true
+txp_pages = 1

@@ -1,0 +1,115 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Thu, 5 Nov 2026 00:20:16 -0500
+Subject: [PATCH 5/9] pdftex: paused processes exit when the driver does
+
+---
+ texk/web2c/lib/taudot-live.c | 60 +++++++++++++++++++++++++++++++-----
+ 1 file changed, 52 insertions(+), 8 deletions(-)
+
+diff --git a/texk/web2c/lib/taudot-live.c b/texk/web2c/lib/taudot-live.c
+index 11f0ae1d..df6fc92a 100644
+--- a/texk/web2c/lib/taudot-live.c
++++ b/texk/web2c/lib/taudot-live.c
+@@ -31,6 +31,9 @@
+ #include <stdint.h>
+ #include <time.h>
+ #include <unistd.h>
++#ifdef __APPLE__
++#include <sys/event.h>
++#endif
+ 
+ extern FILE *(*taudot_open_in_hook) (const char *name, int filefmt, int stage);
+ extern boolean (*taudot_open_out_hook) (FILE **f_ptr, const char *name, const_string fopen_mode);
+@@ -45,6 +48,7 @@ static char *tl_cwd;             /* for absolute names of written files */
+ static uint64_t tl_snap_us = 50000;
+ static uint64_t tl_last_snap;    /* 0: snapshot at the first project line */
+ static pid_t tl_parent;          /* our parent when we became the runner; orphans exit */
++static pid_t tl_driver;          /* the driver; every engine process exits when it does */
+ static int tl_finishing = 0;     /* in a fork-to-finish grandchild */
+ static int tl_finish_all = 0;
+ static int tl_seq = 0;           /* edit number from ctl; 0 for the first run */
+@@ -410,14 +414,57 @@ tl_reload (void)
+   }
+ }
+ 
++/* Block until process a or b (0: none) exits; returns which, or -1. Paused processes use it so they don't
++   outlive the driver. kqueue on macOS; elsewhere only a, by waitpid, or nothing (pause). */
++static pid_t
++tl_wait_exit (pid_t a, pid_t b)
++{
++#ifdef __APPLE__
++  pid_t who[2];
++  struct kevent ev, out;
++  int i, n = 0, kq = kqueue ();
++  if (kq < 0)
++    return -1;
++  if (a > 0) who[n++] = a;
++  if (b > 0) who[n++] = b;
++  for (i = 0; i < n; i++) {
++    EV_SET (&ev, who[i], EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT, 0, NULL);
++    if (kevent (kq, &ev, 1, NULL, 0, NULL) < 0) {
++      close (kq);
++      return errno == ESRCH ? who[i] : -1;  /* already gone */
++    }
++  }
++  while (kevent (kq, NULL, 0, &out, 1, NULL) < 0)
++    if (errno != EINTR) {
++      close (kq);
++      return -1;
++    }
++  close (kq);
++  return (pid_t) out.ident;
++#else
++  (void) b;
++  if (a > 0 && a != tl_parent)
++    return a;  /* our child: the caller's waitpid blocks on it */
++  for (;;) {
++    pause ();
++    if (getppid () != tl_parent)
++      return tl_parent;
++  }
++#endif
++}
++
+ /* The parent side of a snapshot: wait for the runner; when the driver kills it, start a new one. Returns in the
+-   new runner. */
++   new runner. Exits when the driver does. */
+ static void
+ tl_be_snapshot (pid_t child)
+ {
+   for (;;) {
+     int st;
+     pid_t c;
++    if (tl_wait_exit (child, tl_driver) == tl_driver) {
++      kill (child, SIGKILL);
++      _exit (0);
++    }
+     while (waitpid (child, &st, 0) < 0)
+       if (errno != EINTR)
+         _exit (3);
+@@ -560,12 +607,9 @@ tl_exit (int code)
+   snprintf (name, sizeof name, "final-%d.log", tl_seq);
+   tl_dump (tl_log, name);
+   tl_send ("E %d %d %d %d %llu\n", (int) getpid (), tl_seq, (int) totalpages, code, (unsigned long long) tl_now ());
+-  /* Stay: the snapshot that made us resumes only when we are killed. */
+-  for (;;) {
+-    pause ();
+-    if (getppid () != tl_parent)
+-      _exit (0);
+-  }
++  /* Stay: the snapshot that made us resumes only when we are killed. Leave if our snapshot or the driver goes. */
++  tl_wait_exit (tl_parent, tl_driver);
++  _exit (0);
+ }
+ 
+ static void
+@@ -587,7 +631,7 @@ taudot_live_init (void)
+   if ((s = getenv ("TAUDOT_SNAPSHOT_MS")))
+     tl_snap_us = (uint64_t) (atof (s) * 1000);
+   tl_finish_all = getenv ("TAUDOT_FINISH_ALL") != NULL;
+-  tl_parent = getppid ();
++  tl_parent = tl_driver = getppid ();
+   taudot_open_in_hook = tl_open_in;
+   taudot_open_out_hook = tl_open_out;
+   taudot_exit_hook = tl_exit;

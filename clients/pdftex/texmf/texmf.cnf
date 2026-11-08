@@ -1,0 +1,47 @@
+% GPL-2.0-or-later. kpathsea configuration for the live pdfTeX prototype: one flat directory of TeX files
+% ($TAUDOT_TEXMF, filled from Tectonic's bundle by fetch.py) plus the project, and formats in $TAUDOT_FMT.
+% Memory sizes are TeX Live's (texk/kpathsea/texmf.cnf).
+TEXINPUTS = .;$TAUDOT_TEXMF
+TFMFONTS = .;$TAUDOT_TEXMF
+VFFONTS = .;$TAUDOT_TEXMF
+T1FONTS = .;$TAUDOT_TEXMF
+AFMFONTS = .;$TAUDOT_TEXMF
+TTFONTS = .;$TAUDOT_TEXMF
+OPENTYPEFONTS = .;$TAUDOT_TEXMF
+ENCFONTS = .;$TAUDOT_TEXMF
+TEXFONTMAPS = .;$TAUDOT_TEXMF
+TEXPSHEADERS = .;$TAUDOT_TEXMF
+PKFONTS = .;$TAUDOT_TEXMF
+BIBINPUTS = .;$TAUDOT_TEXMF
+BSTINPUTS = .;$TAUDOT_TEXMF
+WEB2C = $TAUDOT_TEXMF
+TEXFORMATS = .;$TAUDOT_FMT
+TEXPOOL = .;$TAUDOT_FMT
+MKTEXTEX = 1
+MKTEXTFM = 1
+MKTEXPK = 0
+MKTEXFMT = 0
+openout_any = p
+openin_any = a
+shell_escape = f
+main_memory = 5000000
+extra_mem_bot = 0
+font_mem_size = 8000000
+font_max = 9000
+hash_extra = 600000
+pool_size = 6250000
+string_vacancies = 90000
+max_strings = 500000
+pool_free = 47500
+buf_size = 200000
+trie_size = 1100000
+hyph_size = 8191
+nest_size = 1000
+max_in_open = 15
+param_size = 20000
+save_size = 200000
+stack_size = 10000
+dvi_buf_size = 16384
+error_line = 79
+half_error_line = 50
+max_print_line = 79

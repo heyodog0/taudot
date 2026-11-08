@@ -1,0 +1,122 @@
+From 17682ca208b071767b08131e5423d8e2a05a4e71 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Tue, 3 Nov 2026 13:26:25 -0500
+Subject: [PATCH 2/6] dvi: x:gsave, x:grestore and pdf:literal, so clipped
+ figures clip
+
+---
+ src/dvi/dvi_special.c      | 39 ++++++++++++++++++++++++++++++++++++++
+ src/dvi/dvi_special.re2c.c | 39 ++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 78 insertions(+)
+
+diff --git a/src/dvi/dvi_special.c b/src/dvi/dvi_special.c
+index 516e30d..a88ea62 100644
+--- a/src/dvi/dvi_special.c
++++ b/src/dvi/dvi_special.c
+@@ -4440,10 +4440,49 @@ yy410:
+ 
+ }
+ 
++/* Taudot (MIT, like this file): the specials graphicx's xetex.def emits to clip
++ * an included PDF (trim= or viewport= with clip): "x:gsave", then
++ * "pdf:literal 0 -D W H re W n", the figure, then "x:grestore". Without them the
++ * whole page of the figure is drawn over the text around it. gsave/grestore
++ * act like PDF q/Q, and a plain literal (drawn at the current point) like
++ * pdf:code. "pdf:literal direct" and "page" are left unhandled, as before.
++ * Returns -1 when the special is none of these. */
++static int
++taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
++{
++  static const char q[] = "q", Q[] = "Q";
++  while (cur < lim && *cur == ' ') cur++;
++  while (lim > cur && lim[-1] == ' ') lim--;
++  size_t n = lim - cur;
++  if (n == 7 && memcmp(cur, "x:gsave", 7) == 0)
++    return pdf_code(ctx, dc, st, q, q + 1);
++  if (n == 10 && memcmp(cur, "x:grestore", 10) == 0)
++    return pdf_code(ctx, dc, st, Q, Q + 1);
++  if (n > 4 && memcmp(cur, "pdf:", 4) == 0)
++  {
++    cursor_t p = cur + 4;
++    while (p < lim && *p == ' ') p++;
++    if (lim - p > 8 && memcmp(p, "literal ", 8) == 0)
++    {
++      p += 8;
++      while (p < lim && *p == ' ') p++;
++      if ((lim - p >= 6 && memcmp(p, "direct", 6) == 0) ||
++          (lim - p >= 4 && memcmp(p, "page", 4) == 0))
++        return -1;
++      return pdf_code(ctx, dc, st, p, lim);
++    }
++  }
++  return -1;
++}
++
+ bool dvi_exec_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
+ {
+   cursor_t mar, i, j;
+ 
++  int extra = taudot_extra_special(ctx, dc, st, cur, lim);
++  if (extra >= 0)
++    return extra;
++
+   // fprintf(stderr, "special: %.*s\n", (int)(lim - cur), cur);
+ 
+   for (;;)
+diff --git a/src/dvi/dvi_special.re2c.c b/src/dvi/dvi_special.re2c.c
+index f4878b6..cd4f04e 100644
+--- a/src/dvi/dvi_special.re2c.c
++++ b/src/dvi/dvi_special.re2c.c
+@@ -1209,10 +1209,49 @@ dvi_exec_pdf(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, curs
+   */
+ }
+ 
++/* Taudot (MIT, like this file): the specials graphicx's xetex.def emits to clip
++ * an included PDF (trim= or viewport= with clip): "x:gsave", then
++ * "pdf:literal 0 -D W H re W n", the figure, then "x:grestore". Without them the
++ * whole page of the figure is drawn over the text around it. gsave/grestore
++ * act like PDF q/Q, and a plain literal (drawn at the current point) like
++ * pdf:code. "pdf:literal direct" and "page" are left unhandled, as before.
++ * Returns -1 when the special is none of these. */
++static int
++taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
++{
++  static const char q[] = "q", Q[] = "Q";
++  while (cur < lim && *cur == ' ') cur++;
++  while (lim > cur && lim[-1] == ' ') lim--;
++  size_t n = lim - cur;
++  if (n == 7 && memcmp(cur, "x:gsave", 7) == 0)
++    return pdf_code(ctx, dc, st, q, q + 1);
++  if (n == 10 && memcmp(cur, "x:grestore", 10) == 0)
++    return pdf_code(ctx, dc, st, Q, Q + 1);
++  if (n > 4 && memcmp(cur, "pdf:", 4) == 0)
++  {
++    cursor_t p = cur + 4;
++    while (p < lim && *p == ' ') p++;
++    if (lim - p > 8 && memcmp(p, "literal ", 8) == 0)
++    {
++      p += 8;
++      while (p < lim && *p == ' ') p++;
++      if ((lim - p >= 6 && memcmp(p, "direct", 6) == 0) ||
++          (lim - p >= 4 && memcmp(p, "page", 4) == 0))
++        return -1;
++      return pdf_code(ctx, dc, st, p, lim);
++    }
++  }
++  return -1;
++}
++
+ bool dvi_exec_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
+ {
+   cursor_t mar, i, j;
+ 
++  int extra = taudot_extra_special(ctx, dc, st, cur, lim);
++  if (extra >= 0)
++    return extra;
++
+   // fprintf(stderr, "special: %.*s\n", (int)(lim - cur), cur);
+ 
+   for (;;)
+-- 
+2.50.0
+

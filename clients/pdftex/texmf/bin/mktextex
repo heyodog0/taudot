@@ -1,0 +1,14 @@
+#!/bin/sh
+# GPL-2.0-or-later. kpathsea's hook for a missing TeX input (also linked as mktextfm): fetch it from Tectonic's
+# bundle into $TAUDOT_TEXMF and print its path. kpathsea calls it as `mktextex [options] NAME`.
+for a; do name=$a; done
+name=$(basename "$name")
+case $(basename "$0") in mktextfm) case $name in *.tfm) ;; *) name=$name.tfm ;; esac ;; esac
+dst=$TAUDOT_TEXMF/$name
+miss=$TAUDOT_TEXMF/.missing/$name
+[ -e "$miss" ] && exit 1   # not in the bundle: asked before
+if [ ! -s "$dst" ]; then
+  tectonic -X bundle cat "$name" > "$dst.part.$$" 2>/dev/null && [ -s "$dst.part.$$" ] && mv "$dst.part.$$" "$dst"
+  rm -f "$dst.part.$$"
+fi
+if [ -s "$dst" ]; then echo "$dst"; else mkdir -p "${miss%/*}"; : > "$miss"; exit 1; fi

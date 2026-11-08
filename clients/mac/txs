@@ -1,0 +1,60 @@
+#!/bin/sh
+# txs: open the Taudot Mac app (or one of its parts) and return at once.
+#
+#   txs                       the app's Projects window: sign in, pick an Overleaf project
+#   txs FOLDER                the app on a project folder (txs . for the current one)
+#   txs review [--dark|--nvim]  the comment margin alone, with sample comments (--nvim: live, the mock engine's bot)
+#   txs pdf [FOLDER]          the PDF pane alone
+#
+# Builds first when the sources changed (a few seconds), then opens the window detached from the terminal.
+# Logs: ~/.taudot/logs/txs-<what>.log
+set -eu
+here=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
+logs="$HOME/.taudot/logs"
+mkdir -p "$logs"
+
+abs() { (cd "${1:-.}" && pwd); }
+
+# newest source file vs. a built file: rebuild when any source is newer
+stale() {
+  [ ! -e "$1" ] && return 0
+  [ -n "$(find "$here/Sources" "$here/Package.swift" "$here/../nvim/lua" "$here/../preview/texpresso/txp-headless.c" "$here/../render/txp-render.c" "$here/../render/cursor/Sources" -newer "$1" -type f 2>/dev/null | head -1)" ]
+}
+
+# a host product, built in release, started detached
+host() {
+  product=$1; shift
+  bin="$here/.build/release/$product"
+  if stale "$bin"; then
+    echo "building $product..."
+    (cd "$here" && swift build -c release --product "$product" 2>&1 | grep -E 'error|warning: unre' || true)
+  fi
+  nohup "$bin" "$@" > "$logs/txs-$product.log" 2>&1 &
+  echo "opened $product (log: $logs/txs-$product.log)"
+}
+
+case "${1:-}" in
+  review) shift; host ReviewHost "$@" ;;
+  pdf) shift; host PDFHost "$(abs "${1:-.}")" ;;
+  -h|--help|help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *)
+    folder=""; [ -n "${1:-}" ] && folder=$(abs "$1")
+    app="$here/build.noindex/Taudot.app"
+    if stale "$app/Contents/MacOS/taudot-app"; then
+      echo "building Taudot.app..."
+      "$here/bundle.sh" > "$logs/txs-bundle.log" 2>&1 || { echo "build failed: $logs/txs-bundle.log"; exit 1; }
+    fi
+    # the installed checkout (install.sh) keeps ~/Applications/Taudot.app, the copy Spotlight and the Dock show, current
+    apps="${TAUDOT_APP_DIR:-$HOME/Applications}"
+    if [ "$(cat "$HOME/.taudot/app-source" 2>/dev/null)" = "$(cd "$here/../.." && pwd)" ]; then
+      if [ ! -e "$apps/Taudot.app" ] || [ -n "$(find "$app" -newer "$apps/Taudot.app/Contents/Info.plist" -type f 2>/dev/null | head -1)" ]; then
+        rm -rf "$apps/Taudot.app" && ditto "$app" "$apps/Taudot.app"
+      fi
+      app="$apps/Taudot.app"
+    fi
+    : > "$logs/txs-app.log"; : > "$logs/txs-txp.log"
+    set -- open -n "$app" --stdout "$logs/txs-app.log" --stderr "$logs/txs-app.log" --env TAUDOT_DEBUG=1 --env TAUDOT_TXP_LOG="$logs/txs-txp.log"
+    if [ -n "$folder" ]; then "$@" --args "$folder"; else "$@"; fi
+    echo "opened Taudot${folder:+ on $folder}"
+    ;;
+esac

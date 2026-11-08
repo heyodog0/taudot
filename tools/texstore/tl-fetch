@@ -1,0 +1,3 @@
+#!/bin/sh
+# kpathsea's fetch hook (TAUDOT_TL_FETCH) backed by the TeX Live store: tools/texstore/client.py.
+exec uv run --no-project --quiet python -I "$(dirname "$0")/client.py" fetch "$1"

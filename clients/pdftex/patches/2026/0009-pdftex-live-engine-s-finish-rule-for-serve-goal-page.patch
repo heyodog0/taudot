@@ -1,0 +1,191 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Fri, 6 Nov 2026 15:25:11 -0500
+Subject: [PATCH 9/9] pdftex: live engine's finish rule for --serve (goal page,
+ period, on request)
+
+---
+ texk/web2c/lib/taudot-live.c | 102 +++++++++++++++++++++++++++++++++--
+ 1 file changed, 99 insertions(+), 3 deletions(-)
+
+diff --git a/texk/web2c/lib/taudot-live.c b/texk/web2c/lib/taudot-live.c
+index 0975db3c..e306f2f0 100644
+--- a/texk/web2c/lib/taudot-live.c
++++ b/texk/web2c/lib/taudot-live.c
+@@ -55,6 +55,16 @@ static int tl_finish_all = 0;
+ static int tl_seq = 0;           /* edit number from ctl; 0 for the first run */
+ static char tl_watch[PATH_MAX];  /* finish once this file is read past tl_watch_off */
+ static long tl_watch_off = -1;
++/* --serve's finish rule (ctl's optional 4th and 5th fields): once past the edit, finish when page tl_goal (0-based)
++   has shipped, then at most every tl_period_us; -1 goal: the periodic ones only. tl_serve: the fields were there. */
++static int tl_serve = 0;
++static int tl_goal = -1;
++static uint64_t tl_period_us = 150000;
++static int tl_passed = 0;        /* read past the edit */
++static int tl_goal_done = 0;
++static uint64_t tl_last_finish;  /* or the resume */
++static volatile sig_atomic_t tl_want_finish = 0;  /* SIGUSR1: finish now */
++static volatile sig_atomic_t tl_want_ctl = 0;     /* SIGUSR2: ctl changed (the goal) */
+ 
+ static uint64_t
+ tl_now (void)
+@@ -288,6 +298,7 @@ tl_open_out (FILE **f_ptr, const char *name, const_string mode)
+ }
+ 
+ static void tl_dump (struct tl_vfile *v, const char *name);
++static void tl_serve_rule (int shipped);
+ 
+ /* Set by synctex.c when it closes its file: gzip it (after the PDF is out). */
+ void (*taudot_synctex_gzip_hook) (const char *name) = NULL;
+@@ -521,8 +532,8 @@ tl_send_snapshot (void)
+ {
+   char msg[30000];
+   int i, n;
+-  n = snprintf (msg, sizeof msg, "S %d %d %llu %d\n", (int) getppid (), (int) getpid (),
+-                (unsigned long long) tl_last_snap, tl_ntracks);
++  n = snprintf (msg, sizeof msg, "S %d %d %llu %d %d\n", (int) getppid (), (int) getpid (),
++                (unsigned long long) tl_last_snap, tl_ntracks, (int) totalpages);
+   for (i = 0; i < tl_ntracks && n < (int) sizeof msg - PATH_MAX - 32; i++)
+     n += snprintf (msg + n, sizeof msg - n, "%ld %s\n", tl_tracks[i].hw + tl_tracks[i].eof, tl_tracks[i].rel);
+   tl_send ("%s", msg);
+@@ -534,11 +545,20 @@ tl_read_ctl (void)
+   char *path = concat (tl_out, "/ctl");
+   FILE *f = fopen (path, "r");
+   free (path);
++  int goal, period, n;
+   tl_watch_off = -1;
+   if (!f)
+     return;
+-  if (fscanf (f, "%d %ld %1023s", &tl_seq, &tl_watch_off, tl_watch) != 3)
++  n = fscanf (f, "%d %ld %1023s %d %d", &tl_seq, &tl_watch_off, tl_watch, &goal, &period);
++  if (n < 3)
+     tl_watch_off = -1;
++  if (n == 5) {
++    tl_serve = 1;
++    if (goal != tl_goal)
++      tl_goal_done = 0;
++    tl_goal = goal;
++    tl_period_us = period > 0 ? (uint64_t) period * 1000 : 150000;
++  }
+   fclose (f);
+ }
+ 
+@@ -624,8 +644,12 @@ tl_be_snapshot (pid_t child)
+       tl_parent = getppid ();
+       tl_unshare_fds ();
+       tl_reload ();
++      tl_goal_done = 0;
++      tl_passed = 0;
++      tl_want_finish = 0;
+       tl_read_ctl ();
+       tl_last_snap = tl_now ();
++      tl_last_finish = tl_last_snap;
+       tl_send ("R %d %d %d %llu\n", (int) getppid (), (int) getpid (), tl_seq, (unsigned long long) tl_last_snap);
+       return;
+     }
+@@ -640,6 +664,8 @@ tl_before_line (FILE *f)
+   uint64_t t;
+   if (getppid () != tl_parent)
+     _exit (0);  /* our snapshot was killed: we are a stale runner */
++  if (tl_serve && (tl_want_finish || tl_want_ctl))
++    tl_serve_rule (0);
+   if (!tl_is_tracked (f))
+     return;
+   t = tl_now ();
+@@ -708,6 +734,15 @@ tl_finish (void)
+     t2 = tl_now ();
+     snprintf (name, sizeof name, "pdf-%d-%d.pdf", tl_seq, (int) getpid ());
+     tl_dump (tl_pdf, name);
++    if (tl_serve) {  /* the log so far beside it, and a plain SyncTeX (a gzipped one follows the P message) */
++      char aux[80];
++      snprintf (aux, sizeof aux, "pdf-%d-%d.log", tl_seq, (int) getpid ());
++      tl_dump (tl_log, aux);
++      if (tl_synctex && !taudot_synctex_gzip_pending) {
++        snprintf (aux, sizeof aux, "pdf-%d-%d", tl_seq, (int) getpid ());
++        tl_dump_synctex (aux);
++      }
++    }
+     t3 = tl_now ();
+     tl_send ("P %d %d %d %llu %llu %llu %llu %s\n", (int) getpid (), tl_seq, (int) totalpages,
+              (unsigned long long) t0, (unsigned long long) t1, (unsigned long long) t2,
+@@ -725,6 +760,59 @@ tl_finish (void)
+     ;
+ }
+ 
++/* --serve's rule, after a page is shipped (SHIPPED) or before a line (a "finish" request only). */
++static void
++tl_serve_rule (int shipped)
++{
++  uint64_t t;
++  int i;
++  if (tl_want_ctl) {
++    tl_want_ctl = 0;
++    {
++      int seq = tl_seq;
++      long off = tl_watch_off;
++      char w[PATH_MAX];
++      memcpy (w, tl_watch, sizeof w);
++      tl_read_ctl ();  /* only the goal may change mid-run */
++      tl_seq = seq;
++      tl_watch_off = off;
++      memcpy (tl_watch, w, sizeof w);
++    }
++  }
++  if (!tl_passed) {
++    if (tl_watch_off < 0)
++      tl_passed = 1;
++    else {
++      for (i = 0; i < tl_ntracks; i++)
++        if (strcmp (tl_tracks[i].rel, tl_watch) == 0)
++          break;
++      tl_passed = i < tl_ntracks && tl_tracks[i].hw + tl_tracks[i].eof > tl_watch_off;
++    }
++    if (!tl_passed)
++      return;
++  }
++  if (tl_want_finish) {
++    tl_want_finish = 0;
++    if (totalpages > 0) {
++      tl_finish ();
++      tl_last_finish = tl_now ();
++    }
++    return;
++  }
++  if (!shipped)
++    return;
++  t = tl_now ();
++  if ((tl_goal >= 0 && !tl_goal_done && totalpages > tl_goal) || t - tl_last_finish >= tl_period_us) {
++    if (tl_goal >= 0 && totalpages > tl_goal)
++      tl_goal_done = 1;
++    tl_finish ();
++    tl_last_finish = tl_now ();
++  }
++}
++
++static void tl_on_usr1 (int sig) { (void) sig; tl_want_finish = 1; }
++static void tl_on_usr2 (int sig) { (void) sig; tl_want_ctl = 1; }
++
+ void
+ taudotshipped (void)
+ {
+@@ -736,6 +824,10 @@ taudotshipped (void)
+     tl_finish ();
+     return;
+   }
++  if (tl_serve) {
++    tl_serve_rule (1);
++    return;
++  }
+   if (tl_watch_off < 0)
+     return;
+   for (i = 0; i < tl_ntracks; i++)
+@@ -833,5 +925,9 @@ taudot_live_init (void)
+   taudot_open_in_hook = tl_open_in;
+   taudot_open_out_hook = tl_open_out;
+   taudot_exit_hook = tl_exit;
++  signal (SIGUSR1, tl_on_usr1);
++  signal (SIGUSR2, tl_on_usr2);
++  tl_read_ctl ();  /* --serve's fields, for the first run too */
++  tl_last_finish = tl_now ();
+   tl_on = 1;
+ }

@@ -1,0 +1,3 @@
+#!/bin/sh
+# GPL-2.0-or-later. Run by kpathsea (TAUDOT_TL_FETCH) for a file listed in ls-R but not on disk.
+exec uv run --no-project --quiet python -I "$(dirname "$0")/tl.py" fetch "$1"

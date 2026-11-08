@@ -1,0 +1,78 @@
+#!/bin/sh
+# Taudot's stand-in for `tectonic`, as TeXpresso's file provider calls it (libcommon.a, tectonic_provider.c): the
+# three commands it runs, answered from Tectonic's TeX bundle over HTTPS with the system's curl. Tectonic itself
+# isn't shipped (its binary contains xdvipdfmx, GPL; docs/agents/renderer/licences.md, Blocker 4).
+#
+#   tectonic -X show user-cache-dir     the cache folder (the layout Tectonic 0.16 uses: data/<digest>.index and
+#                                       data/<digest>/<file>)
+#   tectonic -X bundle cat NAME         fetches NAME into the cache (once) and writes it to stdout
+#   tectonic -X bundle search           every file name in the bundle
+#
+# The bundle is an uncompressed tar with an index of "name offset length" lines (<url>.index.gz); a file is one
+# HTTP range request. Its SHA256SUM file names the bundle (the digest folder). Environment:
+#   TAUDOT_TEX_BUNDLE_URL   the bundle (default Tectonic's default_bundle_v33, TeX Live 2022 + extras)
+#   TAUDOT_TECTONIC_CACHE   the cache (default ~/Library/Caches/taudot/tectonic)
+#   TAUDOT_TECTONIC_WARM    a list of names to fetch in parallel, in the background, when the index is first fetched
+#                           (default ../tectonic-warm.txt from this script: what a first XeLaTeX run of a usual paper
+#                           reads; fetched one by one they take ~45 s, 16 at a time a few seconds). "" turns it off.
+set -eu
+PATH=/usr/bin:/bin
+url=${TAUDOT_TEX_BUNDLE_URL:-https://relay.fullyjustified.net/default_bundle_v33.tar}
+cache=${TAUDOT_TECTONIC_CACHE:-$HOME/Library/Caches/taudot/tectonic}
+data=$cache/data
+
+die() { echo "tectonic (taudot): $*" >&2; exit 1; }
+
+# The bundle's final URL (the relay redirects), resolved once.
+resolved() {
+  if [ ! -s "$cache/url" ]; then
+    mkdir -p "$cache"
+    u=$(curl -fsSIL -o /dev/null -w '%{url_effective}' "$url") || die "can't reach $url"
+    printf '%s\n' "$u" > "$cache/url.$$" && mv -f "$cache/url.$$" "$cache/url"
+  fi
+  cat "$cache/url"
+}
+
+# The index, as data/<digest>.index; prints its path.
+index() {
+  for i in "$data"/*.index; do [ -f "$i" ] && { echo "$i"; return; }; done
+  mkdir -p "$data"
+  u=$(resolved)
+  tmp=$data/.index.$$
+  curl -fsSL "$u.index.gz" | gunzip > "$tmp" || { rm -f "$tmp"; die "can't fetch the bundle's index"; }
+  set -- $(awk '$1 == "SHA256SUM" { print $2, $3; exit }' "$tmp")
+  [ $# = 2 ] || { rm -f "$tmp"; die "the index has no SHA256SUM"; }
+  digest=$(curl -fsSL -r "$1-$(($1 + $2 - 1))" "$u" | tr -dc '0-9a-f')
+  [ ${#digest} = 64 ] || { rm -f "$tmp"; die "bad SHA256SUM"; }
+  mkdir -p "$data/$digest"
+  mv -f "$tmp" "$data/$digest.index"
+  warm=${TAUDOT_TECTONIC_WARM-$(dirname "$0")/../tectonic-warm.txt}
+  if [ -n "$warm" ] && [ -f "$warm" ]; then
+    (xargs -P 16 -n 1 "$0" -X bundle fetch < "$warm" >/dev/null 2>&1 &)
+  fi
+  echo "$data/$digest.index"
+}
+
+# Fetches NAME into the cache if it isn't there; prints its path.
+fetch() {
+  idx=$(index)
+  dir=${idx%.index}
+  f=$dir/$1
+  [ -f "$f" ] && { echo "$f"; return; }
+  set -- "$1" $(LC_ALL=C awk -v n="$1" '$1 == n { print $2, $3; exit }' "$idx")
+  [ $# = 3 ] || die "$1 is not in the bundle"
+  tmp=$dir/.$1.$$
+  curl -fsSL -r "$2-$(($2 + $3 - 1))" "$(resolved)" -o "$tmp" || { rm -f "$tmp"; die "can't fetch $1"; }
+  [ "$(wc -c < "$tmp" | tr -d ' ')" = "$3" ] || { rm -f "$tmp"; die "$1: short read"; }
+  mv -f "$tmp" "$f"
+  echo "$f"
+}
+
+[ "${1:-}" = -X ] && shift
+case "${1:-} ${2:-}" in
+  "show user-cache-dir") echo "$cache" ;;
+  "bundle cat") [ $# = 3 ] || die "usage: tectonic -X bundle cat NAME"; cat "$(fetch "$3")" ;;
+  "bundle fetch") [ $# = 3 ] || die "usage: tectonic -X bundle fetch NAME"; fetch "$3" >/dev/null ;;
+  "bundle search") awk '{ print $1 }' "$(index)" ;;
+  *) die "only 'show user-cache-dir', 'bundle cat NAME' and 'bundle search' (Taudot's stand-in for Tectonic)" ;;
+esac

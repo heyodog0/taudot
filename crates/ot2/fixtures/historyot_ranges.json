@@ -1,0 +1,2087 @@
+{
+ "commentInsertAtStart": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000000101",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      5,
+      "X",
+      15
+     ]
+    }
+   ]
+  ],
+  "content": "01234X56789abcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000000101",
+    "ranges": [
+     {
+      "pos": 6,
+      "length": 5
+     }
+    ]
+   }
+  ],
+  "trackedChanges": []
+ },
+ "commentInsertInside": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000000201",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      7,
+      "X",
+      13
+     ]
+    }
+   ]
+  ],
+  "content": "0123456X789abcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000000201",
+    "ranges": [
+     {
+      "pos": 5,
+      "length": 2
+     },
+     {
+      "pos": 8,
+      "length": 3
+     }
+    ]
+   }
+  ],
+  "trackedChanges": []
+ },
+ "commentInsertAtEnd": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000000301",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      10,
+      "X",
+      10
+     ]
+    }
+   ]
+  ],
+  "content": "0123456789Xabcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000000301",
+    "ranges": [
+     {
+      "pos": 5,
+      "length": 5
+     }
+    ]
+   }
+  ],
+  "trackedChanges": []
+ },
+ "commentRemoveOverStart": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000000401",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      3,
+      -4,
+      13
+     ]
+    }
+   ]
+  ],
+  "content": "012789abcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000000401",
+    "ranges": [
+     {
+      "pos": 3,
+      "length": 3
+     }
+    ]
+   }
+  ],
+  "trackedChanges": []
+ },
+ "commentRemoveOverEnd": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000000501",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      7,
+      -5,
+      8
+     ]
+    }
+   ]
+  ],
+  "content": "0123456cdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000000501",
+    "ranges": [
+     {
+      "pos": 5,
+      "length": 2
+     }
+    ]
+   }
+  ],
+  "trackedChanges": []
+ },
+ "commentRemoveAll": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000000601",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      5,
+      -5,
+      10
+     ]
+    }
+   ]
+  ],
+  "content": "01234abcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000000601",
+    "ranges": []
+   }
+  ],
+  "trackedChanges": []
+ },
+ "commentRemoveAround": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000000701",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      4,
+      -7,
+      9
+     ]
+    }
+   ]
+  ],
+  "content": "0123bcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000000701",
+    "ranges": []
+   }
+  ],
+  "trackedChanges": []
+ },
+ "commentTwoRanges": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000000801",
+     "ranges": [
+      {
+       "pos": 2,
+       "length": 3
+      },
+      {
+       "pos": 10,
+       "length": 2
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      7,
+      "X",
+      13
+     ]
+    }
+   ]
+  ],
+  "content": "0123456X789abcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000000801",
+    "ranges": [
+     {
+      "pos": 2,
+      "length": 3
+     },
+     {
+      "pos": 11,
+      "length": 2
+     }
+    ]
+   }
+  ],
+  "trackedChanges": []
+ },
+ "commentResolveThenDelete": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000000901",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "commentId": "6ae7f0000000000000000901",
+     "resolved": true
+    }
+   ]
+  ],
+  "content": "0123456789abcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000000901",
+    "ranges": [
+     {
+      "pos": 5,
+      "length": 5
+     }
+    ],
+    "resolved": true
+   }
+  ],
+  "trackedChanges": []
+ },
+ "commentDelete": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000001001",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "deleteComment": "6ae7f0000000000000001001"
+    }
+   ]
+  ],
+  "content": "0123456789abcdefghij",
+  "comments": [],
+  "trackedChanges": []
+ },
+ "commentAddTwice": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000001101",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "commentId": "6ae7f0000000000000001101",
+     "ranges": [
+      {
+       "pos": 1,
+       "length": 2
+      }
+     ]
+    }
+   ]
+  ],
+  "content": "0123456789abcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000001101",
+    "ranges": [
+     {
+      "pos": 1,
+      "length": 2
+     }
+    ]
+   }
+  ],
+  "trackedChanges": []
+ },
+ "commentInsertWithIds": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000001201",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      12,
+      {
+       "i": "XY",
+       "commentIds": [
+        "6ae7f0000000000000001201"
+       ]
+      },
+      8
+     ]
+    }
+   ]
+  ],
+  "content": "0123456789abXYcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000001201",
+    "ranges": [
+     {
+      "pos": 5,
+      "length": 5
+     },
+     {
+      "pos": 12,
+      "length": 2
+     }
+    ]
+   }
+  ],
+  "trackedChanges": []
+ },
+ "commentUnderTrackedDelete": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000001301",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 5,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:00.000Z"
+       }
+      },
+      10
+     ]
+    }
+   ]
+  ],
+  "content": "0123456789abcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000001301",
+    "ranges": [
+     {
+      "pos": 5,
+      "length": 5
+     }
+    ]
+   }
+  ],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 5
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:00.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsert": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:01.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ]
+  ],
+  "content": "01234ABC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 3
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:01.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertPlainAtStart": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:02.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      5,
+      "X",
+      18
+     ]
+    }
+   ]
+  ],
+  "content": "01234XABC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 6,
+     "length": 3
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:02.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertPlainInside": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:03.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      6,
+      "X",
+      17
+     ]
+    }
+   ]
+  ],
+  "content": "01234AXBC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 1
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:03.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 7,
+     "length": 2
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:03.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertPlainAtEnd": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:04.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      8,
+      "X",
+      15
+     ]
+    }
+   ]
+  ],
+  "content": "01234ABCX56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 3
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:04.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertAdjacentSameUser": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:05.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      8,
+      {
+       "i": "DE",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:06.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ]
+  ],
+  "content": "01234ABCDE56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 5
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:05.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertBeforeSameUser": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:07.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "DE",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:08.000Z"
+       }
+      },
+      18
+     ]
+    }
+   ]
+  ],
+  "content": "01234DEABC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 5
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:07.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertInsideOtherUser": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:09.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      6,
+      {
+       "i": "DE",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854b5",
+        "ts": "2026-01-01T00:00:10.000Z"
+       }
+      },
+      17
+     ]
+    }
+   ]
+  ],
+  "content": "01234ADEBC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 1
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:09.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 6,
+     "length": 2
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854b5",
+     "ts": "2026-01-01T00:00:10.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 8,
+     "length": 2
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:09.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertRemovePart": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:11.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      6,
+      -1,
+      16
+     ]
+    }
+   ]
+  ],
+  "content": "01234AC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 2
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:11.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertThenTrackedDelete": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:12.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:13.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ]
+  ],
+  "content": "01234ABC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 3
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:13.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertAccept": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:14.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "none"
+       }
+      },
+      15
+     ]
+    }
+   ]
+  ],
+  "content": "01234ABC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": []
+ },
+ "trackedDelete": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:15.000Z"
+       }
+      },
+      12
+     ]
+    }
+   ]
+  ],
+  "content": "0123456789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 3
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:15.000Z"
+    }
+   }
+  ]
+ },
+ "trackedDeletePlainAtStart": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:16.000Z"
+       }
+      },
+      12
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      5,
+      "X",
+      15
+     ]
+    }
+   ]
+  ],
+  "content": "01234X56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 6,
+     "length": 3
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:16.000Z"
+    }
+   }
+  ]
+ },
+ "trackedDeletePlainInside": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:17.000Z"
+       }
+      },
+      12
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      6,
+      "X",
+      14
+     ]
+    }
+   ]
+  ],
+  "content": "012345X6789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 1
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:17.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 7,
+     "length": 2
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:17.000Z"
+    }
+   }
+  ]
+ },
+ "trackedDeletePlainAtEnd": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:18.000Z"
+       }
+      },
+      12
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      8,
+      "X",
+      12
+     ]
+    }
+   ]
+  ],
+  "content": "01234567X89abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 3
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:18.000Z"
+    }
+   }
+  ]
+ },
+ "trackedDeleteAdjacentSameUser": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:19.000Z"
+       }
+      },
+      12
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      8,
+      {
+       "r": 2,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:20.000Z"
+       }
+      },
+      10
+     ]
+    }
+   ]
+  ],
+  "content": "0123456789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 5
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:19.000Z"
+    }
+   }
+  ]
+ },
+ "trackedDeleteRejectPart": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 5,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:21.000Z"
+       }
+      },
+      10
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      6,
+      {
+       "r": 2,
+       "tracking": {
+        "type": "none"
+       }
+      },
+      12
+     ]
+    }
+   ]
+  ],
+  "content": "0123456789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 1
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:21.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 8,
+     "length": 2
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:21.000Z"
+    }
+   }
+  ]
+ },
+ "trackedDeleteAcceptPart": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 5,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:22.000Z"
+       }
+      },
+      10
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      6,
+      -2,
+      12
+     ]
+    }
+   ]
+  ],
+  "content": "01234589abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 3
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:22.000Z"
+    }
+   }
+  ]
+ },
+ "trackedDeleteOverlapOtherUser": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:23.000Z"
+       }
+      },
+      12
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      6,
+      {
+       "r": 4,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854b5",
+        "ts": "2026-01-01T00:00:24.000Z"
+       }
+      },
+      10
+     ]
+    }
+   ]
+  ],
+  "content": "0123456789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 1
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:23.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 6,
+     "length": 4
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854b5",
+     "ts": "2026-01-01T00:00:24.000Z"
+    }
+   }
+  ]
+ },
+ "trackedDeleteOverTrackedInsertOtherUser": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:25.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854b5",
+        "ts": "2026-01-01T00:00:26.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ]
+  ],
+  "content": "01234ABC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 3
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854b5",
+     "ts": "2026-01-01T00:00:26.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertDeletedBySameUser": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:27.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      6,
+      {
+       "r": 1,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:28.000Z"
+       }
+      },
+      16
+     ]
+    }
+   ]
+  ],
+  "content": "01234ABC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 1
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:27.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 6,
+     "length": 1
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:28.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 7,
+     "length": 1
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:27.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertAfterTrackedDelete": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:29.000Z"
+       }
+      },
+      12
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      8,
+      {
+       "i": "XY",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:30.000Z"
+       }
+      },
+      12
+     ]
+    }
+   ]
+  ],
+  "content": "01234567XY89abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 3
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:29.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 8,
+     "length": 2
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:30.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertBeforeTrackedDelete": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:31.000Z"
+       }
+      },
+      12
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "XY",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:32.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ]
+  ],
+  "content": "01234XY56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 2
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:32.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 7,
+     "length": 3
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:31.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertAdjacentOtherUser": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:33.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      8,
+      {
+       "i": "DE",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854b5",
+        "ts": "2026-01-01T00:00:34.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ]
+  ],
+  "content": "01234ABCDE56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 3
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:33.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 8,
+     "length": 2
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854b5",
+     "ts": "2026-01-01T00:00:34.000Z"
+    }
+   }
+  ]
+ },
+ "removeAcrossTrackedDelete": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:35.000Z"
+       }
+      },
+      12
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      3,
+      -7,
+      10
+     ]
+    }
+   ]
+  ],
+  "content": "012abcdefghij",
+  "comments": [],
+  "trackedChanges": []
+ },
+ "trackedDeleteWithComment": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      2,
+      {
+       "r": 3,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:36.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "commentId": "6ae7f0000000000000003801",
+     "ranges": [
+      {
+       "pos": 1,
+       "length": 6
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      3,
+      "X",
+      17
+     ]
+    }
+   ]
+  ],
+  "content": "012X3456789abcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000003801",
+    "ranges": [
+     {
+      "pos": 1,
+      "length": 2
+     },
+     {
+      "pos": 4,
+      "length": 4
+     }
+    ]
+   }
+  ],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 2,
+     "length": 1
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:36.000Z"
+    }
+   },
+   {
+    "range": {
+     "pos": 4,
+     "length": 2
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:36.000Z"
+    }
+   }
+  ]
+ },
+ "insertTrackedNoneIgnored": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "Q",
+       "tracking": {
+        "type": "none"
+       }
+      },
+      15
+     ]
+    }
+   ]
+  ],
+  "error": "Error: {\"message\":\"Invalid input\"}"
+ },
+ "trackedInsertSplitThenRejoined": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:37.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      6,
+      "X",
+      17
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      6,
+      -1,
+      17
+     ]
+    }
+   ]
+  ],
+  "content": "01234ABC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 3
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:37.000Z"
+    }
+   }
+  ]
+ },
+ "commentSplitThenRejoined": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000004101",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      7,
+      "X",
+      13
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      7,
+      -1,
+      13
+     ]
+    }
+   ]
+  ],
+  "content": "0123456789abcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000004101",
+    "ranges": [
+     {
+      "pos": 5,
+      "length": 5
+     }
+    ]
+   }
+  ],
+  "trackedChanges": []
+ },
+ "trackedDeleteSameUserTwoSides": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "r": 2,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:38.000Z"
+       }
+      },
+      13
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      8,
+      {
+       "r": 2,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:39.000Z"
+       }
+      },
+      10
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      7,
+      {
+       "r": 1,
+       "tracking": {
+        "type": "delete",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:40.000Z"
+       }
+      },
+      12
+     ]
+    }
+   ]
+  ],
+  "content": "0123456789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 5
+    },
+    "tracking": {
+     "type": "delete",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:38.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertWithCommentIdsInside": {
+  "updates": [
+   [
+    {
+     "commentId": "6ae7f0000000000000004301",
+     "ranges": [
+      {
+       "pos": 5,
+       "length": 5
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      7,
+      {
+       "i": "XY",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:41.000Z"
+       },
+       "commentIds": [
+        "6ae7f0000000000000004301"
+       ]
+      },
+      13
+     ]
+    }
+   ]
+  ],
+  "content": "0123456XY789abcdefghij",
+  "comments": [
+   {
+    "id": "6ae7f0000000000000004301",
+    "ranges": [
+     {
+      "pos": 5,
+      "length": 7
+     }
+    ]
+   }
+  ],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 7,
+     "length": 2
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:41.000Z"
+    }
+   }
+  ]
+ },
+ "trackedInsertUntrackedRetainNoTracking": {
+  "updates": [
+   [
+    {
+     "textOperation": [
+      5,
+      {
+       "i": "ABC",
+       "tracking": {
+        "type": "insert",
+        "userId": "6ae7eb869c93d6e28d0854af",
+        "ts": "2026-01-01T00:00:42.000Z"
+       }
+      },
+      15
+     ]
+    }
+   ],
+   [
+    {
+     "textOperation": [
+      23
+     ]
+    }
+   ]
+  ],
+  "content": "01234ABC56789abcdefghij",
+  "comments": [],
+  "trackedChanges": [
+   {
+    "range": {
+     "pos": 5,
+     "length": 3
+    },
+    "tracking": {
+     "type": "insert",
+     "userId": "6ae7eb869c93d6e28d0854af",
+     "ts": "2026-01-01T00:00:42.000Z"
+    }
+   }
+  ]
+ }
+}

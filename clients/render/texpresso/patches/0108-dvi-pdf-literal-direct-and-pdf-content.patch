@@ -1,0 +1,129 @@
+From 39b8964031422fd6e3415e564c290d8146fe912a Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Tue, 3 Nov 2026 14:25:51 -0500
+Subject: [PATCH 108/108] dvi: pdf:literal direct and pdf:content
+
+---
+ src/dvi/dvi_special.c      | 36 +++++++++++++++++++++++++++++++++---
+ src/dvi/dvi_special.re2c.c | 36 +++++++++++++++++++++++++++++++++---
+ 2 files changed, 66 insertions(+), 6 deletions(-)
+
+diff --git a/src/dvi/dvi_special.c b/src/dvi/dvi_special.c
+index 2ddaeea..a8f9546 100644
+--- a/src/dvi/dvi_special.c
++++ b/src/dvi/dvi_special.c
+@@ -5332,8 +5332,29 @@ static bool form_use(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+  * "pdf:literal 0 -D W H re W n", the figure, then "x:grestore". Without them the
+  * whole page of the figure is drawn over the text around it. gsave/grestore
+  * act like PDF q/Q, and a plain literal (drawn at the current point) like
+- * pdf:code. "pdf:literal direct" and "page" are left unhandled, as before.
++ * pdf:code. "pdf:literal direct": see pdf_direct; "pdf:literal page" stays unhandled.
+  * Returns -1 when the special is none of these. */
++/* Taudot (MIT): "pdf:literal direct": PDF code not moved to the current point. ("pdf:direct" and "pdf:page" are
++ * pdfTeX-compatibility forms that Tectonic's dvipdfmx doesn't draw, so we don't either.)
++ * dvipdfmx starts each page with "1 0 0 1 72 720 cm", so its coordinates are relative to the DVI origin (1in, 1in
++ * from the top left, y up), under any pdf:btrans transforms around their own points. That is the current CTM
++ * moved back by the current point. State changes other than the CTM stay, as dvipdfmx doesn't wrap the code. */
++static int pdf_direct(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
++{
++  float s = dc->scale;
++  dvi_state d = *st;
++  dvi_set_ctm(&d, fz_pre_translate(dvi_get_ctm(dc, st), -st->registers.h * s, st->registers.v * s));
++  bool ok = pdf_code(ctx, dc, &d, cur, lim);
++  fz_matrix ctm = st->gs.ctm;
++  int h = st->gs.h, v = st->gs.v;
++  st->gs = d.gs;
++  st->gs.ctm = ctm;
++  st->gs.h = h;
++  st->gs.v = v;
++  st->gs_stack.depth = d.gs_stack.depth;
++  return ok;
++}
++
+ static int
+ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
+ {
+@@ -5392,11 +5413,20 @@ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+     {
+       p += 8;
+       while (p < lim && *p == ' ') p++;
+-      if ((lim - p >= 6 && memcmp(p, "direct", 6) == 0) ||
+-          (lim - p >= 4 && memcmp(p, "page", 4) == 0))
++      if (lim - p >= 6 && memcmp(p, "direct", 6) == 0)
++        return pdf_direct(ctx, dc, st, p + 6, lim);
++      if (lim - p >= 4 && memcmp(p, "page", 4) == 0)
+         return -1;
+       return pdf_code(ctx, dc, st, p, lim);
+     }
++    /* "pdf:content": at the current point, inside q/Q */
++    if (lim - p > 8 && memcmp(p, "content ", 8) == 0)
++    {
++      static const char q[] = "q", Q[] = "Q";
++      bool ok = pdf_code(ctx, dc, st, q, q + 1);
++      ok = pdf_code(ctx, dc, st, p + 8, lim) && ok;
++      return pdf_code(ctx, dc, st, Q, Q + 1) && ok;
++    }
+   }
+   return -1;
+ }
+diff --git a/src/dvi/dvi_special.re2c.c b/src/dvi/dvi_special.re2c.c
+index 820e9fc..d39e7ab 100644
+--- a/src/dvi/dvi_special.re2c.c
++++ b/src/dvi/dvi_special.re2c.c
+@@ -2101,8 +2101,29 @@ static bool form_use(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+  * "pdf:literal 0 -D W H re W n", the figure, then "x:grestore". Without them the
+  * whole page of the figure is drawn over the text around it. gsave/grestore
+  * act like PDF q/Q, and a plain literal (drawn at the current point) like
+- * pdf:code. "pdf:literal direct" and "page" are left unhandled, as before.
++ * pdf:code. "pdf:literal direct": see pdf_direct; "pdf:literal page" stays unhandled.
+  * Returns -1 when the special is none of these. */
++/* Taudot (MIT): "pdf:literal direct": PDF code not moved to the current point. ("pdf:direct" and "pdf:page" are
++ * pdfTeX-compatibility forms that Tectonic's dvipdfmx doesn't draw, so we don't either.)
++ * dvipdfmx starts each page with "1 0 0 1 72 720 cm", so its coordinates are relative to the DVI origin (1in, 1in
++ * from the top left, y up), under any pdf:btrans transforms around their own points. That is the current CTM
++ * moved back by the current point. State changes other than the CTM stay, as dvipdfmx doesn't wrap the code. */
++static int pdf_direct(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
++{
++  float s = dc->scale;
++  dvi_state d = *st;
++  dvi_set_ctm(&d, fz_pre_translate(dvi_get_ctm(dc, st), -st->registers.h * s, st->registers.v * s));
++  bool ok = pdf_code(ctx, dc, &d, cur, lim);
++  fz_matrix ctm = st->gs.ctm;
++  int h = st->gs.h, v = st->gs.v;
++  st->gs = d.gs;
++  st->gs.ctm = ctm;
++  st->gs.h = h;
++  st->gs.v = v;
++  st->gs_stack.depth = d.gs_stack.depth;
++  return ok;
++}
++
+ static int
+ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
+ {
+@@ -2161,11 +2182,20 @@ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+     {
+       p += 8;
+       while (p < lim && *p == ' ') p++;
+-      if ((lim - p >= 6 && memcmp(p, "direct", 6) == 0) ||
+-          (lim - p >= 4 && memcmp(p, "page", 4) == 0))
++      if (lim - p >= 6 && memcmp(p, "direct", 6) == 0)
++        return pdf_direct(ctx, dc, st, p + 6, lim);
++      if (lim - p >= 4 && memcmp(p, "page", 4) == 0)
+         return -1;
+       return pdf_code(ctx, dc, st, p, lim);
+     }
++    /* "pdf:content": at the current point, inside q/Q */
++    if (lim - p > 8 && memcmp(p, "content ", 8) == 0)
++    {
++      static const char q[] = "q", Q[] = "Q";
++      bool ok = pdf_code(ctx, dc, st, q, q + 1);
++      ok = pdf_code(ctx, dc, st, p + 8, lim) && ok;
++      return pdf_code(ctx, dc, st, Q, Q + 1) && ok;
++    }
+   }
+   return -1;
+ }
+-- 
+2.50.0
+

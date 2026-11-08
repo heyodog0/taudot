@@ -1,0 +1,29 @@
+# taudot.app: the landing page, /privacy, /terms, /source and the waitlist (site/README.md).
+# Deployed with `npx wrangler deploy` (first on 2026-11-05). `npx wrangler dev` runs it locally with a local KV store.
+name = "taudot-site"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = false
+routes = [{ pattern = "taudot.app", custom_domain = true }, { pattern = "www.taudot.app", custom_domain = true }]
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+run_worker_first = true
+html_handling = "none"
+
+# The waitlist: one key per address (`email:<address>`), nothing else. `wrangler dev` keeps a local copy in
+# .wrangler/state.
+[[kv_namespaces]]
+binding = "WAITLIST"
+id = "7ef32116c6db4f05a96742ba8b98fa5a"
+
+# Joins per address, so a script can't fill the list (worker.js `limited`).
+[[ratelimits]]
+name = "JOINS"
+namespace_id = "2001"
+simple = { limit = 5, period = 60 }
+
+# No Workers Logs: the page promises that only the email is kept.
+[observability]
+enabled = false

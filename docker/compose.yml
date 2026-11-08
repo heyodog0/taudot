@@ -1,0 +1,60 @@
+# Local Overleaf CE for texsync tests. Start with docker/up.sh, not directly.
+name: texsync-overleaf
+
+services:
+  sharelatex:
+    image: sharelatex/sharelatex:${OVERLEAF_IMAGE_TAG:-6.3.0}
+    platform: linux/amd64
+    container_name: texsync-sharelatex
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${OVERLEAF_PORT:-8800}:80"
+    stop_grace_period: 60s
+    volumes:
+      - sharelatex_data:/var/lib/overleaf
+    environment:
+      OVERLEAF_APP_NAME: texsync test Overleaf
+      OVERLEAF_SITE_URL: http://localhost:${OVERLEAF_PORT:-8800}
+      OVERLEAF_MONGO_URL: mongodb://mongo/sharelatex
+      OVERLEAF_REDIS_HOST: redis
+      REDIS_HOST: redis
+      ENABLED_LINKED_FILE_TYPES: project_file,project_output_file
+      ENABLE_CONVERSIONS: "true"
+      EMAIL_CONFIRMATION_DISABLED: "true"
+      # Tests hammer the login and socket endpoints from one IP.
+      SUBNET_RATE_LIMITER_DISABLED: "true"
+      # Generated once by up.sh into docker/.env (gitignored). 6.3 refuses to start without it.
+      OVERLEAF_INVITE_TOKEN_SECRET: ${OVERLEAF_INVITE_TOKEN_SECRET:-}
+
+  mongo:
+    image: mongo:8.0
+    container_name: texsync-mongo
+    restart: unless-stopped
+    command: --replSet overleaf
+    volumes:
+      - mongo_data:/data/db
+    # Overleaf needs a replica set (it uses transactions). Initiate it on first start.
+    healthcheck:
+      test: >
+        mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({_id: 'overleaf', members: [{_id: 0, host: 'mongo:27017'}]}).ok }"
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+
+  redis:
+    image: redis:7.4
+    container_name: texsync-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+volumes:
+  sharelatex_data:
+  mongo_data:
+  redis_data:

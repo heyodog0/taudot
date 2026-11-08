@@ -1,0 +1,856 @@
+From f4b729c95aa9981b1e72b12beee65c14d5ca7645 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Tue, 3 Nov 2026 14:01:08 -0500
+Subject: [PATCH 105/108] dvi: tiling patterns (pdf:stream, cs/scn)
+
+---
+ src/dvi/dvi_context.c      |   2 +
+ src/dvi/dvi_special.c      | 304 +++++++++++++++++++++++++++++++++++--
+ src/dvi/dvi_special.re2c.c | 304 +++++++++++++++++++++++++++++++++++--
+ src/dvi/mydvi.h            |  20 +++
+ 4 files changed, 602 insertions(+), 28 deletions(-)
+
+diff --git a/src/dvi/dvi_context.c b/src/dvi/dvi_context.c
+index edf9b2f..f7cd5e9 100644
+--- a/src/dvi/dvi_context.c
++++ b/src/dvi/dvi_context.c
+@@ -61,6 +61,8 @@ void dvi_context_free(fz_context *ctx, dvi_context *dc)
+   dvi_context_set_device(ctx, dc, NULL);
+   dvi_resmanager_free(ctx, dc->resmanager);
+   dvi_scratch_release(ctx, &dc->scratch);
++  for (int i = 0; i < dc->pattern_count; i++)
++    fz_free(ctx, dc->patterns[i].content);
+   fz_free(ctx, dc);
+ }
+ 
+diff --git a/src/dvi/dvi_special.c b/src/dvi/dvi_special.c
+index 10c77c5..07a7125 100644
+--- a/src/dvi/dvi_special.c
++++ b/src/dvi/dvi_special.c
+@@ -2869,6 +2869,257 @@ static void stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path
+     fz_rethrow(ctx);
+ }
+ 
++static bool
++pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim);
++static bool is_pdf_delim(char c);
++
++/* Taudot (MIT, like this file): tiling patterns, as PGF's xetex driver writes them (\usetikzlibrary{patterns}):
++ *   pdf:stream @pgfpatternobject3 (q 0.3985 w 0 0 m 3 3 l S Q) << /Type /Pattern /PatternType 1 /PaintType 2
++ *     /BBox [...] /XStep x /YStep y /Matrix [...] >>
++ *   pdf:put @pgfpatterns << /pgfpat3 @pgfpatternobject3 >>
++ *   pdf:code /pgfprgb cs 0.55 0.55 0.55 /pgfpat3 scn ... f
++ * TeXpresso ignored all three, so pattern fills came out solid black. A fill with a pattern clips to the path and
++ * repeats the cell over it, drawing the cell's content through pdf_code in the colour given to scn
++ * (PaintType 2) or its own colours (PaintType 1). */
++
++static dvi_pattern *pattern_by_obj(fz_context *ctx, dvi_context *dc, const char *obj, size_t len, bool create)
++{
++  if (len == 0 || len >= sizeof(dc->patterns[0].obj))
++    return NULL;
++  for (int i = 0; i < dc->pattern_count; i++)
++    if (strlen(dc->patterns[i].obj) == len && memcmp(dc->patterns[i].obj, obj, len) == 0)
++      return &dc->patterns[i];
++  if (!create || dc->pattern_count >= DVI_PATTERNS_MAX)
++    return NULL;
++  dvi_pattern *p = &dc->patterns[dc->pattern_count++];
++  memset(p, 0, sizeof(*p));
++  memcpy(p->obj, obj, len);
++  p->matrix = fz_identity;
++  return p;
++}
++
++static int pattern_by_name(dvi_context *dc, const char *name)
++{
++  for (int i = 0; i < dc->pattern_count; i++)
++    if (strcmp(dc->patterns[i].name, name) == 0)
++      return i;
++  return -1;
++}
++
++/* Numbers after "key" in [cur, lim), skipping "[": returns how many were read (up to count). */
++static int dict_numbers(cursor_t cur, cursor_t lim, const char *key, float *out, int count)
++{
++  size_t klen = strlen(key);
++  const char *k = fz_memmem(cur, lim - cur, key, klen);
++  while (k && k + klen < lim && !is_pdf_delim(k[klen]))
++    k = fz_memmem(k + 1, lim - (k + 1), key, klen);
++  if (!k)
++    return 0;
++  cursor_t p = k + klen;
++  int n = 0;
++  while (n < count && p < lim)
++  {
++    while (p < lim && (*p == ' ' || *p == '[' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
++    char buf[32];
++    size_t i = 0;
++    while (p + i < lim && i < sizeof(buf) - 1 && !is_pdf_delim(p[i]) && p[i] != ']') { buf[i] = p[i]; i++; }
++    buf[i] = 0;
++    char *end;
++    float v = strtof(buf, &end);
++    if (end == buf)
++      break;
++    out[n++] = v;
++    p += i;
++  }
++  return n;
++}
++
++/* "pdf:stream @obj (content) << dict >>": keep it if it is a tiling pattern. */
++static int pattern_stream(fz_context *ctx, dvi_context *dc, cursor_t cur, cursor_t lim)
++{
++  while (cur < lim && *cur == ' ') cur++;
++  if (cur >= lim || *cur != '@')
++    return -1;
++  cursor_t obj = ++cur;
++  while (cur < lim && !is_pdf_delim(*cur)) cur++;
++  size_t obj_len = cur - obj;
++  while (cur < lim && *cur == ' ') cur++;
++  if (cur >= lim || *cur != '(')
++    return -1;
++  /* the content string: balanced parentheses, backslash escapes */
++  cursor_t s = ++cur;
++  int nest = 1;
++  while (cur < lim)
++  {
++    if (*cur == '\\') { cur += 2; continue; }
++    if (*cur == '(') nest++;
++    else if (*cur == ')' && --nest == 0) break;
++    cur++;
++  }
++  if (cur >= lim)
++    return -1;
++  cursor_t s_end = cur++;
++  if (!fz_memmem(cur, lim - cur, "/PatternType 1", 14))
++    return -1;
++  dvi_pattern *p = pattern_by_obj(ctx, dc, obj, obj_len, 1);
++  if (!p)
++    return 1;
++  char *content = fz_malloc(ctx, (s_end - s) + 1);
++  size_t n = 0;
++  for (cursor_t q = s; q < s_end; q++)
++  {
++    if (*q == '\\' && q + 1 < s_end)
++    {
++      q++;
++      char c = *q;
++      content[n++] = c == 'n' ? '\n' : c == 'r' ? '\r' : c == 't' ? '\t' : c;
++    }
++    else
++      content[n++] = *q;
++  }
++  content[n] = 0;
++  fz_free(ctx, p->content);
++  p->content = content;
++  float v[6];
++  p->bbox = dict_numbers(cur, lim, "/BBox", v, 4) == 4 ? fz_make_rect(v[0], v[1], v[2], v[3]) : fz_empty_rect;
++  p->xstep = dict_numbers(cur, lim, "/XStep", v, 1) == 1 ? v[0] : 0;
++  p->ystep = dict_numbers(cur, lim, "/YStep", v, 1) == 1 ? v[0] : 0;
++  p->matrix = dict_numbers(cur, lim, "/Matrix", v, 6) == 6 ? fz_make_matrix(v[0], v[1], v[2], v[3], v[4], v[5])
++                                                           : fz_identity;
++  p->paint_type = dict_numbers(cur, lim, "/PaintType", v, 1) == 1 ? (int)v[0] : 1;
++  return 1;
++}
++
++/* In a pdf:put body, "/Name @obj" names a pattern object. */
++static void scan_pattern_names(fz_context *ctx, dvi_context *dc, cursor_t cur, cursor_t lim)
++{
++  while (cur < lim)
++  {
++    if (*cur != '/') { cur++; continue; }
++    cursor_t n = ++cur;
++    while (cur < lim && !is_pdf_delim(*cur)) cur++;
++    size_t nlen = cur - n;
++    cursor_t q = cur;
++    while (q < lim && *q == ' ') q++;
++    if (q < lim && *q == '@' && nlen < sizeof(dc->patterns[0].name))
++    {
++      cursor_t o = ++q;
++      while (q < lim && !is_pdf_delim(*q)) q++;
++      if (fz_memmem(o, q - o, "pattern", 7))
++      {
++        dvi_pattern *p = pattern_by_obj(ctx, dc, o, q - o, 1);
++        if (p)
++        {
++          memcpy(p->name, n, nlen);
++          p->name[nlen] = 0;
++        }
++      }
++      cur = q;
++    }
++  }
++}
++
++/* scn/sc with a pattern name last: the numbers before it are the colour of an uncoloured pattern. */
++static void set_fill_scn(fz_context *ctx, dvi_context *dc, dvi_state *st, vstack *stack)
++{
++  val args = vstack_get_values(ctx, stack);
++  int n = val_array_length(ctx, stack, args);
++  float c[4];
++  int nc = 0;
++  const char *name = NULL;
++  for (int i = 0; i < n; i++)
++  {
++    val v = val_array_get(ctx, stack, args, i);
++    if (val_is_number(v) && nc < 4)
++      c[nc++] = val_number(ctx, v);
++    else if (val_is_name(v))
++      name = val_as_name(ctx, stack, v);
++  }
++  if (nc == 1) color_set_gray(st->gs.colors.fill, c[0]);
++  else if (nc == 3) color_set_rgb(st->gs.colors.fill, c[0], c[1], c[2]);
++  else if (nc == 4) color_set_cmyk(ctx, st->gs.colors.fill, c[0], c[1], c[2], c[3]);
++  if (!name)
++    st->gs.fill_pattern = 0;
++  else
++  {
++    int i = pattern_by_name(dc, name);
++    st->gs.fill_pattern = (i >= 0 && dc->patterns[i].content) ? i + 1 : -1;
++    if (st->gs.fill_pattern < 0)
++      fprintf(stderr, "pdf scn: pattern /%s not defined (yet)\n", name);
++  }
++}
++
++static void fill_pattern(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path *path, int even_odd,
++                         fz_matrix ctm)
++{
++  dvi_pattern *pat = &dc->patterns[st->gs.fill_pattern - 1];
++  float H = dc->page_height > 0 ? dc->page_height : 792;
++  /* pattern space -> the page's default space (origin bottom left) -> our device space (origin top left) */
++  fz_matrix ptm = fz_concat(pat->matrix, fz_make_matrix(1, 0, 0, -1, 0, H));
++  fz_rect dev_area = fz_bound_path(ctx, path, NULL, ctm);
++  if (fz_is_empty_rect(dev_area) || pat->xstep == 0 || pat->ystep == 0)
++    return;
++  fz_rect view = fz_transform_rect(dev_area, fz_invert_matrix(ptm));
++
++  dvi_state cell = *st;
++  cell.gs.fill_pattern = 0;
++  cell.gs.dash_len = 0;
++  cell.gs.line_width = 1;
++  cell.gs.miter_limit = 10;
++  cell.gs.line_join = 0;
++  cell.gs.line_caps = 0;
++  if (pat->paint_type == 2)
++    memcpy(cell.gs.colors.line, st->gs.colors.fill, sizeof(cell.gs.colors.line));
++  else
++  {
++    color_set_gray(cell.gs.colors.fill, 0);
++    color_set_gray(cell.gs.colors.line, 0);
++  }
++  dvi_set_ctm(&cell, ptm);
++
++  fz_path *outer = dc->path;
++  dc->path = NULL;
++  fz_clip_path(ctx, dc->dev, path, even_odd, ctm, fz_infinite_rect);
++  fz_try(ctx)
++  {
++    /* Repeat the cell by hand over the area to fill, in pattern space. (fz_begin_tile drew nothing here; a loop
++       also carries over to Phase B's backend as is.) */
++    int i0 = (int)floorf((view.x0 - pat->bbox.x1) / pat->xstep), i1 = (int)ceilf((view.x1 - pat->bbox.x0) / pat->xstep);
++    int j0 = (int)floorf((view.y0 - pat->bbox.y1) / pat->ystep), j1 = (int)ceilf((view.y1 - pat->bbox.y0) / pat->ystep);
++    if ((double)(i1 - i0 + 1) * (j1 - j0 + 1) > 100000)
++    {
++      fprintf(stderr, "pdf pattern %s: too many cells, drawn as a tint\n", pat->obj);
++      fz_fill_path(ctx, dc->dev, path, even_odd, ctm, device_cs(ctx), st->gs.colors.fill, 0.25f * DVI_FILL_ALPHA(st),
++                   color_params);
++    }
++    else
++      for (int j = j0; j <= j1; j++)
++        for (int i = i0; i <= i1; i++)
++        {
++          dvi_set_ctm(&cell, fz_pre_translate(ptm, i * pat->xstep, j * pat->ystep));
++          pdf_code(ctx, dc, &cell, pat->content, pat->content + strlen(pat->content));
++        }
++  }
++  fz_always(ctx)
++  {
++    drop_path(ctx, dc);
++    dc->path = outer;
++    fz_pop_clip(ctx, dc->dev);
++  }
++  fz_catch(ctx)
++    fz_rethrow(ctx);
++}
++
++/* Every path fill goes through here. */
++static void fill_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path *path, int even_odd, fz_matrix ctm)
++{
++  if (st->gs.fill_pattern > 0)
++    fill_pattern(ctx, dc, st, path, even_odd, ctm);
++  else
++    fz_fill_path(ctx, dc->dev, path, even_odd, ctm, device_cs(ctx), st->gs.colors.fill,
++                 DVI_FILL_ALPHA(st) * (st->gs.fill_pattern < 0 ? 0.25f : 1.0f), color_params);
++}
++
+ /* Taudot (MIT): B, B*, b and b*. With transparency, PDF paints the fill and the stroke as one knockout group, so
+  * the stroke replaces the fill under it rather than compositing over it. */
+ static void fill_stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path *path, int even_odd,
+@@ -2887,8 +3138,7 @@ static void fill_stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz
+       fz_rethrow(ctx);
+     fz_begin_group(ctx, dc->dev, area, NULL, 0, 1, FZ_BLEND_NORMAL, 1);
+   }
+-  fz_fill_path(ctx, dc->dev, path, even_odd, ctm, device_cs(ctx), st->gs.colors.fill, DVI_FILL_ALPHA(st),
+-               color_params);
++  fill_path(ctx, dc, st, path, even_odd, ctm);
+   stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
+   if (knockout)
+     fz_end_group(ctx, dc->dev);
+@@ -3071,6 +3321,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           float c[1];
+           vstack_get_floats(ctx, stack, c, 1);
+           color_set_gray(st->gs.colors.fill, c[0]);
++          st->gs.fill_pattern = 0;
+           break;
+         }
+         case PDF_OP_RG:
+@@ -3085,6 +3336,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           float c[3];
+           vstack_get_floats(ctx, stack, c, 3);
+           color_set_rgb(st->gs.colors.fill, c[0], c[1], c[2]);
++          st->gs.fill_pattern = 0;
+           break;
+         }
+         case PDF_OP_K:
+@@ -3099,6 +3351,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           float c[4];
+           vstack_get_floats(ctx, stack, c, 4);
+           color_set_cmyk(ctx, st->gs.colors.fill, c[0], c[1], c[2], c[3]);
++          st->gs.fill_pattern = 0;
+           break;
+         }
+ 
+@@ -3204,8 +3457,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           {
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+-            fz_fill_path(ctx, dc->dev, path, 0, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, DVI_FILL_ALPHA(st), color_params);
++            fill_path(ctx, dc, st, path, 0, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -3215,8 +3467,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           {
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+-            fz_fill_path(ctx, dc->dev, path, 1, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, DVI_FILL_ALPHA(st), color_params);
++            fill_path(ctx, dc, st, path, 1, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -3295,6 +3546,34 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           break;
+         }
+ 
++        case PDF_OP_cs:
++        case PDF_OP_CS:
++          vstack_get_values(ctx, stack);  /* the colour comes with sc/scn */
++          break;
++
++        case PDF_OP_sc:
++        case PDF_OP_scn:
++          set_fill_scn(ctx, dc, st, stack);
++          break;
++
++        case PDF_OP_SC:
++        case PDF_OP_SCN:
++        {
++          val args = vstack_get_values(ctx, stack);
++          int n = val_array_length(ctx, stack, args);
++          float c[4];
++          int nc = 0;
++          for (int i = 0; i < n && nc < 4; i++)
++          {
++            val v = val_array_get(ctx, stack, args, i);
++            if (val_is_number(v)) c[nc++] = val_number(ctx, v);
++          }
++          if (nc == 1) color_set_gray(st->gs.colors.line, c[0]);
++          else if (nc == 3) color_set_rgb(st->gs.colors.line, c[0], c[1], c[2]);
++          else if (nc == 4) color_set_cmyk(ctx, st->gs.colors.line, c[0], c[1], c[2], c[3]);
++          break;
++        }
++
+         case PDF_OP_gs:
+         {
+           val v[1];
+@@ -3326,12 +3605,6 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+         case PDF_OP_dquote:
+         case PDF_OP_d0:
+         case PDF_OP_d1:
+-        case PDF_OP_CS:
+-        case PDF_OP_cs:
+-        case PDF_OP_SC:
+-        case PDF_OP_sc:
+-        case PDF_OP_SCN:
+-        case PDF_OP_scn:
+         case PDF_OP_sh:
+         case PDF_OP_Do:
+         case PDF_OP_MP:
+@@ -4338,7 +4611,7 @@ yy385:
+ yy386:
+ 	++cur;
+ #line 1150 "dvi_special.re2c.c"
+-	{ return 1; }
++	{ dc->page_height = 792; return 1; }
+ #line 4207 "dvi_special.c"
+ yy387:
+ 	++cur;
+@@ -4553,7 +4826,7 @@ yy409:
+ 	f0 = yyt1;
+ 	f1 = yyt2;
+ #line 1147 "dvi_special.re2c.c"
+-	{ return 1; }
++	{ dc->page_height = pdim(f1, lim); return 1; }
+ #line 4422 "dvi_special.c"
+ yy410:
+ 	++cur;
+@@ -4737,8 +5010,11 @@ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+     if (lim - p > 4 && memcmp(p, "put ", 4) == 0)
+     {
+       scan_extgstates(ctx, dc, p + 4, lim);
++      scan_pattern_names(ctx, dc, p + 4, lim);
+       return -1;
+     }
++    if (lim - p > 7 && memcmp(p, "stream ", 7) == 0)
++      return pattern_stream(ctx, dc, p + 7, lim);
+     if (lim - p > 8 && memcmp(p, "literal ", 8) == 0)
+     {
+       p += 8;
+diff --git a/src/dvi/dvi_special.re2c.c b/src/dvi/dvi_special.re2c.c
+index 5b8fbb4..b383766 100644
+--- a/src/dvi/dvi_special.re2c.c
++++ b/src/dvi/dvi_special.re2c.c
+@@ -744,6 +744,257 @@ static void stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path
+     fz_rethrow(ctx);
+ }
+ 
++static bool
++pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim);
++static bool is_pdf_delim(char c);
++
++/* Taudot (MIT, like this file): tiling patterns, as PGF's xetex driver writes them (\usetikzlibrary{patterns}):
++ *   pdf:stream @pgfpatternobject3 (q 0.3985 w 0 0 m 3 3 l S Q) << /Type /Pattern /PatternType 1 /PaintType 2
++ *     /BBox [...] /XStep x /YStep y /Matrix [...] >>
++ *   pdf:put @pgfpatterns << /pgfpat3 @pgfpatternobject3 >>
++ *   pdf:code /pgfprgb cs 0.55 0.55 0.55 /pgfpat3 scn ... f
++ * TeXpresso ignored all three, so pattern fills came out solid black. A fill with a pattern clips to the path and
++ * repeats the cell over it, drawing the cell's content through pdf_code in the colour given to scn
++ * (PaintType 2) or its own colours (PaintType 1). */
++
++static dvi_pattern *pattern_by_obj(fz_context *ctx, dvi_context *dc, const char *obj, size_t len, bool create)
++{
++  if (len == 0 || len >= sizeof(dc->patterns[0].obj))
++    return NULL;
++  for (int i = 0; i < dc->pattern_count; i++)
++    if (strlen(dc->patterns[i].obj) == len && memcmp(dc->patterns[i].obj, obj, len) == 0)
++      return &dc->patterns[i];
++  if (!create || dc->pattern_count >= DVI_PATTERNS_MAX)
++    return NULL;
++  dvi_pattern *p = &dc->patterns[dc->pattern_count++];
++  memset(p, 0, sizeof(*p));
++  memcpy(p->obj, obj, len);
++  p->matrix = fz_identity;
++  return p;
++}
++
++static int pattern_by_name(dvi_context *dc, const char *name)
++{
++  for (int i = 0; i < dc->pattern_count; i++)
++    if (strcmp(dc->patterns[i].name, name) == 0)
++      return i;
++  return -1;
++}
++
++/* Numbers after "key" in [cur, lim), skipping "[": returns how many were read (up to count). */
++static int dict_numbers(cursor_t cur, cursor_t lim, const char *key, float *out, int count)
++{
++  size_t klen = strlen(key);
++  const char *k = fz_memmem(cur, lim - cur, key, klen);
++  while (k && k + klen < lim && !is_pdf_delim(k[klen]))
++    k = fz_memmem(k + 1, lim - (k + 1), key, klen);
++  if (!k)
++    return 0;
++  cursor_t p = k + klen;
++  int n = 0;
++  while (n < count && p < lim)
++  {
++    while (p < lim && (*p == ' ' || *p == '[' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
++    char buf[32];
++    size_t i = 0;
++    while (p + i < lim && i < sizeof(buf) - 1 && !is_pdf_delim(p[i]) && p[i] != ']') { buf[i] = p[i]; i++; }
++    buf[i] = 0;
++    char *end;
++    float v = strtof(buf, &end);
++    if (end == buf)
++      break;
++    out[n++] = v;
++    p += i;
++  }
++  return n;
++}
++
++/* "pdf:stream @obj (content) << dict >>": keep it if it is a tiling pattern. */
++static int pattern_stream(fz_context *ctx, dvi_context *dc, cursor_t cur, cursor_t lim)
++{
++  while (cur < lim && *cur == ' ') cur++;
++  if (cur >= lim || *cur != '@')
++    return -1;
++  cursor_t obj = ++cur;
++  while (cur < lim && !is_pdf_delim(*cur)) cur++;
++  size_t obj_len = cur - obj;
++  while (cur < lim && *cur == ' ') cur++;
++  if (cur >= lim || *cur != '(')
++    return -1;
++  /* the content string: balanced parentheses, backslash escapes */
++  cursor_t s = ++cur;
++  int nest = 1;
++  while (cur < lim)
++  {
++    if (*cur == '\\') { cur += 2; continue; }
++    if (*cur == '(') nest++;
++    else if (*cur == ')' && --nest == 0) break;
++    cur++;
++  }
++  if (cur >= lim)
++    return -1;
++  cursor_t s_end = cur++;
++  if (!fz_memmem(cur, lim - cur, "/PatternType 1", 14))
++    return -1;
++  dvi_pattern *p = pattern_by_obj(ctx, dc, obj, obj_len, 1);
++  if (!p)
++    return 1;
++  char *content = fz_malloc(ctx, (s_end - s) + 1);
++  size_t n = 0;
++  for (cursor_t q = s; q < s_end; q++)
++  {
++    if (*q == '\\' && q + 1 < s_end)
++    {
++      q++;
++      char c = *q;
++      content[n++] = c == 'n' ? '\n' : c == 'r' ? '\r' : c == 't' ? '\t' : c;
++    }
++    else
++      content[n++] = *q;
++  }
++  content[n] = 0;
++  fz_free(ctx, p->content);
++  p->content = content;
++  float v[6];
++  p->bbox = dict_numbers(cur, lim, "/BBox", v, 4) == 4 ? fz_make_rect(v[0], v[1], v[2], v[3]) : fz_empty_rect;
++  p->xstep = dict_numbers(cur, lim, "/XStep", v, 1) == 1 ? v[0] : 0;
++  p->ystep = dict_numbers(cur, lim, "/YStep", v, 1) == 1 ? v[0] : 0;
++  p->matrix = dict_numbers(cur, lim, "/Matrix", v, 6) == 6 ? fz_make_matrix(v[0], v[1], v[2], v[3], v[4], v[5])
++                                                           : fz_identity;
++  p->paint_type = dict_numbers(cur, lim, "/PaintType", v, 1) == 1 ? (int)v[0] : 1;
++  return 1;
++}
++
++/* In a pdf:put body, "/Name @obj" names a pattern object. */
++static void scan_pattern_names(fz_context *ctx, dvi_context *dc, cursor_t cur, cursor_t lim)
++{
++  while (cur < lim)
++  {
++    if (*cur != '/') { cur++; continue; }
++    cursor_t n = ++cur;
++    while (cur < lim && !is_pdf_delim(*cur)) cur++;
++    size_t nlen = cur - n;
++    cursor_t q = cur;
++    while (q < lim && *q == ' ') q++;
++    if (q < lim && *q == '@' && nlen < sizeof(dc->patterns[0].name))
++    {
++      cursor_t o = ++q;
++      while (q < lim && !is_pdf_delim(*q)) q++;
++      if (fz_memmem(o, q - o, "pattern", 7))
++      {
++        dvi_pattern *p = pattern_by_obj(ctx, dc, o, q - o, 1);
++        if (p)
++        {
++          memcpy(p->name, n, nlen);
++          p->name[nlen] = 0;
++        }
++      }
++      cur = q;
++    }
++  }
++}
++
++/* scn/sc with a pattern name last: the numbers before it are the colour of an uncoloured pattern. */
++static void set_fill_scn(fz_context *ctx, dvi_context *dc, dvi_state *st, vstack *stack)
++{
++  val args = vstack_get_values(ctx, stack);
++  int n = val_array_length(ctx, stack, args);
++  float c[4];
++  int nc = 0;
++  const char *name = NULL;
++  for (int i = 0; i < n; i++)
++  {
++    val v = val_array_get(ctx, stack, args, i);
++    if (val_is_number(v) && nc < 4)
++      c[nc++] = val_number(ctx, v);
++    else if (val_is_name(v))
++      name = val_as_name(ctx, stack, v);
++  }
++  if (nc == 1) color_set_gray(st->gs.colors.fill, c[0]);
++  else if (nc == 3) color_set_rgb(st->gs.colors.fill, c[0], c[1], c[2]);
++  else if (nc == 4) color_set_cmyk(ctx, st->gs.colors.fill, c[0], c[1], c[2], c[3]);
++  if (!name)
++    st->gs.fill_pattern = 0;
++  else
++  {
++    int i = pattern_by_name(dc, name);
++    st->gs.fill_pattern = (i >= 0 && dc->patterns[i].content) ? i + 1 : -1;
++    if (st->gs.fill_pattern < 0)
++      fprintf(stderr, "pdf scn: pattern /%s not defined (yet)\n", name);
++  }
++}
++
++static void fill_pattern(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path *path, int even_odd,
++                         fz_matrix ctm)
++{
++  dvi_pattern *pat = &dc->patterns[st->gs.fill_pattern - 1];
++  float H = dc->page_height > 0 ? dc->page_height : 792;
++  /* pattern space -> the page's default space (origin bottom left) -> our device space (origin top left) */
++  fz_matrix ptm = fz_concat(pat->matrix, fz_make_matrix(1, 0, 0, -1, 0, H));
++  fz_rect dev_area = fz_bound_path(ctx, path, NULL, ctm);
++  if (fz_is_empty_rect(dev_area) || pat->xstep == 0 || pat->ystep == 0)
++    return;
++  fz_rect view = fz_transform_rect(dev_area, fz_invert_matrix(ptm));
++
++  dvi_state cell = *st;
++  cell.gs.fill_pattern = 0;
++  cell.gs.dash_len = 0;
++  cell.gs.line_width = 1;
++  cell.gs.miter_limit = 10;
++  cell.gs.line_join = 0;
++  cell.gs.line_caps = 0;
++  if (pat->paint_type == 2)
++    memcpy(cell.gs.colors.line, st->gs.colors.fill, sizeof(cell.gs.colors.line));
++  else
++  {
++    color_set_gray(cell.gs.colors.fill, 0);
++    color_set_gray(cell.gs.colors.line, 0);
++  }
++  dvi_set_ctm(&cell, ptm);
++
++  fz_path *outer = dc->path;
++  dc->path = NULL;
++  fz_clip_path(ctx, dc->dev, path, even_odd, ctm, fz_infinite_rect);
++  fz_try(ctx)
++  {
++    /* Repeat the cell by hand over the area to fill, in pattern space. (fz_begin_tile drew nothing here; a loop
++       also carries over to Phase B's backend as is.) */
++    int i0 = (int)floorf((view.x0 - pat->bbox.x1) / pat->xstep), i1 = (int)ceilf((view.x1 - pat->bbox.x0) / pat->xstep);
++    int j0 = (int)floorf((view.y0 - pat->bbox.y1) / pat->ystep), j1 = (int)ceilf((view.y1 - pat->bbox.y0) / pat->ystep);
++    if ((double)(i1 - i0 + 1) * (j1 - j0 + 1) > 100000)
++    {
++      fprintf(stderr, "pdf pattern %s: too many cells, drawn as a tint\n", pat->obj);
++      fz_fill_path(ctx, dc->dev, path, even_odd, ctm, device_cs(ctx), st->gs.colors.fill, 0.25f * DVI_FILL_ALPHA(st),
++                   color_params);
++    }
++    else
++      for (int j = j0; j <= j1; j++)
++        for (int i = i0; i <= i1; i++)
++        {
++          dvi_set_ctm(&cell, fz_pre_translate(ptm, i * pat->xstep, j * pat->ystep));
++          pdf_code(ctx, dc, &cell, pat->content, pat->content + strlen(pat->content));
++        }
++  }
++  fz_always(ctx)
++  {
++    drop_path(ctx, dc);
++    dc->path = outer;
++    fz_pop_clip(ctx, dc->dev);
++  }
++  fz_catch(ctx)
++    fz_rethrow(ctx);
++}
++
++/* Every path fill goes through here. */
++static void fill_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path *path, int even_odd, fz_matrix ctm)
++{
++  if (st->gs.fill_pattern > 0)
++    fill_pattern(ctx, dc, st, path, even_odd, ctm);
++  else
++    fz_fill_path(ctx, dc->dev, path, even_odd, ctm, device_cs(ctx), st->gs.colors.fill,
++                 DVI_FILL_ALPHA(st) * (st->gs.fill_pattern < 0 ? 0.25f : 1.0f), color_params);
++}
++
+ /* Taudot (MIT): B, B*, b and b*. With transparency, PDF paints the fill and the stroke as one knockout group, so
+  * the stroke replaces the fill under it rather than compositing over it. */
+ static void fill_stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path *path, int even_odd,
+@@ -762,8 +1013,7 @@ static void fill_stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz
+       fz_rethrow(ctx);
+     fz_begin_group(ctx, dc->dev, area, NULL, 0, 1, FZ_BLEND_NORMAL, 1);
+   }
+-  fz_fill_path(ctx, dc->dev, path, even_odd, ctm, device_cs(ctx), st->gs.colors.fill, DVI_FILL_ALPHA(st),
+-               color_params);
++  fill_path(ctx, dc, st, path, even_odd, ctm);
+   stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
+   if (knockout)
+     fz_end_group(ctx, dc->dev);
+@@ -946,6 +1196,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           float c[1];
+           vstack_get_floats(ctx, stack, c, 1);
+           color_set_gray(st->gs.colors.fill, c[0]);
++          st->gs.fill_pattern = 0;
+           break;
+         }
+         case PDF_OP_RG:
+@@ -960,6 +1211,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           float c[3];
+           vstack_get_floats(ctx, stack, c, 3);
+           color_set_rgb(st->gs.colors.fill, c[0], c[1], c[2]);
++          st->gs.fill_pattern = 0;
+           break;
+         }
+         case PDF_OP_K:
+@@ -974,6 +1226,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           float c[4];
+           vstack_get_floats(ctx, stack, c, 4);
+           color_set_cmyk(ctx, st->gs.colors.fill, c[0], c[1], c[2], c[3]);
++          st->gs.fill_pattern = 0;
+           break;
+         }
+ 
+@@ -1079,8 +1332,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           {
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+-            fz_fill_path(ctx, dc->dev, path, 0, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, DVI_FILL_ALPHA(st), color_params);
++            fill_path(ctx, dc, st, path, 0, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -1090,8 +1342,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           {
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+-            fz_fill_path(ctx, dc->dev, path, 1, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, DVI_FILL_ALPHA(st), color_params);
++            fill_path(ctx, dc, st, path, 1, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -1170,6 +1421,34 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           break;
+         }
+ 
++        case PDF_OP_cs:
++        case PDF_OP_CS:
++          vstack_get_values(ctx, stack);  /* the colour comes with sc/scn */
++          break;
++
++        case PDF_OP_sc:
++        case PDF_OP_scn:
++          set_fill_scn(ctx, dc, st, stack);
++          break;
++
++        case PDF_OP_SC:
++        case PDF_OP_SCN:
++        {
++          val args = vstack_get_values(ctx, stack);
++          int n = val_array_length(ctx, stack, args);
++          float c[4];
++          int nc = 0;
++          for (int i = 0; i < n && nc < 4; i++)
++          {
++            val v = val_array_get(ctx, stack, args, i);
++            if (val_is_number(v)) c[nc++] = val_number(ctx, v);
++          }
++          if (nc == 1) color_set_gray(st->gs.colors.line, c[0]);
++          else if (nc == 3) color_set_rgb(st->gs.colors.line, c[0], c[1], c[2]);
++          else if (nc == 4) color_set_cmyk(ctx, st->gs.colors.line, c[0], c[1], c[2], c[3]);
++          break;
++        }
++
+         case PDF_OP_gs:
+         {
+           val v[1];
+@@ -1201,12 +1480,6 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+         case PDF_OP_dquote:
+         case PDF_OP_d0:
+         case PDF_OP_d1:
+-        case PDF_OP_CS:
+-        case PDF_OP_cs:
+-        case PDF_OP_SC:
+-        case PDF_OP_sc:
+-        case PDF_OP_SCN:
+-        case PDF_OP_scn:
+         case PDF_OP_sh:
+         case PDF_OP_Do:
+         case PDF_OP_MP:
+@@ -1280,10 +1553,10 @@ dvi_exec_pdf(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, curs
+ 
+   "pagesize" ws+ "width" ws+ @f0 dim
+              ws+ "height" ws+ @f1 dim
+-  { return 1; }
++  { dc->page_height = pdim(f1, lim); return 1; }
+ 
+   "pagesize" ws+ "default"
+-  { return 1; }
++  { dc->page_height = 792; return 1; }
+ 
+   @f0 "image" ws+ @pxform ([a-z] | ws | float)* @pstart "("
+   {
+@@ -1506,8 +1779,11 @@ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+     if (lim - p > 4 && memcmp(p, "put ", 4) == 0)
+     {
+       scan_extgstates(ctx, dc, p + 4, lim);
++      scan_pattern_names(ctx, dc, p + 4, lim);
+       return -1;
+     }
++    if (lim - p > 7 && memcmp(p, "stream ", 7) == 0)
++      return pattern_stream(ctx, dc, p + 7, lim);
+     if (lim - p > 8 && memcmp(p, "literal ", 8) == 0)
+     {
+       p += 8;
+diff --git a/src/dvi/mydvi.h b/src/dvi/mydvi.h
+index c0c3753..7ea78b5 100644
+--- a/src/dvi/mydvi.h
++++ b/src/dvi/mydvi.h
+@@ -287,6 +287,9 @@ typedef struct
+   int h, v;
+   // Taudot (MIT): 1 - alpha of fills (PDF /ca) and strokes (/CA), so the zeroed state is opaque.
+   float fill_transp, line_transp;
++  // Taudot (MIT): fills paint with pattern fill_pattern - 1 when > 0 (dvi_context.patterns), or a tint of the
++  // fill colour when < 0 (a pattern this page uses but hasn't seen defined yet).
++  int fill_pattern;
+ } dvi_graphicstate;
+ 
+ #define DVI_FILL_ALPHA(st) (1.0f - (st)->gs.fill_transp)
+@@ -301,6 +304,20 @@ typedef struct
+   float ca, CA;      // < 0 when the dictionary doesn't set it
+ } dvi_extgstate;
+ 
++// Taudot (MIT): tiling patterns from "pdf:stream @obj (content) << /PatternType 1 ... >>", named by
++// "pdf:put @pgfpatterns << /pgfpat3 @obj >>". Kept across pages, like ExtGStates.
++#define DVI_PATTERNS_MAX 256
++typedef struct
++{
++  char obj[64];       // the object, e.g. pgfpatternobject3 (without @)
++  char name[48];      // its resource name, e.g. pgfpat3; empty until put
++  char *content;      // the cell's content stream; NULL until defined
++  fz_rect bbox;
++  float xstep, ystep;
++  fz_matrix matrix;   // pattern space -> the page's default space
++  int paint_type;     // 1 coloured, 2 uncoloured
++} dvi_pattern;
++
+ #define DVI_FORMS_MAX 64
+ #define DVI_FORM_DEPTH 8
+ typedef struct
+@@ -373,6 +390,9 @@ typedef struct
+     float fill_transp, line_transp;
+   } form_stack[DVI_FORM_DEPTH];
+   int form_depth;
++  dvi_pattern patterns[DVI_PATTERNS_MAX];
++  int pattern_count;
++  float page_height;  // from pdf:pagesize, for the page's default space (0: 792)
+ } dvi_context;
+ 
+ #define DC_ALLOC(ctx, dc, type, count) ((type*)dvi_scratch_alloc(ctx, &(dc)->scratch, sizeof(type) * (count)))
+-- 
+2.50.0
+

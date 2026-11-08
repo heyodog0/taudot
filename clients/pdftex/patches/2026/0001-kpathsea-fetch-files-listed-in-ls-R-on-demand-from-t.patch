@@ -1,0 +1,1225 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Wed, 4 Nov 2026 23:43:53 -0500
+Subject: [PATCH 1/9] kpathsea: fetch files listed in ls-R on demand, from the
+ TeX Live store
+
+---
+ texk/kpathsea/db.c           |   56 +-
+ texk/kpathsea/taudot-store.c | 1126 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 1180 insertions(+), 2 deletions(-)
+ create mode 100644 texk/kpathsea/taudot-store.c
+
+diff --git a/texk/kpathsea/db.c b/texk/kpathsea/db.c
+index fb4658c1..fc2178b8 100644
+--- a/texk/kpathsea/db.c
++++ b/texk/kpathsea/db.c
+@@ -31,6 +31,58 @@
+ #include <kpathsea/tex-file.h>
+ #include <kpathsea/variable.h>
+ 
++#ifndef _WIN32
++#include <spawn.h>
++#include <sys/wait.h>
++extern char **environ;
++#endif
++
++#include "taudot-store.c"
++
++/* Taudot: ls-R lists every file of a full TeX Live install, but only the files used so far are on disk. A hit
++   that is missing is fetched, then checked again: from the TeX Live store in this process when $TEXSTORE_URL is
++   set (taudot-store.c), else by the program $TAUDOT_TL_FETCH (argument: its path). Names that aren't in TeX Live
++   never reach the network. */
++static boolean
++taudot_fetch (kpathsea kpse, const_string path)
++{
++#ifndef _WIN32
++  static const_string cmd;
++  static int init;
++  pid_t pid;
++  int status;
++  char *argv[3];
++  posix_spawn_file_actions_t fa;
++  int r = taudot_store_fetch (kpse, path);
++
++  if (r >= 0)
++    return r && kpathsea_readable_file (kpse, (string) path) != NULL;
++  if (!init) {
++    cmd = getenv ("TAUDOT_TL_FETCH");
++    init = 1;
++  }
++  if (!cmd || !*cmd)
++    return false;
++  argv[0] = (char *) cmd;
++  argv[1] = (char *) path;
++  argv[2] = NULL;
++  posix_spawn_file_actions_init (&fa);
++  posix_spawn_file_actions_adddup2 (&fa, 2, 1); /* keep TeX's stdout clean */
++  if (posix_spawn (&pid, cmd, &fa, NULL, argv, environ) != 0) {
++    posix_spawn_file_actions_destroy (&fa);
++    return false;
++  }
++  posix_spawn_file_actions_destroy (&fa);
++  while (waitpid (pid, &status, 0) < 0)
++    if (errno != EINTR)
++      return false;
++  return WIFEXITED (status) && WEXITSTATUS (status) == 0
++         && kpathsea_readable_file (kpse, (string) path) != NULL;
++#else
++  return false;
++#endif
++}
++
+ #ifndef DB_HASH_SIZE
+ /* Based on the size of 2014 texmf-dist/ls-R, about 130,000 entries.  */
+ #define DB_HASH_SIZE 64007
+@@ -598,7 +650,7 @@ kpathsea_db_search (kpathsea kpse, const_string name,
+          exists, possibly under an alias.  */
+       if (matched) {
+         string found = NULL;
+-        if (kpathsea_readable_file (kpse, db_file)) {
++        if (kpathsea_readable_file (kpse, db_file) || taudot_fetch (kpse, db_file)) {
+           found = db_file;
+ 
+         } else {
+@@ -756,7 +808,7 @@ kpathsea_db_search_list (kpathsea kpse, string* names,
+                exists, possibly under an alias.  */
+             if (matched) {
+               string found = NULL;
+-              if (kpathsea_readable_file (kpse, db_file)) {
++              if (kpathsea_readable_file (kpse, db_file) || taudot_fetch (kpse, db_file)) {
+                 found = db_file;
+ 
+               } else {
+diff --git a/texk/kpathsea/taudot-store.c b/texk/kpathsea/taudot-store.c
+new file mode 100644
+index 00000000..2b46f8c4
+--- /dev/null
++++ b/texk/kpathsea/taudot-store.c
+@@ -0,0 +1,1126 @@
++/* GPL-2.0-or-later. Taudot: TeX Live files from the TeX Live store (docs/texstore.md), inside kpathsea.
++
++   Included by db.c (patch 0001). kpathsea calls taudot_store_fetch(kpse, PATH) for a file that ls-R lists but that
++   is not on disk; it returns true once PATH is in the tree. Resolution, as docs/texstore.md says:
++     index (pinned or images/NAME/rREV) -> the path's F row (binary search, in place) -> its package's manifest
++     -> the file's SHA-512 -> local cache by hash, else files/<sha512> from the store, gunzipped and checked
++     -> written into the tree atomically. A store failure falls back to `svn cat` at the image's revision.
++   Parallel: the requested file goes first; the rest of its package's TeX inputs follow in the background on a
++   small thread pool, so the next lookups are usually cache hits. After fork() (the live engine's snapshots), a
++   process rebuilds its own pool and HTTP connections; it never touches the parent's.
++
++   Environment (the same as tools/texstore/client.py):
++     TEXSTORE_URL       base URL (https://texlive.taudot.app); unset: the store is off
++     TEXSTORE_INDEX     the image index's SHA-512 (pinned); else TEXSTORE_IMAGE=NAME@rREV
++     TEXSTORE_ROOT      the tree; default kpathsea's $TEXMFROOT
++     TEXSTORE_CACHE     objects by hash (default ~/Library/Caches/taudot/texstore)
++     TEXSTORE_FALLBACK  0: never use svn
++     TEXSTORE_PREFETCH  0: fetch only what is asked for
++     TEXSTORE_THREADS   pool size (default 32)
++     TEXSTORE_LOG       append "time\tkind\twhat" per file (store, cache, prefetch, fallback, fail, prefetch-fail)
++
++   libcurl and zlib are loaded with dlopen, so no program's link line changes. SHA-512 is CommonCrypto's (macOS);
++   other platforms need one before this builds there. */
++
++#ifdef __APPLE__
++#include <CommonCrypto/CommonDigest.h>
++#include <curl/curl.h>
++#include <dirent.h>
++#include <dlfcn.h>
++#include <fcntl.h>
++#include <pthread.h>
++#include <spawn.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#include <sys/time.h>
++#include <sys/wait.h>
++#include <unistd.h>
++#include <zlib.h>
++
++#define TS_HEX 128
++
++/* ---- libraries ---- */
++
++static struct {
++  CURL *(*easy_init) (void);
++  CURLcode (*easy_setopt) (CURL *, CURLoption, ...);
++  CURLcode (*easy_perform) (CURL *);
++  CURLcode (*easy_getinfo) (CURL *, CURLINFO, ...);
++  CURLcode (*global_init) (long);
++  int (*inflateInit2_) (z_streamp, int, const char *, int);
++  int (*inflate) (z_streamp, int);
++  int (*inflateEnd) (z_streamp);
++  int ok;
++} L;
++
++static int
++ts_libs (void)
++{
++  static int tried;
++  void *c, *z;
++  if (tried)
++    return L.ok;
++  tried = 1;
++  c = dlopen ("/usr/lib/libcurl.4.dylib", RTLD_NOW | RTLD_LOCAL);
++  z = dlopen ("/usr/lib/libz.1.dylib", RTLD_NOW | RTLD_LOCAL);
++  if (!c || !z)
++    return 0;
++  L.easy_init = (CURL * (*) (void)) dlsym (c, "curl_easy_init");
++  L.easy_setopt = (CURLcode (*) (CURL *, CURLoption, ...)) dlsym (c, "curl_easy_setopt");
++  L.easy_perform = (CURLcode (*) (CURL *)) dlsym (c, "curl_easy_perform");
++  L.easy_getinfo = (CURLcode (*) (CURL *, CURLINFO, ...)) dlsym (c, "curl_easy_getinfo");
++  L.global_init = (CURLcode (*) (long)) dlsym (c, "curl_global_init");
++  L.inflateInit2_ = (int (*) (z_streamp, int, const char *, int)) dlsym (z, "inflateInit2_");
++  L.inflate = (int (*) (z_streamp, int)) dlsym (z, "inflate");
++  L.inflateEnd = (int (*) (z_streamp)) dlsym (z, "inflateEnd");
++  L.ok = L.easy_init && L.easy_setopt && L.easy_perform && L.easy_getinfo && L.global_init && L.inflateInit2_
++         && L.inflate && L.inflateEnd;
++  if (L.ok)
++    L.global_init (CURL_GLOBAL_DEFAULT);
++  return L.ok;
++}
++
++/* ---- small helpers ---- */
++
++typedef struct { char *p; size_t n, cap; } ts_buf;
++
++static void
++ts_put (ts_buf *b, const void *p, size_t n)
++{
++  if (b->n + n + 1 > b->cap) {
++    b->cap = (b->n + n + 1) * 2;
++    b->p = realloc (b->p, b->cap);
++  }
++  memcpy (b->p + b->n, p, n);
++  b->n += n;
++  b->p[b->n] = 0;
++}
++
++static double
++ts_now (void)
++{
++  struct timeval tv;
++  gettimeofday (&tv, NULL);
++  return tv.tv_sec + tv.tv_usec / 1e6;
++}
++
++static pthread_mutex_t ts_log_mu = PTHREAD_MUTEX_INITIALIZER;
++
++static void
++ts_log (const char *kind, const char *what)
++{
++  static const char *path;
++  static int init;
++  FILE *f;
++  if (!init) {
++    path = getenv ("TEXSTORE_LOG");
++    init = 1;
++  }
++  if (!path || !*path)
++    return;
++  pthread_mutex_lock (&ts_log_mu);
++  if ((f = fopen (path, "a"))) {
++    fprintf (f, "%.3f\t%s\t%s\n", ts_now (), kind, what);
++    fclose (f);
++  }
++  pthread_mutex_unlock (&ts_log_mu);
++}
++
++static void
++ts_sha512 (const void *p, size_t n, char out[TS_HEX + 1])
++{
++  unsigned char d[CC_SHA512_DIGEST_LENGTH];
++  int i;
++  CC_SHA512 (p, (CC_LONG) n, d);
++  for (i = 0; i < CC_SHA512_DIGEST_LENGTH; i++)
++    sprintf (out + 2 * i, "%02x", d[i]);
++}
++
++static int
++ts_mkdirs (const char *path) /* the parent directories of PATH */
++{
++  char *d = strdup (path), *s;
++  for (s = d + 1; (s = strchr (s, '/')); s++) {
++    *s = 0;
++    if (mkdir (d, 0777) != 0 && errno != EEXIST) {
++      free (d);
++      return -1;
++    }
++    *s = '/';
++  }
++  free (d);
++  return 0;
++}
++
++static int
++ts_write_atomic (const char *path, const void *p, size_t n, int exec)
++{
++  char tmp[4096];
++  int fd;
++  ssize_t w;
++  size_t off = 0;
++  snprintf (tmp, sizeof tmp, "%s.%d.%lx.part", path, (int) getpid (), (unsigned long) pthread_self ());
++  if (ts_mkdirs (path) != 0 || (fd = open (tmp, O_WRONLY | O_CREAT | O_TRUNC, exec ? 0755 : 0644)) < 0)
++    return -1;
++  while (off < n) {
++    if ((w = write (fd, (const char *) p + off, n - off)) < 0) {
++      if (errno == EINTR)
++        continue;
++      close (fd);
++      unlink (tmp);
++      return -1;
++    }
++    off += (size_t) w;
++  }
++  close (fd);
++  if (rename (tmp, path) != 0) {
++    unlink (tmp);
++    return -1;
++  }
++  return 0;
++}
++
++static int
++ts_read_file (const char *path, ts_buf *b)
++{
++  char chunk[65536];
++  ssize_t r;
++  int fd = open (path, O_RDONLY);
++  if (fd < 0)
++    return -1;
++  while ((r = read (fd, chunk, sizeof chunk)) != 0) {
++    if (r < 0) {
++      if (errno == EINTR)
++        continue;
++      close (fd);
++      return -1;
++    }
++    ts_put (b, chunk, (size_t) r);
++  }
++  close (fd);
++  return 0;
++}
++
++static int
++ts_gunzip (const ts_buf *in, ts_buf *out)
++{
++  z_stream z;
++  char chunk[65536];
++  int r;
++  memset (&z, 0, sizeof z);
++  if (L.inflateInit2_ (&z, 16 + MAX_WBITS, ZLIB_VERSION, (int) sizeof z) != Z_OK)
++    return -1;
++  z.next_in = (Bytef *) in->p;
++  z.avail_in = (uInt) in->n;
++  do {
++    z.next_out = (Bytef *) chunk;
++    z.avail_out = sizeof chunk;
++    r = L.inflate (&z, Z_NO_FLUSH);
++    if (r != Z_OK && r != Z_STREAM_END) {
++      L.inflateEnd (&z);
++      return -1;
++    }
++    ts_put (out, chunk, sizeof chunk - z.avail_out);
++  } while (r != Z_STREAM_END);
++  L.inflateEnd (&z);
++  return 0;
++}
++
++/* ---- configuration (per process; inherited across fork) ---- */
++
++static struct {
++  char *url, *cache, *root, *svn, *svnrev;
++  int fallback, prefetch, threads, offline;
++  /* the index, uncompressed, mapped */
++  const char *ix;
++  size_t ixn, f0, f1, p0, p1; /* [f0,f1): the F rows; [p0,p1): the P rows */
++  int ready, failed;
++} S;
++
++static size_t ts_line_end (const char *p, size_t n, size_t i)
++{
++  const char *e = memchr (p + i, '\n', n - i);
++  return e ? (size_t) (e - p) : n;
++}
++
++/* ---- HTTP ---- */
++
++static size_t
++ts_curl_write (char *p, size_t s, size_t n, void *u)
++{
++  ts_buf *b = u;
++  if (b->n + s * n > 512u << 20)
++    return 0;
++  ts_put (b, p, s * n);
++  return s * n;
++}
++
++static int
++ts_http (CURL *c, const char *url, ts_buf *out) /* 0: 200 with a body; 1: other status; -1: network */
++{
++  long code = 0;
++  CURLcode r;
++  out->n = 0;
++  L.easy_setopt (c, CURLOPT_URL, url);
++  L.easy_setopt (c, CURLOPT_WRITEFUNCTION, ts_curl_write);
++  L.easy_setopt (c, CURLOPT_WRITEDATA, out);
++  L.easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 5L);
++  L.easy_setopt (c, CURLOPT_LOW_SPEED_LIMIT, 1024L);
++  L.easy_setopt (c, CURLOPT_LOW_SPEED_TIME, 10L);
++  L.easy_setopt (c, CURLOPT_NOSIGNAL, 1L);
++  L.easy_setopt (c, CURLOPT_USERAGENT, "taudot-texstore");
++  L.easy_setopt (c, CURLOPT_HTTP_VERSION, (long) CURL_HTTP_VERSION_2TLS);
++  r = L.easy_perform (c);
++  if (r != CURLE_OK)
++    return -1;
++  L.easy_getinfo (c, CURLINFO_RESPONSE_CODE, &code);
++  return code == 200 ? 0 : 1;
++}
++
++static void
++ts_obj_path (const char *h, char *out, size_t n)
++{
++  snprintf (out, n, "%s/objects/%.2s/%s", S.cache, h, h);
++}
++
++/* The content named H: from the cache, else the store (checked, then cached). C may be NULL (a handle is made). */
++static int
++ts_obj (CURL *c, const char *h, ts_buf *out, const char *what, const char *kind)
++{
++  char p[4096], url[1024], got[TS_HEX + 1];
++  ts_buf gz = { 0 };
++  CURL *own = NULL;
++  int r;
++  ts_obj_path (h, p, sizeof p);
++  out->n = 0;
++  if (ts_read_file (p, out) == 0) {
++    ts_log ("cache", what);
++    return 0;
++  }
++  if (S.offline)
++    return -1;
++  if (!c && !(c = own = L.easy_init ()))
++    return -1;
++  snprintf (url, sizeof url, "%s/files/%s", S.url, h);
++  r = ts_http (c, url, &gz);
++  if (r < 0)
++    S.offline = 1; /* this process: fail fast from now on */
++  if (r != 0 || ts_gunzip (&gz, out) != 0) {
++    free (gz.p);
++    return -1;
++  }
++  free (gz.p);
++  ts_sha512 (out->p, out->n, got);
++  if (strcmp (got, h) != 0) {
++    fprintf (stderr, "texstore: %.16s…: the store returned the wrong content\n", h);
++    return -1;
++  }
++  ts_write_atomic (p, out->p, out->n, 0);
++  ts_log (kind, what);
++  (void) own; /* one-off handles are kept: cleaning up may talk to a connection a parent still uses */
++  return 0;
++}
++
++/* ---- the index ---- */
++
++static int
++ts_cmp_key (const char *row, const char *rowend, const char *key, size_t kn)
++{ /* compare the second field of ROW ("T\tKEY\t...") with KEY */
++  const char *f = row + 2, *e = memchr (f, '\t', (size_t) (rowend - f));
++  size_t fn;
++  int c;
++  if (!e)
++    e = rowend;
++  fn = (size_t) (e - f);
++  c = memcmp (f, key, fn < kn ? fn : kn);
++  return c ? c : (fn < kn ? -1 : fn > kn ? 1 : 0);
++}
++
++static int /* the row of KEY in [lo,hi) (both at line starts) -> [*rs,*re) */
++ts_bsearch (size_t lo, size_t hi, const char *key, size_t *rs, size_t *re)
++{
++  const char *p = S.ix;
++  while (lo < hi) {
++    size_t mid = lo + (hi - lo) / 2, s, e;
++    int c;
++    s = mid;
++    while (s > lo && p[s - 1] != '\n')
++      s--;
++    e = ts_line_end (p, hi, s);
++    c = ts_cmp_key (p + s, p + e, key, strlen (key));
++    if (c == 0) {
++      *rs = s;
++      *re = e;
++      return 1;
++    }
++    if (c < 0)
++      lo = e + 1;
++    else
++      hi = s;
++  }
++  return 0;
++}
++
++static int
++ts_field (size_t rs, size_t re, int k, char *out, size_t n) /* the K-th tab field (0-based) of a row */
++{
++  const char *p = S.ix + rs, *e = S.ix + re, *t;
++  size_t len;
++  while (k-- > 0) {
++    if (!(p = memchr (p, '\t', (size_t) (e - p))))
++      return -1;
++    p++;
++  }
++  t = memchr (p, '\t', (size_t) (e - p));
++  len = (size_t) ((t ? t : e) - p);
++  if (len >= n)
++    return -1;
++  memcpy (out, p, len);
++  out[len] = 0;
++  return 0;
++}
++
++static int
++ts_init (kpathsea kpse)
++{
++  char hash[TS_HEX + 2] = "", p[4096], *s;
++  const char *v;
++  ts_buf b = { 0 };
++  size_t i, n;
++  int fd;
++  struct stat st;
++  if (S.ready || S.failed)
++    return S.ready;
++  S.failed = 1;
++  if (!(v = getenv ("TEXSTORE_URL")) || !*v || !ts_libs ())
++    return 0;
++  S.url = strdup (v);
++  n = strlen (S.url);
++  while (n && S.url[n - 1] == '/')
++    S.url[--n] = 0;
++  v = getenv ("TEXSTORE_CACHE");
++  if (v && *v)
++    S.cache = strdup (v);
++  else
++    S.cache = concat (getenv ("HOME") ? getenv ("HOME") : "/tmp", "/Library/Caches/taudot/texstore");
++  v = getenv ("TEXSTORE_ROOT");
++  S.root = v && *v ? strdup (v) : kpathsea_var_value (kpse, "TEXMFROOT");
++  if (!S.root)
++    return 0;
++  v = getenv ("TEXSTORE_FALLBACK");
++  S.fallback = !(v && strcmp (v, "0") == 0);
++  v = getenv ("TEXSTORE_PREFETCH");
++  S.prefetch = !(v && strcmp (v, "0") == 0);
++  v = getenv ("TEXSTORE_THREADS");
++  S.threads = v && atoi (v) > 0 ? atoi (v) : 32;
++
++  if ((v = getenv ("TEXSTORE_INDEX")) && *v) {
++    snprintf (hash, sizeof hash, "%s", v);
++  } else if ((v = getenv ("TEXSTORE_IMAGE")) && (s = strchr (v, '@'))) {
++    /* the image's pointer, asked once and kept */
++    snprintf (p, sizeof p, "%s/images/%.*s/%s", S.cache, (int) (s - v), v, s + 1);
++    if (ts_read_file (p, &b) != 0) {
++      char url[1024];
++      CURL *c = L.easy_init ();
++      snprintf (url, sizeof url, "%s/images/%.*s/%s", S.url, (int) (s - v), v, s + 1);
++      if (!c || ts_http (c, url, &b) != 0) {
++        fprintf (stderr, "texstore: no image pointer at %s\n", url);
++        return 0;
++      }
++      ts_write_atomic (p, b.p, b.n, 0);
++    }
++    snprintf (hash, sizeof hash, "%.*s", TS_HEX, b.p ? b.p : "");
++    free (b.p);
++    b.p = NULL;
++    b.n = b.cap = 0;
++  }
++  if (strlen (hash) != TS_HEX)
++    return 0;
++  if (ts_obj (NULL, hash, &b, "index", "store") != 0) {
++    fprintf (stderr, "texstore: no index %.16s…\n", hash);
++    return 0;
++  }
++  free (b.p);
++  /* map the cached copy (shared, read-only: survives fork for free) */
++  ts_obj_path (hash, p, sizeof p);
++  if ((fd = open (p, O_RDONLY)) < 0 || fstat (fd, &st) != 0)
++    return 0;
++  S.ix = mmap (NULL, (size_t) st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
++  close (fd);
++  if (S.ix == MAP_FAILED)
++    return 0;
++  S.ixn = (size_t) st.st_size;
++  if (S.ixn < 10 || memcmp (S.ix, "texstore\t1\n", 11) != 0) {
++    fprintf (stderr, "texstore: index format not supported\n");
++    return 0;
++  }
++  S.f0 = S.f1 = S.p0 = S.p1 = 0;
++  for (i = 0; i < S.ixn; i = ts_line_end (S.ix, S.ixn, i) + 1) {
++    char t = S.ix[i];
++    if (strncmp (S.ix + i, "svn\t", 4) == 0) {
++      char f[512];
++      size_t e = ts_line_end (S.ix, S.ixn, i);
++      if (ts_field (i, e, 1, f, sizeof f) == 0)
++        S.svn = strdup (f);
++      if (ts_field (i, e, 2, f, sizeof f) == 0)
++        S.svnrev = strdup (f);
++      continue;
++    }
++    if (i + 1 >= S.ixn || S.ix[i + 1] != '\t')
++      continue;
++    if (t == 'P') {
++      if (!S.p1)
++        S.p0 = i;
++      S.p1 = ts_line_end (S.ix, S.ixn, i) + 1;
++    } else if (t == 'F') { /* the F rows run to the end, or to the first row that isn't one */
++      size_t j;
++      S.f0 = i;
++      for (j = i; j + 1 < S.ixn && S.ix[j] == 'F' && S.ix[j + 1] == '\t'; j = ts_line_end (S.ix, S.ixn, j) + 1)
++        ;
++      S.f1 = j > S.ixn ? S.ixn : j;
++      break;
++    }
++  }
++  if (!S.f1 || !S.p1)
++    return 0;
++  S.failed = 0;
++  S.ready = 1;
++  return 1;
++}
++
++/* ---- manifests (shared by the calling thread and the pool) ---- */
++
++typedef struct { char *path; long size; char hash[TS_HEX + 1]; int exec; } ts_entry;
++typedef struct ts_man { char *pkg; ts_entry *e; int n; struct ts_man *next; } ts_man;
++static ts_man *ts_mans;
++static pthread_mutex_t ts_man_mu = PTHREAD_MUTEX_INITIALIZER;
++
++static ts_man *
++ts_man_find (const char *pkg)
++{
++  ts_man *m;
++  pthread_mutex_lock (&ts_man_mu);
++  for (m = ts_mans; m; m = m->next)
++    if (strcmp (m->pkg, pkg) == 0)
++      break;
++  pthread_mutex_unlock (&ts_man_mu);
++  return m;
++}
++
++static ts_man *
++ts_manifest (CURL *c, const char *pkg)
++{
++  ts_man *m, *o;
++  size_t rs, re;
++  char mh[TS_HEX + 2], what[512];
++  ts_buf b = { 0 };
++  char *line, *save = NULL;
++  if ((m = ts_man_find (pkg)))
++    return m;
++  if (!ts_bsearch (S.p0, S.p1, pkg, &rs, &re) || ts_field (rs, re, 2, mh, sizeof mh) != 0)
++    return NULL;
++  snprintf (what, sizeof what, "manifest %s", pkg);
++  if (ts_obj (c, mh, &b, what, "store") != 0)
++    return NULL;
++  m = calloc (1, sizeof *m);
++  m->pkg = strdup (pkg);
++  m->e = calloc (b.n / 140 + 2, sizeof *m->e);
++  for (line = strtok_r (b.p, "\n", &save); line; line = strtok_r (NULL, "\n", &save)) {
++    char *f[4] = { line, NULL, NULL, NULL };
++    int k;
++    for (k = 1; k < 4 && f[k - 1]; k++)
++      if ((f[k] = strchr (f[k - 1], '\t')))
++        *f[k]++ = 0;
++    if (!f[2] || strlen (f[2]) != TS_HEX)
++      continue;
++    m->e[m->n].path = strdup (f[0]);
++    m->e[m->n].size = atol (f[1]);
++    memcpy (m->e[m->n].hash, f[2], TS_HEX + 1);
++    m->e[m->n].exec = f[3] && *f[3] == 'x';
++    m->n++;
++  }
++  free (b.p);
++  pthread_mutex_lock (&ts_man_mu); /* another thread may have read it meanwhile: keep the first */
++  for (o = ts_mans; o; o = o->next)
++    if (strcmp (o->pkg, pkg) == 0)
++      break;
++  if (!o) {
++    m->next = ts_mans;
++    ts_mans = m;
++  }
++  pthread_mutex_unlock (&ts_man_mu);
++  return o ? o : m; /* a losing copy is leaked: its entries may already be in use */
++}
++
++/* REL's manifest entry (fetching the manifest if needed), or NULL if REL isn't in the image. */
++static const ts_entry *
++ts_entry_of (CURL *c, const char *rel, ts_man **mp)
++{
++  size_t rs, re;
++  char pkg[512];
++  ts_man *m;
++  int i;
++  if (!ts_bsearch (S.f0, S.f1, rel, &rs, &re) || ts_field (rs, re, 3, pkg, sizeof pkg) != 0)
++    return NULL;
++  if (!(m = ts_manifest (c, pkg)))
++    return NULL;
++  if (mp)
++    *mp = m;
++  for (i = 0; i < m->n; i++)
++    if (strcmp (m->e[i].path, rel) == 0)
++      return &m->e[i];
++  return NULL;
++}
++
++/* ---- placing a file ---- */
++
++static int
++ts_svn_cat (const char *rel, ts_buf *out) /* the file at the image's revision, from TeX Live's svn */
++{
++  char url[4096], rev[64];
++  char *argv[6];
++  int fds[2], status;
++  pid_t pid;
++  posix_spawn_file_actions_t fa;
++  if (!S.svn || !S.svnrev)
++    return -1;
++  snprintf (url, sizeof url, "%s/%s@%s", S.svn, rel, S.svnrev);
++  snprintf (rev, sizeof rev, "%s", S.svnrev);
++  argv[0] = "svn"; argv[1] = "cat"; argv[2] = "-r"; argv[3] = rev; argv[4] = url; argv[5] = NULL;
++  if (pipe (fds) != 0)
++    return -1;
++  posix_spawn_file_actions_init (&fa);
++  posix_spawn_file_actions_adddup2 (&fa, fds[1], 1);
++  posix_spawn_file_actions_addclose (&fa, fds[0]);
++  posix_spawn_file_actions_addopen (&fa, 2, "/dev/null", O_WRONLY, 0);
++  if (posix_spawnp (&pid, "svn", &fa, NULL, argv, environ) != 0) {
++    posix_spawn_file_actions_destroy (&fa);
++    close (fds[0]);
++    close (fds[1]);
++    return -1;
++  }
++  posix_spawn_file_actions_destroy (&fa);
++  close (fds[1]);
++  for (;;) {
++    char chunk[65536];
++    ssize_t r = read (fds[0], chunk, sizeof chunk);
++    if (r < 0 && errno == EINTR)
++      continue;
++    if (r <= 0)
++      break;
++    ts_put (out, chunk, (size_t) r);
++  }
++  close (fds[0]);
++  while (waitpid (pid, &status, 0) < 0)
++    if (errno != EINTR)
++      return -1;
++  return WIFEXITED (status) && WEXITSTATUS (status) == 0 ? 0 : -1;
++}
++
++static int
++ts_generated (const char *rel)
++{
++  return strncmp (rel, "texmf-var/", 10) == 0 || strcmp (rel, "texmf-dist/ls-R") == 0
++         || strcmp (rel, "texmf-dist/web2c/fmtutil.cnf") == 0 || strcmp (rel, "texmf-dist/web2c/updmap.cfg") == 0;
++}
++
++static void ts_after (const ts_entry *e, const ts_buf *b);
++
++/* Put E (REL under the root) into the tree. KIND is what the log calls a store fetch ("store", "prefetch"). */
++static int
++ts_place (CURL *c, const ts_entry *e, const char *kind, int fallback)
++{
++  char dst[4096], obj[4096], tmp[4200], got[TS_HEX + 1];
++  ts_buf b = { 0 };
++  struct stat st;
++  snprintf (dst, sizeof dst, "%s/%s", S.root, e->path);
++  if (stat (dst, &st) == 0)
++    return 0;
++  if (ts_obj (c, e->hash, &b, e->path, kind) != 0) {
++    if (!fallback)
++      goto fail;
++    if (!S.fallback || ts_generated (e->path)) {
++      fprintf (stderr, "texstore: %s: store failed%s\n", e->path,
++               S.fallback ? " (generated: only in the store)" : " and the fallback is off");
++      goto fail;
++    }
++    fprintf (stderr, "texstore: %s: store failed; falling back to svn\n", e->path);
++    b.n = 0;
++    if (ts_svn_cat (e->path, &b) != 0)
++      goto fail;
++    ts_sha512 (b.p ? b.p : "", b.n, got);
++    if (strcmp (got, e->hash) != 0) {
++      fprintf (stderr, "texstore: %s: svn r%s has different content\n", e->path, S.svnrev);
++      goto fail;
++    }
++    ts_obj_path (e->hash, obj, sizeof obj);
++    ts_write_atomic (obj, b.p, b.n, 0);
++    ts_log ("fallback", e->path);
++  }
++  if ((long) b.n != e->size) {
++    fprintf (stderr, "texstore: %s: size %ld, expected %ld\n", e->path, (long) b.n, e->size);
++    goto fail;
++  }
++  /* a hard link to the cached object when it can be (same file system, not executable), else a copy */
++  ts_obj_path (e->hash, obj, sizeof obj);
++  snprintf (tmp, sizeof tmp, "%s.%d.%lx.part", dst, (int) getpid (), (unsigned long) pthread_self ());
++  if (!e->exec && ts_mkdirs (dst) == 0 && link (obj, tmp) == 0) {
++    if (rename (tmp, dst) != 0)
++      unlink (tmp);
++  } else if (ts_write_atomic (dst, b.p, b.n, e->exec) != 0)
++    goto fail;
++  ts_after (e, &b);
++  free (b.p);
++  return stat (dst, &st) == 0 ? 0 : -1;
++fail:
++  free (b.p);
++  ts_log (fallback ? "fail" : "prefetch-fail", e->path); /* "fail": a lookup the run waits on found nothing */
++  return -1;
++}
++
++/* ---- the background pool: what the next lookups will probably ask for ----
++   After a file is placed (ts_after):
++   - the rest of its package's TeX inputs (tex/ files with TeX extensions, <= 1 MB each, <= 4 MB a package);
++   - for a .sty/.cls: the packages and classes it names in \RequirePackage, \usepackage, \LoadClass (their files
++     found by name in the index), which come with their own packages' inputs in turn;
++   - for a .tfm/.vf: the other .tfm and .vf files in its directory (<= 400).
++   Jobs are paths; a worker resolves each (manifest included), so new packages' manifests are fetched in parallel
++   too. Every path is queued at most once per process. */
++
++typedef struct ts_job { char *rel; struct ts_job *next; } ts_job;
++#define TS_SET 65536
++static struct {
++  pid_t pid;
++  pthread_mutex_t mu;
++  pthread_cond_t cv;
++  ts_job *head, *tail;
++  char **busy; /* in flight, so the calling thread can wait instead of fetching twice */
++  int nbusy;
++  int started;
++  char **set; /* every path queued so far (open addressing) */
++  int nset;
++} P;
++
++static unsigned
++ts_strhash (const char *s)
++{
++  unsigned h = 2166136261u;
++  while (*s)
++    h = (h ^ (unsigned char) *s++) * 16777619u;
++  return h;
++}
++
++static int /* add REL to the set; 0 if it was there. Call with P.mu held. */
++ts_set_add (const char *rel)
++{
++  unsigned i = ts_strhash (rel) & (TS_SET - 1);
++  if (P.nset > TS_SET / 2)
++    return 0;
++  while (P.set[i]) {
++    if (strcmp (P.set[i], rel) == 0)
++      return 0;
++    i = (i + 1) & (TS_SET - 1);
++  }
++  P.set[i] = strdup (rel);
++  P.nset++;
++  return 1;
++}
++
++static void *
++ts_worker (void *arg)
++{
++  CURL *c = L.easy_init ();
++  int slot = (int) (intptr_t) arg;
++  for (;;) {
++    ts_job *j;
++    const ts_entry *e;
++    pthread_mutex_lock (&P.mu);
++    while (!P.head)
++      pthread_cond_wait (&P.cv, &P.mu);
++    j = P.head;
++    P.head = j->next;
++    if (!P.head)
++      P.tail = NULL;
++    P.busy[slot] = j->rel;
++    pthread_mutex_unlock (&P.mu);
++    if (c && !S.offline && (e = ts_entry_of (c, j->rel, NULL)))
++      ts_place (c, e, "prefetch", 0);
++    pthread_mutex_lock (&P.mu);
++    P.busy[slot] = NULL;
++    pthread_cond_broadcast (&P.cv);
++    pthread_mutex_unlock (&P.mu);
++    free (j->rel);
++    free (j);
++  }
++  return NULL;
++}
++
++static void
++ts_pool (void)
++{
++  int i;
++  if (P.started && P.pid == getpid ())
++    return;
++  /* first use, or a forked child: the parent's threads and connections don't exist here; start over */
++  memset (&P, 0, sizeof P);
++  pthread_mutex_init (&P.mu, NULL);
++  pthread_cond_init (&P.cv, NULL);
++  P.pid = getpid ();
++  P.nbusy = S.threads;
++  P.busy = calloc ((size_t) S.threads, sizeof *P.busy);
++  P.set = calloc (TS_SET, sizeof *P.set);
++  for (i = 0; i < S.threads; i++) {
++    pthread_t t;
++    pthread_attr_t a;
++    pthread_attr_init (&a);
++    pthread_attr_setdetachstate (&a, PTHREAD_CREATE_DETACHED);
++    pthread_create (&t, &a, ts_worker, (void *) (intptr_t) i);
++    pthread_attr_destroy (&a);
++  }
++  P.started = 1;
++}
++
++static void /* FRONT: likely needed soon (named by \RequirePackage, a font's neighbours), ahead of siblings */
++ts_queue (const char *rel, int front)
++{
++  char dst[4096];
++  struct stat st;
++  ts_job *j;
++  if (!S.prefetch || S.offline)
++    return;
++  snprintf (dst, sizeof dst, "%s/%s", S.root, rel);
++  if (stat (dst, &st) == 0)
++    return;
++  ts_pool ();
++  pthread_mutex_lock (&P.mu);
++  if (ts_set_add (rel)) {
++    j = calloc (1, sizeof *j);
++    j->rel = strdup (rel);
++    if (front) {
++      j->next = P.head;
++      P.head = j;
++      if (!P.tail)
++        P.tail = j;
++    } else {
++      if (P.tail)
++        P.tail->next = j;
++      else
++        P.head = j;
++      P.tail = j;
++    }
++    pthread_cond_signal (&P.cv);
++  }
++  pthread_mutex_unlock (&P.mu);
++}
++
++static int
++ts_ext_in (const char *path, const char *const *ext)
++{
++  const char *dot = strrchr (path, '.');
++  int i;
++  if (!dot)
++    return 0;
++  for (i = 0; ext[i]; i++)
++    if (strcmp (dot, ext[i]) == 0)
++      return 1;
++  return 0;
++}
++
++static const char *const ts_tex_ext[] = { ".sty", ".cls", ".def", ".cfg", ".fd", ".clo", ".ldf", ".tex", ".dfu",
++                                          ".cpx", ".lua", NULL };
++static const char *const ts_font_ext[] = { ".tfm", ".vf", NULL };
++
++static void
++ts_queue_package (ts_man *m)
++{
++  int i;
++  long bytes = 0;
++  for (i = 0; i < m->n; i++) {
++    const ts_entry *e = &m->e[i];
++    if (strncmp (e->path, "texmf-dist/tex/", 15) != 0 || !ts_ext_in (e->path, ts_tex_ext) || e->size > (1 << 20))
++      continue;
++    if ((bytes += e->size) > (4L << 20))
++      break;
++    ts_queue (e->path, 0);
++  }
++}
++
++/* Basenames of the image's TeX inputs and Type 1 outlines -> F row, for \RequirePackage names. Built once per process. */
++static struct { const char *name; size_t len, row; } *ts_names;
++static size_t ts_nnames;
++static pthread_mutex_t ts_names_mu = PTHREAD_MUTEX_INITIALIZER;
++
++static int
++ts_name_cmp (const void *a, const void *b)
++{
++  const typeof (*ts_names) *x = a, *y = b;
++  size_t n = x->len < y->len ? x->len : y->len;
++  int c = memcmp (x->name, y->name, n);
++  if (c)
++    return c;
++  if (x->len != y->len)
++    return x->len < y->len ? -1 : 1;
++  /* the same name in several places: tex/latex first, then the first in byte order */
++  c = (memcmp (S.ix + y->row + 2, "texmf-dist/tex/latex/", 21) == 0)
++      - (memcmp (S.ix + x->row + 2, "texmf-dist/tex/latex/", 21) == 0);
++  return c ? c : (x->row < y->row ? -1 : 1);
++}
++
++static void
++ts_names_build (void)
++{
++  size_t i, cap = 0;
++  for (i = S.f0; i < S.f1; i = ts_line_end (S.ix, S.f1, i) + 1) {
++    const char *p = S.ix + i + 2, *t = memchr (p, '\t', S.f1 - (i + 2)), *slash;
++    if (!t || (size_t) (t - p) < 15
++        || (memcmp (p, "texmf-dist/tex/", 15) != 0 && ((size_t) (t - p) < 23 || memcmp (p, "texmf-dist/fonts/type1/", 23) != 0)))
++      continue;
++    for (slash = t; slash > p && slash[-1] != '/'; slash--)
++      ;
++    if (ts_nnames == cap) {
++      cap = cap ? cap * 2 : 65536;
++      ts_names = realloc (ts_names, cap * sizeof *ts_names);
++    }
++    ts_names[ts_nnames].name = slash;
++    ts_names[ts_nnames].len = (size_t) (t - slash);
++    ts_names[ts_nnames].row = i;
++    ts_nnames++;
++  }
++  qsort (ts_names, ts_nnames, sizeof *ts_names, ts_name_cmp);
++}
++
++static void /* queue the file named NAME (e.g. "hyperref.sty"), if the image has one */
++ts_queue_name (const char *name, size_t len)
++{
++  size_t lo = 0, hi, rs;
++  char rel[1024];
++  const char *t;
++  pthread_mutex_lock (&ts_names_mu);
++  if (!ts_names)
++    ts_names_build ();
++  pthread_mutex_unlock (&ts_names_mu);
++  hi = ts_nnames;
++  while (lo < hi) { /* the first entry with this name */
++    size_t mid = (lo + hi) / 2;
++    size_t n = ts_names[mid].len < len ? ts_names[mid].len : len;
++    int c = memcmp (ts_names[mid].name, name, n);
++    if (!c)
++      c = ts_names[mid].len < len ? -1 : ts_names[mid].len > len ? 1 : 0;
++    if (c < 0)
++      lo = mid + 1;
++    else
++      hi = mid;
++  }
++  if (lo >= ts_nnames || ts_names[lo].len != len || memcmp (ts_names[lo].name, name, len) != 0)
++    return;
++  rs = ts_names[lo].row + 2;
++  t = memchr (S.ix + rs, '\t', S.f1 - rs);
++  if (!t || (size_t) (t - (S.ix + rs)) >= sizeof rel)
++    return;
++  memcpy (rel, S.ix + rs, (size_t) (t - (S.ix + rs)));
++  rel[t - (S.ix + rs)] = 0;
++  ts_queue (rel, 1);
++}
++
++/* The names in \RequirePackage[..]{a,b}, \RequirePackageWithOptions{a}, \usepackage{a}, \LoadClass{a}. */
++static void
++ts_queue_requires (const ts_buf *b)
++{
++  static const struct { const char *cs; const char *ext; } K[] = {
++    { "\\RequirePackage", ".sty" }, { "\\usepackage", ".sty" }, { "\\LoadClass", ".cls" }, { "\\documentclass", ".cls" },
++    { NULL, NULL } };
++  const char *p = b->p, *end = b->p + b->n;
++  int k;
++  for (k = 0; K[k].cs; k++) {
++    size_t kl = strlen (K[k].cs);
++    const char *q = p;
++    while ((q = memmem (q, (size_t) (end - q), K[k].cs, kl))) {
++      const char *r = q + kl;
++      q = r;
++      while (r < end && ((*r >= 'A' && *r <= 'Z') || (*r >= 'a' && *r <= 'z'))) /* ...WithOptions */
++        r++;
++      while (r < end && (*r == ' ' || *r == '\n'))
++        r++;
++      if (r < end && *r == '[') { /* options, possibly over lines */
++        const char *c = memchr (r, ']', (size_t) (end - r));
++        if (!c || c - r > 2000)
++          continue;
++        r = c + 1;
++        while (r < end && (*r == ' ' || *r == '\n'))
++          r++;
++      }
++      if (r >= end || *r != '{')
++        continue;
++      for (r++; r < end && *r != '}';) {
++        const char *s0, *s1;
++        char name[256];
++        while (r < end && (*r == ' ' || *r == ',' || *r == '\n' || *r == '%'))
++          r++;
++        s0 = r;
++        while (r < end && *r != ',' && *r != '}' && *r != ' ' && *r != '\n')
++          r++;
++        s1 = r;
++        if (s1 > s0 && s1 - s0 < 200 && !memchr (s0, '\\', (size_t) (s1 - s0)) && !memchr (s0, '#', (size_t) (s1 - s0))) {
++          snprintf (name, sizeof name, "%.*s%s", (int) (s1 - s0), s0, K[k].ext);
++          ts_queue_name (name, strlen (name));
++        }
++      }
++    }
++  }
++}
++
++static void
++ts_after (const ts_entry *e, const ts_buf *b)
++{
++  ts_man *m = NULL;
++  if (!S.prefetch || S.offline)
++    return;
++  if (strncmp (e->path, "texmf-dist/tex/", 15) == 0 && ts_ext_in (e->path, ts_tex_ext)) {
++    size_t rs, re;
++    char pkg[512];
++    if (ts_bsearch (S.f0, S.f1, e->path, &rs, &re) && ts_field (rs, re, 3, pkg, sizeof pkg) == 0
++        && (m = ts_man_find (pkg)))
++      ts_queue_package (m);
++    if (ts_ext_in (e->path, (const char *const[]) { ".sty", ".cls", NULL }))
++      ts_queue_requires (b);
++  } else if (ts_ext_in (e->path, ts_font_ext)) {
++    const char *slash = strrchr (e->path, '/');
++    if (ts_ext_in (e->path, (const char *const[]) { ".tfm", NULL })) { /* its outline, if it has the same name */
++      char pfb[256];
++      const char *base = slash ? slash + 1 : e->path;
++      snprintf (pfb, sizeof pfb, "%.*s.pfb", (int) (strlen (base) - 4), base);
++      ts_queue_name (pfb, strlen (pfb));
++    }
++    size_t dl = slash ? (size_t) (slash - e->path) + 1 : 0;
++    size_t rs, re;
++    char pkg[512];
++    int i, n = 0;
++    if (ts_bsearch (S.f0, S.f1, e->path, &rs, &re) && ts_field (rs, re, 3, pkg, sizeof pkg) == 0
++        && (m = ts_man_find (pkg)))
++      for (i = 0; i < m->n && n < 400; i++)
++        if (strncmp (m->e[i].path, e->path, dl) == 0 && !strchr (m->e[i].path + dl, '/')
++            && ts_ext_in (m->e[i].path, ts_font_ext)) {
++          ts_queue (m->e[i].path, 1);
++          n++;
++        }
++  }
++}
++
++/* The project's own files (the working directory and one level below): what they load. Once per process tree. */
++static void
++ts_scan_project (void)
++{
++  static int done;
++  DIR *d, *sd;
++  struct dirent *de, *se;
++  if (done || !S.prefetch)
++    return;
++  done = 1;
++  if (!(d = opendir (".")))
++    return;
++  while ((de = readdir (d))) {
++    struct stat st;
++    if (de->d_name[0] == '.' || stat (de->d_name, &st) != 0)
++      continue;
++    if (S_ISDIR (st.st_mode)) {
++      if (!(sd = opendir (de->d_name)))
++        continue;
++      while ((se = readdir (sd))) {
++        char p[2048];
++        ts_buf b = { 0 };
++        if (!ts_ext_in (se->d_name, (const char *const[]) { ".tex", ".sty", ".cls", NULL }))
++          continue;
++        snprintf (p, sizeof p, "%s/%s", de->d_name, se->d_name);
++        if (stat (p, &st) == 0 && st.st_size < (4 << 20) && ts_read_file (p, &b) == 0)
++          ts_queue_requires (&b);
++        free (b.p);
++      }
++      closedir (sd);
++    } else if (ts_ext_in (de->d_name, (const char *const[]) { ".tex", ".sty", ".cls", NULL })
++               && st.st_size < (4 << 20)) {
++      ts_buf b = { 0 };
++      if (ts_read_file (de->d_name, &b) == 0)
++        ts_queue_requires (&b);
++      free (b.p);
++    }
++  }
++  closedir (d);
++}
++
++/* If a worker has REL in flight, wait for it. (A queued job is left: it will find the file on disk.) */
++static void
++ts_claim (const char *rel)
++{
++  int i;
++  if (!P.started || P.pid != getpid ())
++    return;
++  pthread_mutex_lock (&P.mu);
++  for (;;) {
++    int busy = 0;
++    for (i = 0; i < P.nbusy; i++)
++      if (P.busy[i] && strcmp (P.busy[i], rel) == 0)
++        busy = 1;
++    if (!busy)
++      break;
++    pthread_cond_wait (&P.cv, &P.mu);
++  }
++  pthread_mutex_unlock (&P.mu);
++}
++
++/* ---- the entry point ---- */
++
++static int
++taudot_store_fetch (kpathsea kpse, const_string path)
++{
++  static CURL *fg;
++  static pid_t fgpid, logpid;
++  size_t rn;
++  char dst[4096];
++  const char *rel;
++  const ts_entry *e;
++  struct stat st;
++  int ok;
++  double t0 = ts_now ();
++  if (logpid != getpid ()) { /* a forked child: a parent's worker may have held these locks at the fork */
++    if (logpid) {
++      pthread_mutex_init (&ts_log_mu, NULL);
++      pthread_mutex_init (&ts_man_mu, NULL);
++      pthread_mutex_init (&ts_names_mu, NULL);
++    }
++    logpid = getpid ();
++  }
++  if (!ts_init (kpse))
++    return -1; /* the store is off: let the caller try its other hook */
++  rn = strlen (S.root);
++  if (strncmp (path, S.root, rn) != 0 || path[rn] != '/')
++    return 0;
++  rel = path + rn + 1;
++  if (fgpid != getpid ()) { /* never the parent's handle */
++    fg = L.easy_init ();
++    fgpid = getpid ();
++  }
++  ts_scan_project ();
++  ts_claim (rel);
++  if (stat (path, &st) == 0) {
++    ok = 1; /* a worker just placed it */
++  } else {
++    if (!(e = ts_entry_of (fg, rel, NULL)))
++      return 0; /* not in TeX Live (no network), or no manifest */
++    ok = ts_place (fg, e, "store", 1) == 0;
++  }
++  if (getenv ("TEXSTORE_LOG")) {
++    snprintf (dst, sizeof dst, "%s %.1f ms", rel, (ts_now () - t0) * 1000);
++    ts_log ("wait", dst);
++  }
++  return ok;
++}
++
++#else /* not __APPLE__ */
++static int
++taudot_store_fetch (kpathsea kpse, const_string path)
++{
++  (void) kpse;
++  (void) path;
++  return -1;
++}
++#endif

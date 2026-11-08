@@ -1,0 +1,1190 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Sat, 7 Nov 2026 08:57:38 -0500
+Subject: [PATCH] pdftex: paragraph preview (paragraph snapshots, warm child,
+ the edited paragraph's lines alone, where old lines land)
+
+---
+ texk/web2c/lib/taudot-live.c        | 948 +++++++++++++++++++++++++++-
+ texk/web2c/pdftexdir/pdftex.defines |   3 +
+ texk/web2c/pdftexdir/pdftex.web     |  33 +-
+ texk/web2c/pdftexdir/ptexlib.h      |   3 +
+ 4 files changed, 967 insertions(+), 20 deletions(-)
+
+diff --git a/texk/web2c/lib/taudot-live.c b/texk/web2c/lib/taudot-live.c
+index 2842ea08..a134a6bb 100644
+--- a/texk/web2c/lib/taudot-live.c
++++ b/texk/web2c/lib/taudot-live.c
+@@ -24,6 +24,7 @@
+ #include <sys/socket.h>
+ #include <sys/stat.h>
+ #include <sys/wait.h>
++#include <sys/resource.h>
+ #include <fcntl.h>
+ #include <limits.h>
+ #include <signal.h>
+@@ -33,6 +34,10 @@
+ #include <unistd.h>
+ #ifdef __APPLE__
+ #include <sys/event.h>
++#include <mach/mach.h>
++#include <mach/mach_vm.h>
++#include <pthread.h>
++#include <sys/qos.h>
+ #endif
+ 
+ extern FILE *(*taudot_open_in_hook) (const char *name, int filefmt, int stage);
+@@ -65,6 +70,10 @@ static int tl_goal_done = 0;
+ static uint64_t tl_last_finish;  /* or the resume */
+ static volatile sig_atomic_t tl_want_finish = 0;  /* SIGUSR1: finish now */
+ static volatile sig_atomic_t tl_want_ctl = 0;     /* SIGUSR2: ctl changed (the goal) */
++/* The paragraph preview (ctl's 6th and 7th fields). */
++static long tl_pwin = -1, tl_phave = -1;
++static int tl_para_mode = 0;     /* a paragraph pass: typeset the watched paragraph, write it, exit */
++static uint64_t tl_t_go;
+ 
+ static uint64_t
+ tl_now (void)
+@@ -99,7 +108,7 @@ struct tl_track { char *rel; char *abs; long hw; int eof; int opened; };
+ static struct tl_track tl_tracks[512];
+ static int tl_ntracks = 0;
+ 
+-struct tl_reader { int track; char *buf; long len, pos; };    /* one per open FILE; track < 0: a shadow copy */
++struct tl_reader { int track; char *buf; long len, pos, line_start; };  /* one per open FILE; track < 0: a shadow copy */
+ static struct tl_reader *tl_open_readers[512];
+ static int tl_nreaders = 0;
+ 
+@@ -192,6 +201,7 @@ tl_reader_file (int track, char *buf, long len)
+   r->buf = buf;
+   r->len = len;
+   r->pos = 0;
++  r->line_start = 0;
+   f = funopen (r, tl_read, NULL, tl_rseek, tl_rclose);
+   if (!f) {
+     free (buf);
+@@ -298,6 +308,7 @@ tl_open_out (FILE **f_ptr, const char *name, const_string mode)
+ }
+ 
+ static void tl_dump (struct tl_vfile *v, const char *name);
++static void tl_para_reset (void);
+ static void tl_serve_rule (int shipped);
+ 
+ /* Set by synctex.c when it closes its file: gzip it (after the PDF is out). */
+@@ -445,6 +456,14 @@ tl_open_in (const char *name, int filefmt, int stage)
+   FILE *f;
+   if (filefmt == DUMP_FORMAT)
+     return NULL;
++  if (tl_para_mode && getenv ("TAUDOT_PARA_DEBUG")) {
++    static uint64_t t0;
++    uint64_t t = tl_now ();
++    tl_send ("D open %s fmt %d stage %d at %llu (+%llu)\n", name, filefmt, stage, (unsigned long long) (t - tl_t_go),
++             (unsigned long long) (stage ? t - t0 : 0));
++    if (stage == 0)
++      t0 = t;
++  }
+   if (stage == 2) {
+     tl_note_missing (name);
+     if (filefmt == kpse_tex_format) {
+@@ -546,13 +565,19 @@ tl_read_ctl (void)
+   FILE *f = fopen (path, "r");
+   free (path);
+   int goal, period, n;
++  long pwin, phave;
+   tl_watch_off = -1;
++  tl_pwin = tl_phave = -1;
+   if (!f)
+     return;
+-  n = fscanf (f, "%d %ld %1023s %d %d", &tl_seq, &tl_watch_off, tl_watch, &goal, &period);
++  n = fscanf (f, "%d %ld %1023s %d %d %ld %ld", &tl_seq, &tl_watch_off, tl_watch, &goal, &period, &pwin, &phave);
+   if (n < 3)
+     tl_watch_off = -1;
+-  if (n == 5) {
++  if (n == 7) {  /* the paragraph preview: make a paragraph snapshot at a line start in [pwin, the edit], not at phave */
++    tl_pwin = pwin;
++    tl_phave = phave;
++  }
++  if (n >= 5) {
+     tl_serve = 1;
+     if (goal != tl_goal)
+       tl_goal_done = 0;
+@@ -694,6 +719,7 @@ tl_be_snapshot (pid_t child)
+       tl_passed = 0;
+       tl_want_finish = 0;
+       tl_read_ctl ();
++      tl_para_reset ();
+       tl_last_snap = tl_now ();
+       tl_last_finish = tl_last_snap;
+       tl_send ("R %d %d %d %llu\n", (int) getppid (), (int) getpid (), tl_seq, (unsigned long long) tl_last_snap);
+@@ -703,32 +729,45 @@ tl_be_snapshot (pid_t child)
+   }
+ }
+ 
++static int tl_main_vmode (void);
++static void tl_para_line (struct tl_reader *r);
++static void tl_para_check (struct tl_reader *r);
++
+ static void
+ tl_before_line (FILE *f)
+ {
+   pid_t c;
+   uint64_t t;
+-  if (getppid () != tl_parent)
++  struct tl_reader *r;
++  if (!tl_para_mode && getppid () != tl_parent)
+     _exit (0);  /* our snapshot was killed: we are a stale runner */
++  if (tl_para_mode) {  /* a paragraph pass finishes even if its snapshot goes meanwhile (it ends soon anyway) */
++    tl_para_line (tl_is_tracked (f) ? f->_cookie : NULL);
++    return;
++  }
+   if (tl_serve && (tl_want_finish || tl_want_ctl))
+     tl_serve_rule (0);
+   if (!tl_is_tracked (f))
+     return;
++  r = f->_cookie;
++  r->line_start = r->pos;
+   t = tl_now ();
+-  if (tl_last_snap && t - tl_last_snap < tl_snap_us)
+-    return;
+-  fflush (stdout);
+-  c = fork ();
+-  if (c < 0)
+-    return;
+-  if (c == 0) {
+-    tl_parent = getppid ();
+-    tl_last_snap = t;
+-    tl_unshare_fds ();
+-    tl_send_snapshot ();
+-    return;
++  /* Snapshots between paragraphs (on the main vertical list), so an edit resumes before its paragraph's start and
++     the run can leave a paragraph snapshot there; inside a paragraph only after four intervals. */
++  if (!tl_last_snap || (t - tl_last_snap >= tl_snap_us && (tl_main_vmode () || t - tl_last_snap >= 4 * tl_snap_us))) {
++    fflush (stdout);
++    c = fork ();
++    if (c < 0)
++      return;
++    if (c == 0) {
++      tl_parent = getppid ();
++      tl_last_snap = t;
++      tl_unshare_fds ();
++      tl_send_snapshot ();
++    } else
++      tl_be_snapshot (c);  /* returns in a new runner */
+   }
+-  tl_be_snapshot (c);
++  tl_para_check (r);
+ }
+ 
+ static void
+@@ -863,7 +902,7 @@ void
+ taudotshipped (void)
+ {
+   int i;
+-  if (!tl_on || tl_finishing)
++  if (!tl_on || tl_finishing || tl_para_mode)
+     return;
+   tl_send ("p %d %d %llu\n", (int) getpid (), (int) totalpages, (unsigned long long) tl_now ());
+   if (tl_finish_all) {
+@@ -928,12 +967,16 @@ tl_send_tracks (void)
+   tl_send ("%s", msg);
+ }
+ 
++static void tl_para_fail (const char *why);
++
+ static void
+ tl_exit (int code)
+ {
+   char name[64];
+   if (tl_finishing)
+     _exit (code);
++  if (tl_para_mode)
++    tl_para_fail ("end");
+   snprintf (name, sizeof name, "final-%d.pdf", tl_seq);
+   tl_dump (tl_pdf, name);
+   snprintf (name, sizeof name, "final-%d.log", tl_seq);
+@@ -948,6 +991,875 @@ tl_exit (int code)
+   _exit (0);
+ }
+ 
++/* ---- the paragraph preview (docs/live-protocol.md, "para") ----
++
++   A runner whose ctl names an edit (and a window, ctl's 6th field) leaves a *paragraph snapshot* at the last line
++   start before the edit read on the main vertical list: a process parked there, which keeps one *warm child* parked
++   beside it. On the driver's SIGUSR1 the warm child swaps in the edited file's new text (OUT/pgo-<snapshot>),
++   typesets until the paragraph holding the edit is broken into lines (line_break, before the page builder sees
++   them), ships those lines alone into its in-memory PDF, writes them for the driver (OUT/para-<go>.out) and exits.
++   The paragraph snapshot then forks the next warm child.
++
++   The runner also finds where that paragraph's lines land on the page (before ship-out, by pointer) and tells the
++   driver (A), so the preview can be drawn over the old lines.
++
++   The watched paragraph: the first one broken on the main vertical list after the input has passed the edit. */
++
++static int tl_main_vmode (void)
++{
++  return nestptr == 0 && abs (curlist.modefield) == 1;  /* vmode = 1 */
++}
++
++static int tl_watch_track = -2;  /* the watched file's track (-1: none), looked up once per run */
++
++static int
++tl_watch_tr (void)
++{
++  int i;
++  if (tl_watch_track >= 0)
++    return tl_watch_track;
++  for (i = 0; i < tl_ntracks; i++)
++    if (strcmp (tl_tracks[i].rel, tl_watch) == 0)
++      return tl_watch_track = i;
++  return -1;  /* not opened yet: look again next time */
++}
++
++/* The byte the input has reached in the watched file, if the innermost file being read is it; else -1. */
++static long
++tl_cur_offset (void)
++{
++  instaterecord *in = curinput.statefield != 0 ? &curinput : NULL;
++  int i;
++  FILE *f;
++  struct tl_reader *r;
++  for (i = inputptr - 1; !in && i >= 0; i--)
++    if (inputstack[i].statefield != 0)
++      in = &inputstack[i];
++  if (!in || in->namefield <= 19)
++    return -1;
++  f = inputfile[in->indexfield];
++  if (!tl_is_tracked (f))
++    return -1;
++  r = f->_cookie;
++  if (r->track != tl_watch_tr ())
++    return -1;
++  return r->line_start + (in->locfield - in->startfield);
++}
++
++/* Past the edit: by the input position in the watched file, or (reading another file) by its extent. */
++static int
++tl_past_edit (void)
++{
++  long off;
++  int w = tl_watch_tr ();
++  if (tl_watch_off < 0 || w < 0)
++    return 0;
++  off = tl_cur_offset ();
++  if (off >= 0)
++    return off > tl_watch_off;
++  return tl_tracks[w].hw + tl_tracks[w].eof > tl_watch_off + 1;
++}
++
++/* node fields (tex.web) */
++#define TL_NULL (-0xFFFFFFF) /* tex.ch: null = min_halfword */
++#define TL_LINK(p) (zmem[(p)].hh.rh)
++#define TL_INFO(p) (zmem[(p)].hh.lhfield)
++#define TL_TYPE(p) (zmem[(p)].hh.b0)
++#define TL_SUBTYPE(p) (zmem[(p)].hh.b1)
++#define TL_WIDTH(p) (zmem[(p) + 1].cint)
++#define TL_DEPTH(p) (zmem[(p) + 2].cint)
++#define TL_HEIGHT(p) (zmem[(p) + 3].cint)
++#define TL_SHIFT(p) (zmem[(p) + 4].cint)
++#define TL_LIST(p) (zmem[(p) + 5].hh.rh)
++#define TL_GSIGN(p) (zmem[(p) + 5].hh.b0)
++#define TL_GORDER(p) (zmem[(p) + 5].hh.b1)
++#define TL_GSET(p) (zmem[(p) + 6].gr)
++#define TL_GLUE_PTR(p) (zmem[(p) + 1].hh.lhfield)
++#define TL_STRETCH(g) (zmem[(g) + 2].cint)
++#define TL_SHRINK(g) (zmem[(g) + 3].cint)
++#define TL_IS_CHAR(p) ((p) >= himemmin)
++#define TL_CHAR_WD(f, c) (fontinfo[widthbase[f] + fontinfo[charbase[f] + (c)].qqqq.b0].cint)
++enum { TL_HLIST = 0, TL_VLIST = 1, TL_RULE = 2, TL_INS = 3, TL_MARK = 4, TL_ADJUST = 5, TL_LIG = 6, TL_DISC = 7,
++       TL_WHATSIT = 8, TL_MATH = 9, TL_GLUE = 10, TL_KERN = 11, TL_PENALTY = 12, TL_MARGIN_KERN = 40 };
++enum { TL_W_OPEN = 0, TL_W_WRITE = 1, TL_W_CLOSE = 2, TL_W_REFXFORM = 7 + 5, TL_W_REFXIMAGE = 7 + 7,
++       TL_W_SAVEPOS = 7 + 16, TL_W_SNAPY = 7 + 30, TL_W_SNAPYCOMP = 7 + 31 };
++
++/* What a paragraph holds that the page around it could depend on. */
++struct tl_flags { int ins, mark, adjust, write, savepos, image, other; };
++
++static void
++tl_scan_flags (halfword p, struct tl_flags *fl, int depth)
++{
++  for (; p != TL_NULL && depth < 64; p = TL_LINK (p)) {
++    if (TL_IS_CHAR (p))
++      continue;
++    switch (TL_TYPE (p)) {
++    case TL_HLIST: case TL_VLIST: tl_scan_flags (TL_LIST (p), fl, depth + 1); break;
++    case TL_INS: fl->ins++; break;
++    case TL_MARK: fl->mark++; break;
++    case TL_ADJUST: fl->adjust++; break;
++    case TL_WHATSIT:
++      switch (TL_SUBTYPE (p)) {
++      case TL_W_OPEN: case TL_W_WRITE: case TL_W_CLOSE: fl->write++; break;
++      case TL_W_SAVEPOS: case TL_W_SNAPY: case TL_W_SNAPYCOMP: fl->savepos++; break;
++      case TL_W_REFXFORM: case TL_W_REFXIMAGE: fl->image++; break;
++      }
++      break;
++    }
++  }
++}
++
++/* ---- where lines land: walk the box being shipped (tex.web's hlist_out and vlist_out, positions only) ---- */
++
++#define TL_MAXL 512
++static halfword tl_anc_box[TL_MAXL];   /* the watched paragraph's line boxes (this run) */
++/* Line boxes don't keep their address until ship-out (the output routine may copy them), so each is marked in its
++   SyncTeX line field (copied with the box) until it is found, then given its own back. */
++#define TL_SYNC_LINE(p) (zmem[(p) + 8].cint)  /* sync_line(p+box_node_size), box_node_size = 7 + 2 */
++static integer tl_anc_sync[TL_MAXL];
++static integer tl_anc_mark;            /* line i is marked tl_anc_mark - i */
++static scaled tl_anc_w[TL_MAXL], tl_anc_h[TL_MAXL], tl_anc_d[TL_MAXL];
++static int tl_nanc = 0, tl_anc_left = 0;
++static long tl_anc_off = -1;
++static int tl_anc_seg;                 /* which main-list paragraph (or part of one, around a display) since it */           /* its paragraph snapshot's offset (the last main-list line start before it) */
++static long tl_last_vline = -1;        /* the last main-list line start read before the edit in the watched file */
++struct tl_place { int found, page; scaled x, y; };
++static struct tl_place tl_anc_at[TL_MAXL];
++
++static double
++tl_vet (double g)
++{
++  return g > 1e9 ? 1e9 : g < -1e9 ? -1e9 : g;
++}
++
++static void tl_walk_v (halfword b, scaled left, scaled top, int page, int depth);
++
++static void
++tl_found (halfword p, scaled x, scaled y, int page)
++{
++  int i;
++  if (TL_TYPE (p) != TL_HLIST)
++    return;
++  i = tl_anc_mark - TL_SYNC_LINE (p);
++  if (i >= 0 && i < tl_nanc && !tl_anc_at[i].found) {
++      TL_SYNC_LINE (p) = tl_anc_sync[i];
++      tl_anc_at[i].found = 1;
++      tl_anc_at[i].page = page;
++      tl_anc_at[i].x = x;
++      tl_anc_at[i].y = y;
++      tl_anc_left--;
++    }
++}
++
++static void
++tl_walk_h (halfword b, scaled left, scaled base, int page, int depth)
++{
++  halfword p = TL_LIST (b), g;
++  scaled cur_h = left, cur_g = 0, rule;
++  double cur_glue = 0.0;
++  int sign = TL_GSIGN (b), order = TL_GORDER (b);
++  if (depth > 32)
++    return;
++  for (; p != TL_NULL && tl_anc_left > 0; p = TL_LINK (p)) {
++    if (TL_IS_CHAR (p)) {
++      cur_h += TL_CHAR_WD (TL_TYPE (p), TL_SUBTYPE (p));
++      continue;
++    }
++    switch (TL_TYPE (p)) {
++    case TL_HLIST: case TL_VLIST:
++      tl_found (p, cur_h, base + TL_SHIFT (p), page);
++      if (TL_LIST (p) != TL_NULL) {
++        if (TL_TYPE (p) == TL_VLIST)
++          tl_walk_v (p, cur_h, base + TL_SHIFT (p) - TL_HEIGHT (p), page, depth + 1);
++        else
++          tl_walk_h (p, cur_h, base + TL_SHIFT (p), page, depth + 1);
++      }
++      cur_h += TL_WIDTH (p);
++      break;
++    case TL_RULE: case TL_KERN: case TL_MATH: case TL_MARGIN_KERN:
++      cur_h += TL_WIDTH (p);
++      break;
++    case TL_LIG:
++      cur_h += TL_CHAR_WD (TL_TYPE (p + 1), TL_SUBTYPE (p + 1));
++      break;
++    case TL_WHATSIT:
++      if (TL_SUBTYPE (p) == TL_W_REFXFORM || TL_SUBTYPE (p) == TL_W_REFXIMAGE)
++        cur_h += TL_WIDTH (p);
++      break;
++    case TL_GLUE:
++      g = TL_GLUE_PTR (p);
++      rule = TL_WIDTH (g) - cur_g;
++      if (sign != 0) {
++        if (sign == 1 && TL_TYPE (g) == order) {
++          cur_glue += TL_STRETCH (g);
++          cur_g = (scaled) zround (tl_vet (TL_GSET (b) * cur_glue));
++        } else if (sign == 2 && TL_SUBTYPE (g) == order) {
++          cur_glue -= TL_SHRINK (g);
++          cur_g = (scaled) zround (tl_vet (TL_GSET (b) * cur_glue));
++        }
++      }
++      rule += cur_g;
++      cur_h += rule;
++      break;
++    }
++  }
++}
++
++static void
++tl_walk_v (halfword b, scaled left, scaled top, int page, int depth)
++{
++  halfword p = TL_LIST (b), g;
++  scaled cur_v = top, cur_g = 0, rule;
++  double cur_glue = 0.0;
++  int sign = TL_GSIGN (b), order = TL_GORDER (b);
++  if (depth > 32)
++    return;
++  for (; p != TL_NULL && tl_anc_left > 0; p = TL_LINK (p)) {
++    if (TL_IS_CHAR (p))
++      return;  /* can't happen */
++    switch (TL_TYPE (p)) {
++    case TL_HLIST: case TL_VLIST:
++      cur_v += TL_HEIGHT (p);
++      tl_found (p, left + TL_SHIFT (p), cur_v, page);
++      if (TL_LIST (p) != TL_NULL) {
++        if (TL_TYPE (p) == TL_VLIST)
++          tl_walk_v (p, left + TL_SHIFT (p), cur_v - TL_HEIGHT (p), page, depth + 1);
++        else
++          tl_walk_h (p, left + TL_SHIFT (p), cur_v, page, depth + 1);
++      }
++      cur_v += TL_DEPTH (p);
++      break;
++    case TL_RULE:
++      cur_v += TL_HEIGHT (p) + TL_DEPTH (p);
++      break;
++    case TL_KERN:
++      cur_v += TL_WIDTH (p);
++      break;
++    case TL_WHATSIT:
++      if (TL_SUBTYPE (p) == TL_W_REFXFORM || TL_SUBTYPE (p) == TL_W_REFXIMAGE)
++        cur_v += TL_HEIGHT (p) + TL_DEPTH (p);
++      break;
++    case TL_GLUE:
++      g = TL_GLUE_PTR (p);
++      rule = TL_WIDTH (g) - cur_g;
++      if (sign != 0) {
++        if (sign == 1 && TL_TYPE (g) == order) {
++          cur_glue += TL_STRETCH (g);
++          cur_g = (scaled) zround (tl_vet (TL_GSET (b) * cur_glue));
++        } else if (sign == 2 && TL_SUBTYPE (g) == order) {
++          cur_glue -= TL_SHRINK (g);
++          cur_g = (scaled) zround (tl_vet (TL_GSET (b) * cur_glue));
++        }
++      }
++      rule += cur_g;
++      cur_v += rule;
++      break;
++    }
++  }
++}
++
++/* A page is about to be shipped (box p, its top-left at (h, v) from the page's top-left): where the watched
++   paragraph's lines are on it. A: `A runner seq off page n` + n × `x y w h d` (sp; y the baseline, from the top). */
++void
++taudotbeforeship (halfword p, scaled h, scaled v, scaled pw, scaled ph)
++{
++  char msg[30000];
++  int i, n, page;
++  if (!tl_on || tl_finishing || tl_para_mode || tl_nanc == 0 || tl_anc_left <= 0)
++    return;
++  page = (int) totalpages;
++  if (TL_TYPE (p) == TL_VLIST)
++    tl_walk_v (p, h, v, page, 0);
++  else
++    tl_walk_h (p, h, v + TL_HEIGHT (p), page, 0);
++  if (getenv ("TAUDOT_PARA_DEBUG"))
++    tl_send ("D ship pid %d page %d nanc %d left %d\n", (int) getpid (), page, tl_nanc, tl_anc_left);
++  if (tl_anc_left > 0)
++    return;  /* not all on this page yet (or never: the driver gets nothing, and shows no preview) */
++  n = snprintf (msg, sizeof msg, "A %d %d %ld %d %d %d %d %d\n", (int) getpid (), tl_seq, tl_anc_off, page, tl_nanc,
++                (int) pw, (int) ph, tl_anc_seg);
++  for (i = 0; i < tl_nanc && n < (int) sizeof msg - 128; i++)
++    n += snprintf (msg + n, sizeof msg - n, "%d %d %d %d %d %d\n", tl_anc_at[i].page, (int) tl_anc_at[i].x,
++                   (int) tl_anc_at[i].y, (int) tl_anc_w[i], (int) tl_anc_h[i], (int) tl_anc_d[i]);
++  tl_send ("%s", msg);
++  tl_nanc = 0;
++}
++
++/* ---- selection: the watched paragraph's line_break ---- */
++
++static uint64_t tl_cpu (void);
++static uint64_t tl_cpu_lb0;
++static int tl_lb_nest, tl_lb_shaped;
++static int tl_lb_count;  /* main-list line_breaks since the last main-list line start before the edit: which segment */
++static halfword tl_lb_tail;
++static int tl_sel_done = 0;     /* this run has found its paragraph */
++static long tl_seg_start = -1;  /* the input position where the current main-list paragraph resumed after a display */
++static void tl_para_emit (halfword first);
++
++void
++taudotparstart (int display)
++{
++  if (!tl_on || tl_finishing || nestptr != 1)
++    return;
++  tl_seg_start = display ? tl_cur_offset () : -1;
++}
++
++void
++taudotlinebreak (int after)
++{
++  halfword q;
++  int n;
++  if (!tl_on || tl_finishing)
++    return;
++  if (!after) {
++    if (tl_para_mode)
++      tl_cpu_lb0 = tl_cpu ();
++    tl_lb_shaped = taudotshaped ();
++    tl_lb_nest = nestptr;
++    tl_lb_tail = nestptr > 0 ? nest[nestptr - 1].tailfield : TL_NULL;
++    return;
++  }
++  if (tl_lb_nest != 1 || tl_sel_done || !(tl_para_mode || (tl_serve && tl_watch_off >= 0)))
++    return;
++  tl_lb_count++;
++  if (!tl_past_edit ())
++    return;
++  tl_sel_done = 1;
++  if (tl_para_mode) {
++    tl_para_emit (TL_LINK (tl_lb_tail));
++    return;  /* not reached */
++  }
++  /* the runner: remember the lines, find them at ship-out */
++  tl_nanc = 0;
++  tl_anc_mark = -0x40000000 - ((tl_seq & 0xfff) << 10);
++  for (q = TL_LINK (tl_lb_tail); q != TL_NULL && tl_nanc < TL_MAXL; q = TL_LINK (q))
++    if (!TL_IS_CHAR (q) && TL_TYPE (q) == TL_HLIST) {
++      tl_anc_box[tl_nanc] = q;
++      tl_anc_at[tl_nanc].found = 0;
++      tl_anc_w[tl_nanc] = TL_WIDTH (q);
++      tl_anc_h[tl_nanc] = TL_HEIGHT (q);
++      tl_anc_d[tl_nanc] = TL_DEPTH (q);
++      tl_anc_sync[tl_nanc] = TL_SYNC_LINE (q);
++      TL_SYNC_LINE (q) = tl_anc_mark - tl_nanc;
++      tl_nanc++;
++    }
++  n = tl_nanc;
++  tl_anc_left = n;
++  if (getenv ("TAUDOT_PARA_DEBUG"))
++    tl_send ("D select pid %d nanc %d off %ld cur %ld watch %ld tail %d link %d boxes %d %d %d %d\n", (int) getpid (), n, tl_last_vline, tl_cur_offset (), tl_watch_off, tl_lb_tail, TL_LINK (tl_lb_tail), tl_anc_box[0], tl_anc_box[1], tl_anc_box[2], tl_anc_box[3]);
++  tl_anc_off = tl_last_vline;
++  tl_anc_seg = tl_lb_count;
++  if (tl_seg_start >= 0 && tl_seg_start - 1 > tl_watch_off) {  /* the edit is in a display: no anchor */
++    for (n = 0; n < tl_nanc; n++)
++      TL_SYNC_LINE (tl_anc_box[n]) = tl_anc_sync[n];
++    tl_nanc = 0;
++  }
++}
++
++/* ---- the paragraph snapshot and its warm child ---- */
++
++static void
++tl_para_reset (void)  /* a new run (or a resumed one) */
++{
++  tl_watch_track = -2;
++  tl_sel_done = 0;
++  tl_nanc = 0;
++  tl_seg_start = -1;
++  tl_last_vline = -1;
++}
++
++static void tl_be_para_snapshot (long off);
++
++static void
++tl_para_check (struct tl_reader *r)
++{
++  pid_t c;
++  if (!tl_serve || tl_watch_off < 0 || tl_sel_done || r->track != tl_watch_tr () || !tl_main_vmode ())
++    return;
++  if (r->line_start > tl_watch_off)
++    return;
++  tl_last_vline = r->line_start;
++  tl_lb_count = 0;
++  if (tl_pwin < 0 || r->line_start < tl_pwin || r->line_start <= tl_phave)
++    return;  /* outside the window, or not closer to the edit than the one the driver has */
++  fflush (stdout);
++  c = fork ();
++  if (c < 0)
++    return;
++  if (c == 0) {  /* double fork: the paragraph snapshot belongs to nobody, so a killed runner doesn't take it along */
++    pid_t g = fork ();
++    if (g != 0)
++      _exit (0);
++    tl_be_para_snapshot (r->line_start);
++    return;  /* in a warm child that was told to go */
++  }
++  while (waitpid (c, NULL, 0) < 0 && errno == EINTR)
++    ;
++  /* an earlier one in this run is superseded: the driver, which hears of both (Q), retires it */
++}
++
++/* Wait for SIGUSR1 (go), or the exit of process a or the driver. Returns 1 on go. */
++static int
++tl_wait_go (pid_t a)
++{
++#ifdef __APPLE__
++  struct kevent ev[3], out;
++  int n, kq = kqueue ();
++  if (kq < 0)
++    return 0;
++  EV_SET (&ev[0], SIGUSR1, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
++  EV_SET (&ev[1], tl_driver, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT, 0, NULL);
++  EV_SET (&ev[2], a, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT, 0, NULL);
++  if (kevent (kq, ev, 3, NULL, 0, NULL) < 0) {
++    close (kq);
++    return 0;
++  }
++  while (!tl_want_finish) {
++    n = kevent (kq, NULL, 0, &out, 1, NULL);
++    if (n < 0 && errno == EINTR)
++      continue;
++    if (n < 0 || out.filter == EVFILT_PROC)
++      break;
++  }
++  close (kq);
++  return tl_want_finish != 0;
++#else
++  (void) a;
++  return tl_wait_wake ();
++#endif
++}
++
++/* Copy, before the go, the pages the paragraph pass will write: TeX's memory in use, eqtb, the stacks and buffers.
++   Each is a copy-on-write fault otherwise (~170 of them, 0.5-1 ms, on the critical path). */
++static void
++tl_touch (void *p, size_t n)
++{
++  volatile char *c = p;
++  size_t i;
++  if (!p)
++    return;
++  for (i = 0; i < n; i += 4096)
++    c[i] = c[i];
++}
++
++/* After fork, macOS fills in a child's page tables lazily: the first touch of every page faults, a read too. Read
++   every readable page while waiting (tens of MB, a few ms, off the critical path), then write the ones TeX writes. */
++static int tl_touch_write;
++static void
++tl_touch_all (void)
++{
++#ifdef __APPLE__
++  mach_vm_address_t a = 0;
++  mach_vm_size_t n;
++  for (;;) {
++    vm_region_basic_info_data_64_t info;
++    mach_msg_type_number_t cnt = VM_REGION_BASIC_INFO_COUNT_64;
++    mach_port_t obj;
++    volatile char sink = 0;
++    mach_vm_size_t i;
++    if (mach_vm_region (mach_task_self (), &a, &n, VM_REGION_BASIC_INFO_64, (vm_region_info_t) &info, &cnt, &obj)
++        != KERN_SUCCESS)
++      break;
++    if ((info.protection & VM_PROT_READ) && n <= ((mach_vm_size_t) 1 << 28) && !info.reserved) {
++      if (tl_touch_write && (info.protection & VM_PROT_WRITE) && !info.shared)
++        for (i = 0; i < n; i += 16384) {
++          volatile char *c = (volatile char *) (uintptr_t) (a + i);
++          *c = *c;
++        }
++      else
++        for (i = 0; i < n; i += 16384)
++          sink += *(volatile char *) (uintptr_t) (a + i);
++    }
++    (void) sink;
++    a += n;
++  }
++#endif
++}
++
++static void
++tl_prefault (void)
++{
++  if (getenv ("TAUDOT_PARA_NOPREFAULT"))
++    return;
++  /* TAUDOT_PARA_TOUCHW=1: write every private page too (PaperA: 0 faults instead of ~30-150, engine p50 0.93 ->
++     0.67 ms, but ~70 MB more for the warm child) */
++  tl_touch_write = getenv ("TAUDOT_PARA_TOUCHW") && strcmp (getenv ("TAUDOT_PARA_TOUCHW"), "1") == 0;
++  tl_touch_all ();
++  tl_touch (zmem, (size_t) (lomemmax + 1) * sizeof *zmem);
++  tl_touch (zmem + himemmin, (size_t) (memend - himemmin + 1) * sizeof *zmem);
++  tl_touch (zeqtb, (size_t) (eqtbtop + 1) * sizeof *zeqtb);
++  tl_touch (savestack, (size_t) (savesize < 65536 ? savesize : 65536) * sizeof *savestack);
++  tl_touch (buffer, (size_t) (bufsize < 1 << 20 ? bufsize : 1 << 20));
++  tl_touch (pdfbuf, (size_t) pdfbufsize);
++  if (poolptr > 0)
++    tl_touch (strpool + (poolptr > 65536 ? poolptr - 65536 : 0), poolptr > 65536 ? 131072 : (size_t) poolptr + 65536);
++}
++
++static int tl_go_n;  /* the go number, from pgo */
++static int tl_place[4], tl_place_n;  /* pgo: the old first line's left and baseline, the page's width and height (sp) */
++static long tl_flt_go;
++static uint64_t tl_cpu_go;
++static uint64_t
++tl_cpu (void)
++{
++  struct timespec ts;
++  clock_gettime (CLOCK_THREAD_CPUTIME_ID, &ts);
++  return (uint64_t) ts.tv_sec * 1000000u + ts.tv_nsec / 1000;
++}
++
++/* Font files, found once per paragraph snapshot (kpathsea takes ~0.1 ms a lookup) for the fonts used so far. */
++static char **tl_font_ff, **tl_font_enc;
++static int tl_font_n;
++
++static void
++tl_font_files (int f, char **ff, char **enc)
++{
++  fm_entry *fm;
++  if (f < tl_font_n && tl_font_ff[f]) {
++    *ff = tl_font_ff[f];
++    *enc = tl_font_enc[f];
++    return;
++  }
++  fm = hasfmentry (f) ? (fm_entry *) pdffontmap[f] : NULL;
++  *ff = *enc = NULL;
++  if (fm && fm->ff_name && is_type1 (fm))
++    *ff = kpse_find_file (fm->ff_name, kpse_type1_format, 0);
++  if (fm && fm->encname)
++    *enc = kpse_find_file (fm->encname, kpse_enc_format, 0);
++  if (!*ff)
++    *ff = xstrdup ("-");
++  if (!*enc)
++    *enc = xstrdup ("-");
++  if (f < tl_font_n) {
++    tl_font_ff[f] = *ff;
++    tl_font_enc[f] = *enc;
++  }
++}
++
++static void
++tl_font_prepare (void)
++{
++  int f;
++  char *a, *b;
++  /* what the first ship-out of a run loads (the map file, virtual fonts and the fonts they name): before any page
++     has shipped, the paragraph pass would load it on every go (~45 ms on PaperA's first page) */
++  for (f = 1; f <= fontptr; f++) {
++    hasfmentry (f);
++    if (pdffonttype[f] == 0)
++      dovf (f);
++  }
++  tl_font_n = fontptr + 1;
++  tl_font_ff = xcalloc (tl_font_n, sizeof *tl_font_ff);
++  tl_font_enc = xcalloc (tl_font_n, sizeof *tl_font_enc);
++  for (f = 1; f < tl_font_n; f++)
++    if (fontused[f] && pdffontnum[f] > 0)
++      tl_font_files (f, &a, &b);
++}
++static long
++tl_minflt (void)
++{
++  struct rusage ru;
++  getrusage (RUSAGE_SELF, &ru);
++  return ru.ru_minflt;
++}
++
++/* The paragraph snapshot keeps one warm child parked. A warm child told to go tells its snapshot (SIGUSR2), which
++   forks the next one at once, so a quick next keystroke finds one ready. Returns only in a warm child that was told
++   to go. */
++static void
++tl_be_para_snapshot (long off)
++{
++  pid_t me = getpid (), w = 0;
++  int need = 1;
++#ifdef __APPLE__
++  int kq;
++  struct kevent ev[2];
++#endif
++  tl_unshare_fds ();
++  tl_want_finish = 0;
++  tl_font_prepare ();
++  tl_send ("Q %d %d %ld %s\n", (int) me, tl_seq, off, tl_watch);
++#ifdef __APPLE__
++  kq = kqueue ();
++  EV_SET (&ev[0], SIGUSR2, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
++  EV_SET (&ev[1], tl_driver, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT, 0, NULL);
++  if (kq < 0 || kevent (kq, ev, 2, NULL, 0, NULL) < 0)
++    _exit (0);
++#endif
++  for (;;) {
++    if (need) {
++      need = 0;
++      fflush (stdout);
++      w = fork ();
++      if (w < 0)
++        _exit (3);
++      if (w == 0) {
++        char *path, line[PATH_MAX + 64], text[PATH_MAX];
++        FILE *g;
++        long edit, len;
++        int i, seq;
++#ifdef __APPLE__
++        close (kq);
++        /* warming up must not slow a pass running beside it */
++        pthread_set_qos_class_self_np (QOS_CLASS_UTILITY, 0);
++#endif
++        tl_parent = me;
++        tl_unshare_fds ();
++        tl_want_finish = 0;
++        tl_prefault ();
++#ifdef __APPLE__
++        pthread_set_qos_class_self_np (QOS_CLASS_USER_INTERACTIVE, 0);  /* the go is a keystroke: performance cores */
++#endif
++        tl_send ("W %d %d\n", (int) me, (int) getpid ());
++        if (!tl_wait_go (me))
++          _exit (0);
++        tl_t_go = tl_now ();
++        tl_flt_go = tl_minflt ();
++        tl_cpu_go = tl_cpu ();
++        kill (me, SIGUSR2);  /* the snapshot makes the next warm child now */
++        snprintf (line, sizeof line, "%s/pgo-%d", tl_out, (int) me);
++        path = xstrdup (line);
++        g = fopen (path, "r");
++        free (path);
++        if (!g || fscanf (g, "%d %d %ld %1023s", &tl_go_n, &seq, &edit, text) != 4)
++          _exit (4);
++        tl_place_n = fscanf (g, "%d %d %d %d", &tl_place[0], &tl_place[1], &tl_place[2], &tl_place[3]);
++        fclose (g);
++        for (i = 0; i < tl_nreaders; i++)
++          if (tl_open_readers[i]->track == tl_watch_tr ()) {
++            char *buf = tl_slurp (text, &len);
++            if (!buf)
++              _exit (4);
++            free (tl_open_readers[i]->buf);
++            tl_open_readers[i]->buf = buf;
++            tl_open_readers[i]->len = len;
++          }
++        tl_para_mode = 1;
++        tl_lb_count = 0;
++        tl_seq = seq;
++        tl_watch_off = edit;
++        tl_sel_done = 0;
++        tl_seg_start = -1;
++        tl_nanc = 0;
++        return;  /* typeset */
++      }
++#ifdef __APPLE__
++      EV_SET (&ev[0], w, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT, 0, NULL);
++      kevent (kq, ev, 1, NULL, 0, NULL);
++#endif
++    }
++#ifdef __APPLE__
++    {
++      struct kevent out;
++      int n = kevent (kq, NULL, 0, &out, 1, NULL);
++      while (waitpid (-1, NULL, WNOHANG) > 0)
++        ;
++      if (n < 0) {
++        if (errno == EINTR)
++          continue;
++        _exit (3);
++      }
++      if (out.filter == EVFILT_SIGNAL) {  /* the warm child went */
++        tl_want_ctl = 0;
++        need = 1;
++      } else if ((pid_t) out.ident == tl_driver) {
++        kill (w, SIGKILL);
++        _exit (0);
++      } else if ((pid_t) out.ident == w)  /* the warm one died without going (killed): another */
++        need = 1;
++    }
++#else
++    {
++      int st;
++      if (tl_wait_exit (w, tl_driver) == tl_driver) {
++        kill (w, SIGKILL);
++        _exit (0);
++      }
++      while (waitpid (w, &st, 0) < 0)
++        if (errno != EINTR)
++          _exit (3);
++      need = 1;
++    }
++#endif
++  }
++}
++
++/* ---- the paragraph pass (in the warm child, after go) ---- */
++
++static long tl_para_lines_read = 0;
++
++static void
++tl_para_fail (const char *why)
++{
++  tl_send ("H %d %d %d - %s %llu\n", (int) getpid (), tl_go_n, tl_seq, why, (unsigned long long) tl_now ());
++  _exit (0);
++}
++
++/* A line is read in the paragraph pass: give up when the paragraph doesn't end soon. */
++static void
++tl_para_line (struct tl_reader *r)
++{
++  if (r)
++    r->line_start = r->pos;
++  if (++tl_para_lines_read > 400 || tl_now () - tl_t_go > 200000)
++    tl_para_fail ("far");
++}
++
++/* The lines from p on (just appended to the main vertical list): flags, metrics, the content stream pdfTeX writes for
++   them, the fonts it uses. Then exit. */
++static void
++tl_para_emit (halfword first)
++{
++  struct tl_flags fl = { 0 };
++  char name[64], path[PATH_MAX];
++  FILE *o;
++  halfword q;
++  long pdf0, i;
++  int nl = 0, f;
++  scaled y = 0, base0 = 0, wmax = 0;
++  uint64_t t_lb = tl_now (), t_ship;
++  long flt_lb = tl_minflt ();
++  uint64_t cpu_lb = tl_cpu ();
++  int seen[2048] = { 0 };
++  char *cs, *ce;
++  if (tl_seg_start >= 0 && tl_seg_start - 1 > tl_watch_off)
++    tl_para_fail ("display");
++  if (first == TL_NULL)
++    tl_para_fail ("empty");
++  tl_scan_flags (first, &fl, 0);
++  snprintf (name, sizeof name, "para-%d.out", tl_go_n);
++  snprintf (path, sizeof path, "%s/%s.tmp", tl_out, name);
++  o = fopen (path, "w");
++  if (!o)
++    tl_para_fail ("write");
++  fprintf (o, "flags %d %d %d %d %d %d\n", fl.ins, fl.mark, fl.adjust, fl.write, fl.savepos, fl.image);
++  /* lines: natural positions in the vertical list (the glue between lines doesn't stretch inside a paragraph unless
++     the page's does: the driver compares with where the old lines were) */
++  for (q = first; q != TL_NULL; q = TL_LINK (q))
++    if (!TL_IS_CHAR (q) && TL_TYPE (q) == TL_HLIST)
++      nl++;
++  fprintf (o, "lines %d\n", nl);
++  nl = 0;
++  for (q = first; q != TL_NULL; q = TL_LINK (q)) {
++    if (TL_IS_CHAR (q))
++      continue;
++    switch (TL_TYPE (q)) {
++    case TL_HLIST: case TL_VLIST:
++      y += TL_HEIGHT (q);
++      if (TL_WIDTH (q) + TL_SHIFT (q) > wmax)
++        wmax = TL_WIDTH (q) + TL_SHIFT (q);
++      if (TL_TYPE (q) == TL_HLIST) {
++        if (nl++ == 0)
++          base0 = y;
++        fprintf (o, "%d %d %d %d %d\n", (int) TL_SHIFT (q), (int) TL_WIDTH (q), (int) TL_HEIGHT (q),
++                 (int) TL_DEPTH (q), (int) (y - base0));
++      }
++      y += TL_DEPTH (q);
++      break;
++    case TL_RULE: y += TL_HEIGHT (q) + TL_DEPTH (q); break;
++    case TL_KERN: y += TL_WIDTH (q); break;
++    case TL_GLUE:
++      y += TL_WIDTH (TL_GLUE_PTR (q));
++      if (TL_STRETCH (TL_GLUE_PTR (q)) || TL_SHRINK (TL_GLUE_PTR (q)))
++        fl.other++;  /* stretchable glue between lines: the page may set it */
++      break;
++    }
++  }
++  /* ship them: the box's top-left is the page's; the first baseline is base0 below it */
++  if (curlist.tailfield != tl_lb_tail) {
++    zmem[tl_lb_tail].hh.rh = TL_NULL;
++    curlist.tailfield = tl_lb_tail;
++  }
++  if (tl_pdf && tl_pdf->f)
++    fflush (tl_pdf->f);
++  pdf0 = tl_pdf ? tl_pdf->len : 0;
++  {  /* at the old lines' place on a page of the page's size: the same coordinates in the content as the page's */
++    scaled hx = 0, vy = 0, pw = 0, ph = 0;
++    if (tl_place_n == 4 && tl_place[3] > 0) {
++      scaled shift0 = 0;
++      for (q = first; q != TL_NULL; q = TL_LINK (q))
++        if (!TL_IS_CHAR (q) && TL_TYPE (q) == TL_HLIST) {
++          shift0 = TL_SHIFT (q);
++          break;
++        }
++      hx = tl_place[0] - shift0;
++      vy = tl_place[1] - base0;
++      pw = tl_place[2];
++      ph = tl_place[3];
++    }
++    fprintf (o, "place %d %d %d %d\n", (int) hx, (int) vy, (int) pw, (int) ph);
++    taudotshiplines (first, hx, vy, pw, ph);
++  }
++  t_ship = tl_now ();
++  if (!tl_pdf)
++    tl_para_fail ("nopdf");
++  if (pdfosmode)
++    pdfosswitch (false);  /* the page object went to an object stream: the stream's end is in the other buffer */
++  pdfflush ();  /* pdfTeX's own buffer */
++  fflush (tl_pdf->f);
++  /* the page's content stream: object pdf_last_stream (other objects, earlier and compressed, can be flushed after
++     pdf0 too) */
++  cs = ce = NULL;
++  {
++    char head[32];
++    int hn = snprintf (head, sizeof head, "%d 0 obj\n", (int) pdflaststream);
++    for (i = pdf0 > 0 ? pdf0 - 1 : 0; i + hn + 1 <= tl_pdf->len; i++)
++      if ((i == 0 || tl_pdf->buf[i - 1] == '\n') && memcmp (tl_pdf->buf + i, head, hn) == 0)
++        break;
++    for (; i + 10 <= tl_pdf->len; i++)
++      if (memcmp (tl_pdf->buf + i, ">>\nstream\n", 10) == 0) {
++        cs = tl_pdf->buf + i + 10;
++        break;
++      }
++  }
++  if (cs)
++    for (i = cs - tl_pdf->buf; i + 9 <= tl_pdf->len; i++)
++      if (memcmp (tl_pdf->buf + i, "endstream", 9) == 0) {
++        ce = tl_pdf->buf + i;
++        break;
++      }
++  if (!cs || !ce)
++    tl_para_fail ("nostream");
++  fprintf (o, "flags2 %d\n", fl.other);
++  fprintf (o, "seg %d %d\n", tl_lb_count, tl_lb_shaped);
++  fprintf (o, "faults %ld %ld %llu %llu %llu\n", flt_lb - tl_flt_go, tl_minflt () - flt_lb,
++           (unsigned long long) (cpu_lb - tl_cpu_go), (unsigned long long) (tl_cpu () - cpu_lb),
++           (unsigned long long) (cpu_lb - tl_cpu_lb0));
++  fprintf (o, "page %d %d %d\n", (int) base0, (int) y, (int) wmax);
++  /* fonts: each /F<k> resource the stream names (k the base font: tex.web's set_ff) */
++  for (i = 0; cs + i + 2 < ce; i++) {
++    char *p = cs + i;
++    if (p[0] == '/' && p[1] == 'F' && p[2] >= '0' && p[2] <= '9') {
++      f = atoi (p + 2);
++      if (f > 0 && f < 2048 && f <= fontptr && !seen[f]) {
++        fm_entry *fm;
++        int c;
++        char *ff = NULL, *enc = NULL;
++        seen[f] = 1;
++        fm = hasfmentry (f) ? (fm_entry *) pdffontmap[f] : NULL;
++        tl_font_files (f, &ff, &enc);
++        fprintf (o, "font %d %d %d %d %d %d %s %s %s\n", f, (int) pdffontsize[f], fm ? (int) fm->slant : 0,
++                 fm ? (int) fm->extend : 0, (int) fontbc[f], fontbc[f] <= fontec[f] ? fontec[f] - fontbc[f] + 1 : 0,
++                 ff, enc, fm && fm->ps_name ? fm->ps_name : "-");
++        for (c = fontbc[f]; c <= fontec[f]; c++)
++          fprintf (o, "%d%c", (int) dividescaled (getcharwidth (f, c), pdffontsize[f], 4), c == fontec[f] ? '\n' : ' ');
++      }
++    }
++  }
++  fprintf (o, "content %ld\n", (long) (ce - cs));
++  fwrite (cs, 1, ce - cs, o);
++  fclose (o);
++  {
++    char final[PATH_MAX];
++    snprintf (final, sizeof final, "%s/%s", tl_out, name);
++    rename (path, final);
++  }
++  tl_send ("H %d %d %d %s ok %llu %llu %llu %llu\n", (int) getpid (), tl_go_n, tl_seq, name,
++           (unsigned long long) tl_t_go, (unsigned long long) t_lb, (unsigned long long) t_ship,
++           (unsigned long long) tl_now ());
++  _exit (0);
++}
++
+ static void
+ taudot_live_init (void)
+ {
+diff --git a/texk/web2c/pdftexdir/pdftex.defines b/texk/web2c/pdftexdir/pdftex.defines
+index 8574f28c..ba6ac651 100644
+--- a/texk/web2c/pdftexdir/pdftex.defines
++++ b/texk/web2c/pdftexdir/pdftex.defines
+@@ -36,6 +36,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
+ @define procedure writepdf();
+ @define procedure pdfassert();
+ @define procedure taudotshipped; { Taudot live engine, lib/taudot-live.c }
++@define procedure taudotbeforeship();
++@define procedure taudotlinebreak();
++@define procedure taudotparstart();
+ 
+ { functions from mapfile.c }
+ @define function hasfmentry();
+diff --git a/texk/web2c/pdftexdir/pdftex.web b/texk/web2c/pdftexdir/pdftex.web
+index da551c42..32391163 100644
+--- a/texk/web2c/pdftexdir/pdftex.web
++++ b/texk/web2c/pdftexdir/pdftex.web
+@@ -19799,10 +19799,18 @@ else
+ will call |dvi_ship_out|, which is the \TeX\ original |ship_out|.
+ 
+ @p procedure ship_out(p:pointer); {output the box |p|}
++var taudot_page_w, taudot_page_h: scaled; {Taudot: the page's size, for |taudot_before_ship|}
+ begin
+     fix_pdfoutput;
+-    if pdf_output > 0 then
+-        pdf_ship_out(p, true)
++    if pdf_output > 0 then begin
++        if pdf_page_height <> 0 then taudot_page_h := pdf_page_height
++        else taudot_page_h := height(p) + depth(p) + 2 * (pdf_v_origin + v_offset);
++        if pdf_page_width <> 0 then taudot_page_w := pdf_page_width
++        else taudot_page_w := width(p) + 2 * (pdf_h_origin + h_offset);
++        taudot_before_ship(p, pdf_h_origin + h_offset, pdf_v_origin + v_offset, taudot_page_w, taudot_page_h);
++            {Taudot: where the watched paragraph's lines land}
++        pdf_ship_out(p, true);
++        end
+     else
+         dvi_ship_out(p);
+     taudot_shipped; {Taudot live engine: a page is out; maybe finish a copy}
+@@ -24181,12 +24189,14 @@ procedure line_break(@!d:boolean);
+ label done,done1,done2,done3,done4,done5,continue;
+ var @<Local variables for line breaking@>@;
+ begin pack_begin_line:=mode_line; {this is for over/underfull box messages}
++taudot_line_break(0); {Taudot: the enclosing list's tail}
+ @<Get ready to start line breaking@>;
+ @<Find optimal breakpoints@>;
+ @<Break the paragraph at the chosen breakpoints, justify the resulting lines
+ to the correct widths, and append them to the current vertical list@>;
+ @<Clean up the memory by removing the break nodes@>;
+ pack_begin_line:=0;
++taudot_line_break(1); {Taudot: the lines just appended; maybe the watched paragraph}
+ end;
+ @#
+ @t\4@>@<Declare \eTeX\ procedures for use by |main_control|@>
+@@ -29919,6 +29929,7 @@ if indented then
+   begin tail:=new_null_box; link(head):=tail; width(tail):=par_indent;@+
+   end;
+ if every_par<>null then begin_token_list(every_par,every_par_text);
++taudot_par_start(0); {Taudot: a paragraph starts}
+ if nest_ptr=1 then build_page; {put |par_skip| glue on current page}
+ end;
+ 
+@@ -29969,6 +29980,23 @@ else  begin back_input; cur_tok:=par_token; back_input; token_type:=inserted;
+ end;
+ 
+ @ @<Declare act...@>=
++function taudot_shaped:boolean; {Taudot: a \.{\\parshape} of more than one line, or a hanging indentation}
++begin taudot_shaped:=((par_shape_ptr<>null)and(info(par_shape_ptr)>1))or(hang_indent<>0);
++end;
++@#
++procedure taudot_ship_lines(p:pointer;@!x,@!y,@!w,@!h:scaled);
++  {Taudot's paragraph preview (lib/taudot-live.c): ship a paragraph's lines |p| alone, uncompressed, their box's
++   top-left at |(x,y)| on a |w| by |h| page (zero: a page of their own size), so the content stream is what this
++   run writes for them, at the same place}
++var b:pointer;
++begin b:=vpack(p,natural);
++pdf_compress_level:=0;
++h_offset:=0; v_offset:=0; pdf_h_origin:=x; pdf_v_origin:=y;
++if h=0 then begin w:=width(b); h:=height(b)+depth(b); end;
++pdf_page_width:=w; pdf_page_height:=h;
++ship_out(b);
++end;
++@#
+ procedure end_graf;
+ begin if mode=hmode then
+   begin if head=tail then pop_nest {null paragraphs are ignored}
+@@ -31398,6 +31426,7 @@ push_nest; mode:=hmode; space_factor:=1000; set_cur_lang; clang:=cur_lang;
+ prev_graf:=(norm_min(left_hyphen_min)*@'100+norm_min(right_hyphen_min))
+              *@'200000+cur_lang;
+ @<Scan an optional space@>;
++taudot_par_start(1); {Taudot: a paragraph resumes after a display}
+ if nest_ptr=1 then build_page;
+ end;
+ 
+diff --git a/texk/web2c/pdftexdir/ptexlib.h b/texk/web2c/pdftexdir/ptexlib.h
+index b803ce32..1a8daee4 100644
+--- a/texk/web2c/pdftexdir/ptexlib.h
++++ b/texk/web2c/pdftexdir/ptexlib.h
+@@ -358,6 +358,9 @@ static const key_entry font_key[FONT_KEYS_NUM] = {
+ 
+ /* lib/taudot-live.c */
+ extern void taudotshipped(void);
++extern void taudotbeforeship(halfword p, scaled h, scaled v, scaled pw, scaled ph);
++extern void taudotlinebreak(int after);
++extern void taudotparstart(int display);
+ 
+ /**********************************************************************/
+ #endif                          /* PDFTEXLIB */
+-- 
+2.50.0
+

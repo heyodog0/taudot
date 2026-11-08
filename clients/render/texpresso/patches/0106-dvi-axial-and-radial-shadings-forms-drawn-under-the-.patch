@@ -1,0 +1,949 @@
+From 2481e437694d76fcec0680db012496594a159107 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Tue, 3 Nov 2026 14:09:39 -0500
+Subject: [PATCH 106/108] dvi: axial and radial shadings; forms drawn under the
+ full CTM
+
+---
+ src/dvi/dvi_context.c      |   2 +
+ src/dvi/dvi_special.c      | 371 +++++++++++++++++++++++++++++++++++--
+ src/dvi/dvi_special.re2c.c | 371 +++++++++++++++++++++++++++++++++++--
+ src/dvi/mydvi.h            |   8 +-
+ 4 files changed, 728 insertions(+), 24 deletions(-)
+
+diff --git a/src/dvi/dvi_context.c b/src/dvi/dvi_context.c
+index f7cd5e9..c93cd84 100644
+--- a/src/dvi/dvi_context.c
++++ b/src/dvi/dvi_context.c
+@@ -63,6 +63,8 @@ void dvi_context_free(fz_context *ctx, dvi_context *dc)
+   dvi_scratch_release(ctx, &dc->scratch);
+   for (int i = 0; i < dc->pattern_count; i++)
+     fz_free(ctx, dc->patterns[i].content);
++  for (int i = 0; i < dc->shade_count; i++)
++    fz_drop_shade(ctx, dc->shades[i].shade);
+   fz_free(ctx, dc);
+ }
+ 
+diff --git a/src/dvi/dvi_special.c b/src/dvi/dvi_special.c
+index 07a7125..0a460e4 100644
+--- a/src/dvi/dvi_special.c
++++ b/src/dvi/dvi_special.c
+@@ -2872,6 +2872,7 @@ static void stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path
+ static bool
+ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim);
+ static bool is_pdf_delim(char c);
++static void paint_shading(fz_context *ctx, dvi_context *dc, dvi_state *st, const char *name);
+ 
+ /* Taudot (MIT, like this file): tiling patterns, as PGF's xetex driver writes them (\usetikzlibrary{patterns}):
+  *   pdf:stream @pgfpatternobject3 (q 0.3985 w 0 0 m 3 3 l S Q) << /Type /Pattern /PatternType 1 /PaintType 2
+@@ -3546,6 +3547,14 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           break;
+         }
+ 
++        case PDF_OP_sh:
++        {
++          val v[1];
++          vstack_get_arguments(ctx, stack, v, 1);
++          paint_shading(ctx, dc, st, val_as_name(ctx, stack, v[0]));
++          break;
++        }
++
+         case PDF_OP_cs:
+         case PDF_OP_CS:
+           vstack_get_values(ctx, stack);  /* the colour comes with sc/scn */
+@@ -3605,7 +3614,6 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+         case PDF_OP_dquote:
+         case PDF_OP_d0:
+         case PDF_OP_d1:
+-        case PDF_OP_sh:
+         case PDF_OP_Do:
+         case PDF_OP_MP:
+         case PDF_OP_DP:
+@@ -4849,10 +4857,355 @@ yy410:
+ 
+ }
+ 
++/* Taudot (MIT, like this file): shadings. PGF's xetex driver puts each \shade in a form XObject:
++ *   pdf:bxobj @pgfshade1 width W height H
++ *   pdf:put @resources << /Shading << /Sh << /ShadingType 2 /ColorSpace /DeviceRGB /Domain [...] /Coords [...]
++ *     /Function << /FunctionType 3 /Functions [<< /FunctionType 2 ... >> ...] /Bounds [...] /Encode [...] >>
++ *     /Extend [false false] >> >> >>
++ *   pdf:code /Sh sh
++ *   pdf:exobj
++ * and draws it with pdf:uxobj under a clip and a cm that stretches or turns it. We read the dictionary with a small
++ * PDF object reader, sample its function (types 2 and 3, as one function or one per component) into MuPDF's
++ * 256-entry table, and build an axial (2) or radial (3) fz_shade for "sh". */
++
++typedef struct pobj pobj;
++enum { POBJ_NULL, POBJ_NUM, POBJ_BOOL, POBJ_NAME, POBJ_ARRAY, POBJ_DICT, POBJ_OTHER };
++struct pobj
++{
++  int kind;
++  float num;
++  char name[48];      /* a name's text; for a dict entry, its key */
++  int n;
++  pobj *items;        /* array items, or dict values (each with its key in name) */
++};
++
++static void pobj_free(fz_context *ctx, pobj *o)
++{
++  if (o->items)
++  {
++    for (int i = 0; i < o->n; i++)
++      pobj_free(ctx, &o->items[i]);
++    fz_free(ctx, o->items);
++  }
++  o->items = NULL;
++  o->n = 0;
++}
++
++static void pobj_skip_ws(cursor_t *cur, cursor_t lim)
++{
++  while (*cur < lim && (**cur == ' ' || **cur == '\t' || **cur == '\n' || **cur == '\r'))
++    (*cur)++;
++}
++
++static void pobj_name_into(char *buf, size_t size, cursor_t *cur, cursor_t lim)
++{
++  size_t k = 0;
++  while (*cur < lim && !is_pdf_delim(**cur))
++  {
++    if (k + 1 < size) buf[k++] = **cur;
++    (*cur)++;
++  }
++  buf[k] = 0;
++}
++
++static void pobj_append(fz_context *ctx, pobj *o, int *cap, pobj item)
++{
++  if (o->n == *cap)
++  {
++    *cap = *cap ? *cap * 2 : 8;
++    o->items = fz_realloc(ctx, o->items, sizeof(pobj) * *cap);
++  }
++  o->items[o->n++] = item;
++}
++
++/* Reads one object at *cur. Depth-limited; anything unknown (strings, @refs, operators) becomes POBJ_OTHER. */
++static pobj pobj_read(fz_context *ctx, cursor_t *cur, cursor_t lim, int depth)
++{
++  pobj o = {0};
++  pobj_skip_ws(cur, lim);
++  if (*cur >= lim || depth > 16)
++    return o;
++  char c = **cur;
++  if (c == '/')
++  {
++    (*cur)++;
++    o.kind = POBJ_NAME;
++    pobj_name_into(o.name, sizeof(o.name), cur, lim);
++  }
++  else if (c == '[')
++  {
++    (*cur)++;
++    o.kind = POBJ_ARRAY;
++    int cap = 0;
++    for (;;)
++    {
++      pobj_skip_ws(cur, lim);
++      if (*cur >= lim) break;
++      if (**cur == ']') { (*cur)++; break; }
++      cursor_t before = *cur;
++      pobj item = pobj_read(ctx, cur, lim, depth + 1);
++      if (*cur == before) (*cur)++;
++      pobj_append(ctx, &o, &cap, item);
++    }
++  }
++  else if (c == '<' && *cur + 1 < lim && (*cur)[1] == '<')
++  {
++    *cur += 2;
++    o.kind = POBJ_DICT;
++    int cap = 0;
++    for (;;)
++    {
++      pobj_skip_ws(cur, lim);
++      if (*cur >= lim) break;
++      if (**cur == '>' && *cur + 1 < lim && (*cur)[1] == '>') { *cur += 2; break; }
++      if (**cur != '/') { (*cur)++; continue; }
++      (*cur)++;
++      char key[48];
++      pobj_name_into(key, sizeof(key), cur, lim);
++      pobj item = pobj_read(ctx, cur, lim, depth + 1);
++      if (item.kind != POBJ_NAME)
++        memcpy(item.name, key, sizeof(key));
++      else
++      {
++        /* a name value: the entry keeps the key, and the value is its only child */
++        pobj v = item;
++        item = (pobj){0};
++        item.kind = POBJ_NAME;
++        memcpy(item.name, key, sizeof(key));
++        item.n = 1;
++        item.items = fz_malloc(ctx, sizeof(pobj));
++        item.items[0] = v;
++      }
++      pobj_append(ctx, &o, &cap, item);
++    }
++  }
++  else if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.')
++  {
++    char buf[32];
++    size_t k = 0;
++    while (*cur < lim && !is_pdf_delim(**cur) && k + 1 < sizeof(buf)) buf[k++] = *(*cur)++;
++    buf[k] = 0;
++    o.kind = POBJ_NUM;
++    o.num = strtof(buf, NULL);
++  }
++  else if (lim - *cur >= 4 && memcmp(*cur, "true", 4) == 0)
++  {
++    *cur += 4; o.kind = POBJ_BOOL; o.num = 1;
++  }
++  else if (lim - *cur >= 5 && memcmp(*cur, "false", 5) == 0)
++  {
++    *cur += 5; o.kind = POBJ_BOOL; o.num = 0;
++  }
++  else
++  {
++    o.kind = POBJ_OTHER;
++    if (c == '(')
++    {
++      int nest = 0;
++      while (*cur < lim)
++      {
++        char x = *(*cur)++;
++        if (x == '\\') { if (*cur < lim) (*cur)++; }
++        else if (x == '(') nest++;
++        else if (x == ')' && --nest == 0) break;
++      }
++    }
++    else
++      while (*cur < lim && !is_pdf_delim(**cur)) (*cur)++;
++  }
++  return o;
++}
++
++/* A dict entry, or NULL. For name values the value is the entry's only child. */
++static const pobj *pobj_get(const pobj *dict, const char *key)
++{
++  if (!dict || dict->kind != POBJ_DICT)
++    return NULL;
++  for (int i = 0; i < dict->n; i++)
++    if (strcmp(dict->items[i].name, key) == 0)
++      return dict->items[i].kind == POBJ_NAME ? &dict->items[i].items[0] : &dict->items[i];
++  return NULL;
++}
++
++static float pobj_num_at(const pobj *a, int i, float dflt)
++{
++  if (!a || a->kind != POBJ_ARRAY || i >= a->n || a->items[i].kind == POBJ_ARRAY) return dflt;
++  return (a->items[i].kind == POBJ_NUM || a->items[i].kind == POBJ_BOOL) ? a->items[i].num : dflt;
++}
++
++/* Evaluates a type 2 or 3 function at t into out[0..n). Returns 0 for other types. */
++static bool shade_fn_eval(const pobj *fn, float t, float *out, int n, int depth)
++{
++  const pobj *type = pobj_get(fn, "FunctionType");
++  const pobj *domain = pobj_get(fn, "Domain");
++  float d0 = pobj_num_at(domain, 0, 0), d1 = pobj_num_at(domain, 1, 1);
++  if (t < d0) t = d0;
++  if (t > d1) t = d1;
++  if (!type || depth > 8)
++    return 0;
++  if ((int)type->num == 2)
++  {
++    const pobj *c0 = pobj_get(fn, "C0"), *c1 = pobj_get(fn, "C1"), *N = pobj_get(fn, "N");
++    float e = N ? N->num : 1;
++    float x = (e == 1) ? t : powf(t, e);
++    for (int i = 0; i < n; i++)
++    {
++      float a = pobj_num_at(c0, i, 0), b = pobj_num_at(c1, i, 1);
++      out[i] = a + x * (b - a);
++    }
++    return 1;
++  }
++  if ((int)type->num == 3)
++  {
++    const pobj *fns = pobj_get(fn, "Functions"), *bounds = pobj_get(fn, "Bounds"), *encode = pobj_get(fn, "Encode");
++    if (!fns || fns->kind != POBJ_ARRAY || fns->n == 0)
++      return 0;
++    int k = fns->n, i = 0;
++    while (i < k - 1 && t >= pobj_num_at(bounds, i, d1))
++      i++;
++    float lo = i == 0 ? d0 : pobj_num_at(bounds, i - 1, d0);
++    float hi = i == k - 1 ? d1 : pobj_num_at(bounds, i, d1);
++    float e0 = pobj_num_at(encode, 2 * i, 0), e1 = pobj_num_at(encode, 2 * i + 1, 1);
++    float u = hi == lo ? e0 : e0 + (t - lo) * (e1 - e0) / (hi - lo);
++    return shade_fn_eval(&fns->items[i], u, out, n, depth + 1);
++  }
++  return 0;
++}
++
++static fz_colorspace *shade_colorspace(fz_context *ctx, const pobj *cs)
++{
++  if (cs && strcmp(cs->name, "DeviceGray") == 0) return fz_device_gray(ctx);
++  if (cs && strcmp(cs->name, "DeviceCMYK") == 0) return fz_device_cmyk(ctx);
++  return fz_device_rgb(ctx);
++}
++
++/* Builds an fz_shade from a shading dictionary; NULL if it isn't one we draw. */
++static fz_shade *build_shade(fz_context *ctx, const pobj *dict)
++{
++  const pobj *type = pobj_get(dict, "ShadingType");
++  int t = type ? (int)type->num : 0;
++  if (t != 2 && t != 3)
++  {
++    fprintf(stderr, "pdf shading: type %d not handled\n", t);
++    return NULL;
++  }
++  fz_colorspace *cs = shade_colorspace(ctx, pobj_get(dict, "ColorSpace"));
++  int n = fz_colorspace_n(ctx, cs);
++  const pobj *fn = pobj_get(dict, "Function");
++  const pobj *domain = pobj_get(dict, "Domain");
++  const pobj *coords = pobj_get(dict, "Coords");
++  const pobj *extend = pobj_get(dict, "Extend");
++  if (!fn || !coords)
++    return NULL;
++  float d0 = pobj_num_at(domain, 0, 0), d1 = pobj_num_at(domain, 1, 1);
++
++  fz_shade *shade = fz_malloc_struct(ctx, fz_shade);
++  FZ_INIT_STORABLE(shade, 1, fz_drop_shade_imp);
++  shade->type = t == 2 ? FZ_LINEAR : FZ_RADIAL;
++  shade->colorspace = fz_keep_colorspace(ctx, cs);
++  shade->matrix = fz_identity;
++  shade->bbox = fz_infinite_rect;
++  shade->function_stride = n + 1;
++  shade->function = fz_malloc(ctx, sizeof(float) * 256 * shade->function_stride);
++  bool ok = 1;
++  for (int i = 0; i < 256 && ok; i++)
++  {
++    float x = d0 + (i / 255.0f) * (d1 - d0);
++    float *out = shade->function + i * shade->function_stride;
++    if (fn->kind == POBJ_ARRAY)
++      for (int k = 0; k < n && ok; k++)
++        ok = k < fn->n && shade_fn_eval(&fn->items[k], x, &out[k], 1, 0);
++    else
++      ok = shade_fn_eval(fn, x, out, n, 0);
++    out[n] = 1;
++  }
++  if (!ok)
++  {
++    fprintf(stderr, "pdf shading: function not handled\n");
++    fz_drop_shade(ctx, shade);
++    return NULL;
++  }
++  if (t == 2)
++  {
++    shade->u.l_or_r.coords[0][0] = pobj_num_at(coords, 0, 0);
++    shade->u.l_or_r.coords[0][1] = pobj_num_at(coords, 1, 0);
++    shade->u.l_or_r.coords[1][0] = pobj_num_at(coords, 2, 0);
++    shade->u.l_or_r.coords[1][1] = pobj_num_at(coords, 3, 0);
++  }
++  else
++    for (int k = 0; k < 6; k++)
++      shade->u.l_or_r.coords[k / 3][k % 3] = pobj_num_at(coords, k, 0);
++  shade->u.l_or_r.extend[0] = pobj_num_at(extend, 0, 0) != 0;
++  shade->u.l_or_r.extend[1] = pobj_num_at(extend, 1, 0) != 0;
++  return shade;
++}
++
++static void register_shade(fz_context *ctx, dvi_context *dc, const char *name, fz_shade *shade)
++{
++  for (int i = 0; i < dc->shade_count; i++)
++    if (strcmp(dc->shades[i].name, name) == 0)
++    {
++      fz_drop_shade(ctx, dc->shades[i].shade);
++      dc->shades[i].shade = shade;
++      return;
++    }
++  if (dc->shade_count >= DVI_SHADES_MAX || strlen(name) >= sizeof(dc->shades[0].name))
++  {
++    fz_drop_shade(ctx, shade);
++    return;
++  }
++  strcpy(dc->shades[dc->shade_count].name, name);
++  dc->shades[dc->shade_count++].shade = shade;
++}
++
++/* A pdf:put body "@obj << ... >>": every "/Name << /ShadingType ... >>" under a /Shading key, or at the top. */
++static void scan_shadings(fz_context *ctx, dvi_context *dc, cursor_t cur, cursor_t lim)
++{
++  if (!fz_memmem(cur, lim - cur, "/ShadingType", 12))
++    return;
++  const char *p = memchr(cur, '<', lim - cur);
++  if (!p)
++    return;
++  cur = p;
++  pobj top = {0};
++  fz_try(ctx)
++  {
++    top = pobj_read(ctx, &cur, lim, 0);
++    const pobj *sh = pobj_get(&top, "Shading");
++    const pobj *where = (sh && sh->kind == POBJ_DICT) ? sh : &top;
++    for (int i = 0; where->kind == POBJ_DICT && i < where->n; i++)
++    {
++      const pobj *e = &where->items[i];
++      if (e->kind == POBJ_DICT && pobj_get(e, "ShadingType"))
++      {
++        fz_shade *shade = build_shade(ctx, e);
++        if (shade)
++          register_shade(ctx, dc, e->name, shade);
++      }
++    }
++  }
++  fz_always(ctx)
++    pobj_free(ctx, &top);
++  fz_catch(ctx)
++    fz_rethrow(ctx);
++}
++
++static void paint_shading(fz_context *ctx, dvi_context *dc, dvi_state *st, const char *name)
++{
++  for (int i = dc->shade_count - 1; i >= 0; i--)
++    if (strcmp(dc->shades[i].name, name) == 0)
++    {
++      if (dc->dev)
++        fz_fill_shade(ctx, dc->dev, dc->shades[i].shade, dvi_get_ctm(dc, st), DVI_FILL_ALPHA(st), color_params);
++      return;
++    }
++  fprintf(stderr, "pdf sh: no shading /%s\n", name);
++}
++
+ /* Taudot (MIT, like this file): form XObjects, which PGF uses for transparency groups (\begin{scope}[transparency
+  * group, opacity=...]): "pdf:bxobj @name bbox ...", the content, "pdf:exobj <</Group << /S /Transparency ... >> >>",
+  * and later "pdf:uxobj @name" where it is drawn, after a "gs" that sets the group's opacity. The content is
+- * recorded into a display list at the point of bxobj, then replayed at uxobj, shifted to the current point, inside a
++ * recorded into a display list at the point of bxobj, then replayed at uxobj under the current CTM, inside a
+  * group with the current fill alpha. Forms live for the page. */
+ 
+ static cursor_t parse_obj_name(cursor_t cur, cursor_t lim, char *buf, size_t size)
+@@ -4865,11 +5218,6 @@ static cursor_t parse_obj_name(cursor_t cur, cursor_t lim, char *buf, size_t siz
+   return cur;
+ }
+ 
+-static fz_point current_point(dvi_context *dc, dvi_state *st)
+-{
+-  return fz_transform_point(fz_make_point(0, 0), dvi_get_ctm(dc, st));
+-}
+-
+ static bool form_begin(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
+ {
+   dvi_context_flush_text(ctx, dc, st);
+@@ -4880,7 +5228,7 @@ static bool form_begin(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t
+   }
+   int i = dc->form_depth;
+   parse_obj_name(cur, lim, dc->form_stack[i].name, sizeof(dc->form_stack[i].name));
+-  dc->form_stack[i].origin = current_point(dc, st);
++  dc->form_stack[i].base = dvi_get_ctm(dc, st);
+   dc->form_stack[i].fill_transp = st->gs.fill_transp;
+   dc->form_stack[i].line_transp = st->gs.line_transp;
+   dc->form_stack[i].saved_dev = dc->dev;
+@@ -4940,7 +5288,7 @@ static bool form_end(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+   dvi_form *f = &dc->forms[dc->form_count++];
+   memcpy(f->name, dc->form_stack[i].name, sizeof(f->name));
+   f->list = list;
+-  f->origin = dc->form_stack[i].origin;
++  f->base = dc->form_stack[i].base;
+   size_t n = lim - cur;
+   f->group = fz_memmem(cur, n, "/Transparency", 13) != NULL;
+   f->isolated = fz_memmem(cur, n, "/I true", 7) != NULL;
+@@ -4964,8 +5312,8 @@ static bool form_use(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+   }
+   if (!dc->dev)
+     return 1;
+-  fz_point p = current_point(dc, st);
+-  fz_matrix shift = fz_translate(p.x - f->origin.x, p.y - f->origin.y);
++  /* recorded in device space under base; now drawn under the current CTM, which may scale or turn it */
++  fz_matrix shift = fz_concat(fz_invert_matrix(f->base), dvi_get_ctm(dc, st));
+   float alpha = DVI_FILL_ALPHA(st);
+   bool group = f->group || alpha < 1;
+   if (group)
+@@ -5011,6 +5359,7 @@ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+     {
+       scan_extgstates(ctx, dc, p + 4, lim);
+       scan_pattern_names(ctx, dc, p + 4, lim);
++      scan_shadings(ctx, dc, p + 4, lim);
+       return -1;
+     }
+     if (lim - p > 7 && memcmp(p, "stream ", 7) == 0)
+diff --git a/src/dvi/dvi_special.re2c.c b/src/dvi/dvi_special.re2c.c
+index b383766..c74aca9 100644
+--- a/src/dvi/dvi_special.re2c.c
++++ b/src/dvi/dvi_special.re2c.c
+@@ -747,6 +747,7 @@ static void stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path
+ static bool
+ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim);
+ static bool is_pdf_delim(char c);
++static void paint_shading(fz_context *ctx, dvi_context *dc, dvi_state *st, const char *name);
+ 
+ /* Taudot (MIT, like this file): tiling patterns, as PGF's xetex driver writes them (\usetikzlibrary{patterns}):
+  *   pdf:stream @pgfpatternobject3 (q 0.3985 w 0 0 m 3 3 l S Q) << /Type /Pattern /PatternType 1 /PaintType 2
+@@ -1421,6 +1422,14 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           break;
+         }
+ 
++        case PDF_OP_sh:
++        {
++          val v[1];
++          vstack_get_arguments(ctx, stack, v, 1);
++          paint_shading(ctx, dc, st, val_as_name(ctx, stack, v[0]));
++          break;
++        }
++
+         case PDF_OP_cs:
+         case PDF_OP_CS:
+           vstack_get_values(ctx, stack);  /* the colour comes with sc/scn */
+@@ -1480,7 +1489,6 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+         case PDF_OP_dquote:
+         case PDF_OP_d0:
+         case PDF_OP_d1:
+-        case PDF_OP_sh:
+         case PDF_OP_Do:
+         case PDF_OP_MP:
+         case PDF_OP_DP:
+@@ -1618,10 +1626,355 @@ dvi_exec_pdf(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, curs
+   */
+ }
+ 
++/* Taudot (MIT, like this file): shadings. PGF's xetex driver puts each \shade in a form XObject:
++ *   pdf:bxobj @pgfshade1 width W height H
++ *   pdf:put @resources << /Shading << /Sh << /ShadingType 2 /ColorSpace /DeviceRGB /Domain [...] /Coords [...]
++ *     /Function << /FunctionType 3 /Functions [<< /FunctionType 2 ... >> ...] /Bounds [...] /Encode [...] >>
++ *     /Extend [false false] >> >> >>
++ *   pdf:code /Sh sh
++ *   pdf:exobj
++ * and draws it with pdf:uxobj under a clip and a cm that stretches or turns it. We read the dictionary with a small
++ * PDF object reader, sample its function (types 2 and 3, as one function or one per component) into MuPDF's
++ * 256-entry table, and build an axial (2) or radial (3) fz_shade for "sh". */
++
++typedef struct pobj pobj;
++enum { POBJ_NULL, POBJ_NUM, POBJ_BOOL, POBJ_NAME, POBJ_ARRAY, POBJ_DICT, POBJ_OTHER };
++struct pobj
++{
++  int kind;
++  float num;
++  char name[48];      /* a name's text; for a dict entry, its key */
++  int n;
++  pobj *items;        /* array items, or dict values (each with its key in name) */
++};
++
++static void pobj_free(fz_context *ctx, pobj *o)
++{
++  if (o->items)
++  {
++    for (int i = 0; i < o->n; i++)
++      pobj_free(ctx, &o->items[i]);
++    fz_free(ctx, o->items);
++  }
++  o->items = NULL;
++  o->n = 0;
++}
++
++static void pobj_skip_ws(cursor_t *cur, cursor_t lim)
++{
++  while (*cur < lim && (**cur == ' ' || **cur == '\t' || **cur == '\n' || **cur == '\r'))
++    (*cur)++;
++}
++
++static void pobj_name_into(char *buf, size_t size, cursor_t *cur, cursor_t lim)
++{
++  size_t k = 0;
++  while (*cur < lim && !is_pdf_delim(**cur))
++  {
++    if (k + 1 < size) buf[k++] = **cur;
++    (*cur)++;
++  }
++  buf[k] = 0;
++}
++
++static void pobj_append(fz_context *ctx, pobj *o, int *cap, pobj item)
++{
++  if (o->n == *cap)
++  {
++    *cap = *cap ? *cap * 2 : 8;
++    o->items = fz_realloc(ctx, o->items, sizeof(pobj) * *cap);
++  }
++  o->items[o->n++] = item;
++}
++
++/* Reads one object at *cur. Depth-limited; anything unknown (strings, @refs, operators) becomes POBJ_OTHER. */
++static pobj pobj_read(fz_context *ctx, cursor_t *cur, cursor_t lim, int depth)
++{
++  pobj o = {0};
++  pobj_skip_ws(cur, lim);
++  if (*cur >= lim || depth > 16)
++    return o;
++  char c = **cur;
++  if (c == '/')
++  {
++    (*cur)++;
++    o.kind = POBJ_NAME;
++    pobj_name_into(o.name, sizeof(o.name), cur, lim);
++  }
++  else if (c == '[')
++  {
++    (*cur)++;
++    o.kind = POBJ_ARRAY;
++    int cap = 0;
++    for (;;)
++    {
++      pobj_skip_ws(cur, lim);
++      if (*cur >= lim) break;
++      if (**cur == ']') { (*cur)++; break; }
++      cursor_t before = *cur;
++      pobj item = pobj_read(ctx, cur, lim, depth + 1);
++      if (*cur == before) (*cur)++;
++      pobj_append(ctx, &o, &cap, item);
++    }
++  }
++  else if (c == '<' && *cur + 1 < lim && (*cur)[1] == '<')
++  {
++    *cur += 2;
++    o.kind = POBJ_DICT;
++    int cap = 0;
++    for (;;)
++    {
++      pobj_skip_ws(cur, lim);
++      if (*cur >= lim) break;
++      if (**cur == '>' && *cur + 1 < lim && (*cur)[1] == '>') { *cur += 2; break; }
++      if (**cur != '/') { (*cur)++; continue; }
++      (*cur)++;
++      char key[48];
++      pobj_name_into(key, sizeof(key), cur, lim);
++      pobj item = pobj_read(ctx, cur, lim, depth + 1);
++      if (item.kind != POBJ_NAME)
++        memcpy(item.name, key, sizeof(key));
++      else
++      {
++        /* a name value: the entry keeps the key, and the value is its only child */
++        pobj v = item;
++        item = (pobj){0};
++        item.kind = POBJ_NAME;
++        memcpy(item.name, key, sizeof(key));
++        item.n = 1;
++        item.items = fz_malloc(ctx, sizeof(pobj));
++        item.items[0] = v;
++      }
++      pobj_append(ctx, &o, &cap, item);
++    }
++  }
++  else if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.')
++  {
++    char buf[32];
++    size_t k = 0;
++    while (*cur < lim && !is_pdf_delim(**cur) && k + 1 < sizeof(buf)) buf[k++] = *(*cur)++;
++    buf[k] = 0;
++    o.kind = POBJ_NUM;
++    o.num = strtof(buf, NULL);
++  }
++  else if (lim - *cur >= 4 && memcmp(*cur, "true", 4) == 0)
++  {
++    *cur += 4; o.kind = POBJ_BOOL; o.num = 1;
++  }
++  else if (lim - *cur >= 5 && memcmp(*cur, "false", 5) == 0)
++  {
++    *cur += 5; o.kind = POBJ_BOOL; o.num = 0;
++  }
++  else
++  {
++    o.kind = POBJ_OTHER;
++    if (c == '(')
++    {
++      int nest = 0;
++      while (*cur < lim)
++      {
++        char x = *(*cur)++;
++        if (x == '\\') { if (*cur < lim) (*cur)++; }
++        else if (x == '(') nest++;
++        else if (x == ')' && --nest == 0) break;
++      }
++    }
++    else
++      while (*cur < lim && !is_pdf_delim(**cur)) (*cur)++;
++  }
++  return o;
++}
++
++/* A dict entry, or NULL. For name values the value is the entry's only child. */
++static const pobj *pobj_get(const pobj *dict, const char *key)
++{
++  if (!dict || dict->kind != POBJ_DICT)
++    return NULL;
++  for (int i = 0; i < dict->n; i++)
++    if (strcmp(dict->items[i].name, key) == 0)
++      return dict->items[i].kind == POBJ_NAME ? &dict->items[i].items[0] : &dict->items[i];
++  return NULL;
++}
++
++static float pobj_num_at(const pobj *a, int i, float dflt)
++{
++  if (!a || a->kind != POBJ_ARRAY || i >= a->n || a->items[i].kind == POBJ_ARRAY) return dflt;
++  return (a->items[i].kind == POBJ_NUM || a->items[i].kind == POBJ_BOOL) ? a->items[i].num : dflt;
++}
++
++/* Evaluates a type 2 or 3 function at t into out[0..n). Returns 0 for other types. */
++static bool shade_fn_eval(const pobj *fn, float t, float *out, int n, int depth)
++{
++  const pobj *type = pobj_get(fn, "FunctionType");
++  const pobj *domain = pobj_get(fn, "Domain");
++  float d0 = pobj_num_at(domain, 0, 0), d1 = pobj_num_at(domain, 1, 1);
++  if (t < d0) t = d0;
++  if (t > d1) t = d1;
++  if (!type || depth > 8)
++    return 0;
++  if ((int)type->num == 2)
++  {
++    const pobj *c0 = pobj_get(fn, "C0"), *c1 = pobj_get(fn, "C1"), *N = pobj_get(fn, "N");
++    float e = N ? N->num : 1;
++    float x = (e == 1) ? t : powf(t, e);
++    for (int i = 0; i < n; i++)
++    {
++      float a = pobj_num_at(c0, i, 0), b = pobj_num_at(c1, i, 1);
++      out[i] = a + x * (b - a);
++    }
++    return 1;
++  }
++  if ((int)type->num == 3)
++  {
++    const pobj *fns = pobj_get(fn, "Functions"), *bounds = pobj_get(fn, "Bounds"), *encode = pobj_get(fn, "Encode");
++    if (!fns || fns->kind != POBJ_ARRAY || fns->n == 0)
++      return 0;
++    int k = fns->n, i = 0;
++    while (i < k - 1 && t >= pobj_num_at(bounds, i, d1))
++      i++;
++    float lo = i == 0 ? d0 : pobj_num_at(bounds, i - 1, d0);
++    float hi = i == k - 1 ? d1 : pobj_num_at(bounds, i, d1);
++    float e0 = pobj_num_at(encode, 2 * i, 0), e1 = pobj_num_at(encode, 2 * i + 1, 1);
++    float u = hi == lo ? e0 : e0 + (t - lo) * (e1 - e0) / (hi - lo);
++    return shade_fn_eval(&fns->items[i], u, out, n, depth + 1);
++  }
++  return 0;
++}
++
++static fz_colorspace *shade_colorspace(fz_context *ctx, const pobj *cs)
++{
++  if (cs && strcmp(cs->name, "DeviceGray") == 0) return fz_device_gray(ctx);
++  if (cs && strcmp(cs->name, "DeviceCMYK") == 0) return fz_device_cmyk(ctx);
++  return fz_device_rgb(ctx);
++}
++
++/* Builds an fz_shade from a shading dictionary; NULL if it isn't one we draw. */
++static fz_shade *build_shade(fz_context *ctx, const pobj *dict)
++{
++  const pobj *type = pobj_get(dict, "ShadingType");
++  int t = type ? (int)type->num : 0;
++  if (t != 2 && t != 3)
++  {
++    fprintf(stderr, "pdf shading: type %d not handled\n", t);
++    return NULL;
++  }
++  fz_colorspace *cs = shade_colorspace(ctx, pobj_get(dict, "ColorSpace"));
++  int n = fz_colorspace_n(ctx, cs);
++  const pobj *fn = pobj_get(dict, "Function");
++  const pobj *domain = pobj_get(dict, "Domain");
++  const pobj *coords = pobj_get(dict, "Coords");
++  const pobj *extend = pobj_get(dict, "Extend");
++  if (!fn || !coords)
++    return NULL;
++  float d0 = pobj_num_at(domain, 0, 0), d1 = pobj_num_at(domain, 1, 1);
++
++  fz_shade *shade = fz_malloc_struct(ctx, fz_shade);
++  FZ_INIT_STORABLE(shade, 1, fz_drop_shade_imp);
++  shade->type = t == 2 ? FZ_LINEAR : FZ_RADIAL;
++  shade->colorspace = fz_keep_colorspace(ctx, cs);
++  shade->matrix = fz_identity;
++  shade->bbox = fz_infinite_rect;
++  shade->function_stride = n + 1;
++  shade->function = fz_malloc(ctx, sizeof(float) * 256 * shade->function_stride);
++  bool ok = 1;
++  for (int i = 0; i < 256 && ok; i++)
++  {
++    float x = d0 + (i / 255.0f) * (d1 - d0);
++    float *out = shade->function + i * shade->function_stride;
++    if (fn->kind == POBJ_ARRAY)
++      for (int k = 0; k < n && ok; k++)
++        ok = k < fn->n && shade_fn_eval(&fn->items[k], x, &out[k], 1, 0);
++    else
++      ok = shade_fn_eval(fn, x, out, n, 0);
++    out[n] = 1;
++  }
++  if (!ok)
++  {
++    fprintf(stderr, "pdf shading: function not handled\n");
++    fz_drop_shade(ctx, shade);
++    return NULL;
++  }
++  if (t == 2)
++  {
++    shade->u.l_or_r.coords[0][0] = pobj_num_at(coords, 0, 0);
++    shade->u.l_or_r.coords[0][1] = pobj_num_at(coords, 1, 0);
++    shade->u.l_or_r.coords[1][0] = pobj_num_at(coords, 2, 0);
++    shade->u.l_or_r.coords[1][1] = pobj_num_at(coords, 3, 0);
++  }
++  else
++    for (int k = 0; k < 6; k++)
++      shade->u.l_or_r.coords[k / 3][k % 3] = pobj_num_at(coords, k, 0);
++  shade->u.l_or_r.extend[0] = pobj_num_at(extend, 0, 0) != 0;
++  shade->u.l_or_r.extend[1] = pobj_num_at(extend, 1, 0) != 0;
++  return shade;
++}
++
++static void register_shade(fz_context *ctx, dvi_context *dc, const char *name, fz_shade *shade)
++{
++  for (int i = 0; i < dc->shade_count; i++)
++    if (strcmp(dc->shades[i].name, name) == 0)
++    {
++      fz_drop_shade(ctx, dc->shades[i].shade);
++      dc->shades[i].shade = shade;
++      return;
++    }
++  if (dc->shade_count >= DVI_SHADES_MAX || strlen(name) >= sizeof(dc->shades[0].name))
++  {
++    fz_drop_shade(ctx, shade);
++    return;
++  }
++  strcpy(dc->shades[dc->shade_count].name, name);
++  dc->shades[dc->shade_count++].shade = shade;
++}
++
++/* A pdf:put body "@obj << ... >>": every "/Name << /ShadingType ... >>" under a /Shading key, or at the top. */
++static void scan_shadings(fz_context *ctx, dvi_context *dc, cursor_t cur, cursor_t lim)
++{
++  if (!fz_memmem(cur, lim - cur, "/ShadingType", 12))
++    return;
++  const char *p = memchr(cur, '<', lim - cur);
++  if (!p)
++    return;
++  cur = p;
++  pobj top = {0};
++  fz_try(ctx)
++  {
++    top = pobj_read(ctx, &cur, lim, 0);
++    const pobj *sh = pobj_get(&top, "Shading");
++    const pobj *where = (sh && sh->kind == POBJ_DICT) ? sh : &top;
++    for (int i = 0; where->kind == POBJ_DICT && i < where->n; i++)
++    {
++      const pobj *e = &where->items[i];
++      if (e->kind == POBJ_DICT && pobj_get(e, "ShadingType"))
++      {
++        fz_shade *shade = build_shade(ctx, e);
++        if (shade)
++          register_shade(ctx, dc, e->name, shade);
++      }
++    }
++  }
++  fz_always(ctx)
++    pobj_free(ctx, &top);
++  fz_catch(ctx)
++    fz_rethrow(ctx);
++}
++
++static void paint_shading(fz_context *ctx, dvi_context *dc, dvi_state *st, const char *name)
++{
++  for (int i = dc->shade_count - 1; i >= 0; i--)
++    if (strcmp(dc->shades[i].name, name) == 0)
++    {
++      if (dc->dev)
++        fz_fill_shade(ctx, dc->dev, dc->shades[i].shade, dvi_get_ctm(dc, st), DVI_FILL_ALPHA(st), color_params);
++      return;
++    }
++  fprintf(stderr, "pdf sh: no shading /%s\n", name);
++}
++
+ /* Taudot (MIT, like this file): form XObjects, which PGF uses for transparency groups (\begin{scope}[transparency
+  * group, opacity=...]): "pdf:bxobj @name bbox ...", the content, "pdf:exobj <</Group << /S /Transparency ... >> >>",
+  * and later "pdf:uxobj @name" where it is drawn, after a "gs" that sets the group's opacity. The content is
+- * recorded into a display list at the point of bxobj, then replayed at uxobj, shifted to the current point, inside a
++ * recorded into a display list at the point of bxobj, then replayed at uxobj under the current CTM, inside a
+  * group with the current fill alpha. Forms live for the page. */
+ 
+ static cursor_t parse_obj_name(cursor_t cur, cursor_t lim, char *buf, size_t size)
+@@ -1634,11 +1987,6 @@ static cursor_t parse_obj_name(cursor_t cur, cursor_t lim, char *buf, size_t siz
+   return cur;
+ }
+ 
+-static fz_point current_point(dvi_context *dc, dvi_state *st)
+-{
+-  return fz_transform_point(fz_make_point(0, 0), dvi_get_ctm(dc, st));
+-}
+-
+ static bool form_begin(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
+ {
+   dvi_context_flush_text(ctx, dc, st);
+@@ -1649,7 +1997,7 @@ static bool form_begin(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t
+   }
+   int i = dc->form_depth;
+   parse_obj_name(cur, lim, dc->form_stack[i].name, sizeof(dc->form_stack[i].name));
+-  dc->form_stack[i].origin = current_point(dc, st);
++  dc->form_stack[i].base = dvi_get_ctm(dc, st);
+   dc->form_stack[i].fill_transp = st->gs.fill_transp;
+   dc->form_stack[i].line_transp = st->gs.line_transp;
+   dc->form_stack[i].saved_dev = dc->dev;
+@@ -1709,7 +2057,7 @@ static bool form_end(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+   dvi_form *f = &dc->forms[dc->form_count++];
+   memcpy(f->name, dc->form_stack[i].name, sizeof(f->name));
+   f->list = list;
+-  f->origin = dc->form_stack[i].origin;
++  f->base = dc->form_stack[i].base;
+   size_t n = lim - cur;
+   f->group = fz_memmem(cur, n, "/Transparency", 13) != NULL;
+   f->isolated = fz_memmem(cur, n, "/I true", 7) != NULL;
+@@ -1733,8 +2081,8 @@ static bool form_use(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+   }
+   if (!dc->dev)
+     return 1;
+-  fz_point p = current_point(dc, st);
+-  fz_matrix shift = fz_translate(p.x - f->origin.x, p.y - f->origin.y);
++  /* recorded in device space under base; now drawn under the current CTM, which may scale or turn it */
++  fz_matrix shift = fz_concat(fz_invert_matrix(f->base), dvi_get_ctm(dc, st));
+   float alpha = DVI_FILL_ALPHA(st);
+   bool group = f->group || alpha < 1;
+   if (group)
+@@ -1780,6 +2128,7 @@ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+     {
+       scan_extgstates(ctx, dc, p + 4, lim);
+       scan_pattern_names(ctx, dc, p + 4, lim);
++      scan_shadings(ctx, dc, p + 4, lim);
+       return -1;
+     }
+     if (lim - p > 7 && memcmp(p, "stream ", 7) == 0)
+diff --git a/src/dvi/mydvi.h b/src/dvi/mydvi.h
+index 7ea78b5..b30fbc9 100644
+--- a/src/dvi/mydvi.h
++++ b/src/dvi/mydvi.h
+@@ -319,12 +319,13 @@ typedef struct
+ } dvi_pattern;
+ 
+ #define DVI_FORMS_MAX 64
++#define DVI_SHADES_MAX 64
+ #define DVI_FORM_DEPTH 8
+ typedef struct
+ {
+   char name[64];
+   fz_display_list *list;  // recorded in device space at the point of pdf:bxobj
+-  fz_point origin;        // that point, in device space
++  fz_matrix base;         // the CTM at pdf:bxobj: form space -> device space when it was recorded
+   bool group, isolated, knockout;
+ } dvi_form;
+ 
+@@ -385,7 +386,7 @@ typedef struct
+   struct {
+     fz_device *saved_dev;
+     fz_display_list *list;
+-    fz_point origin;
++    fz_matrix base;
+     char name[64];
+     float fill_transp, line_transp;
+   } form_stack[DVI_FORM_DEPTH];
+@@ -393,6 +394,9 @@ typedef struct
+   dvi_pattern patterns[DVI_PATTERNS_MAX];
+   int pattern_count;
+   float page_height;  // from pdf:pagesize, for the page's default space (0: 792)
++  // Taudot (MIT): shadings by resource name (/Sh), from pdf:put; the latest definition of a name wins.
++  struct { char name[48]; fz_shade *shade; } shades[DVI_SHADES_MAX];
++  int shade_count;
+ } dvi_context;
+ 
+ #define DC_ALLOC(ctx, dc, type, count) ((type*)dvi_scratch_alloc(ctx, &(dc)->scratch, sizeof(type) * (count)))
+-- 
+2.50.0
+

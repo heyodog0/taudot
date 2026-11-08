@@ -1,0 +1,264 @@
+note: "version 2" Tectonic command-line interface activated
+tectonic: cache directory is /Users/someone/Library/Caches/Tectonic/bundles
+tectonic bundle: indexing succeeded (134980 entries)
+[dvi] loading pdftex.map (kind RES_MAP)
+[dvi] loading kanjix.map (kind RES_MAP)
+[dvi] loading ckx.map (kind RES_MAP)
+[process] launched pid 18132 (using /Users/someone/code/lab/taudot-ref/texpresso/build/texpresso-xetex)
+note: "version 2" Tectonic command-line interface activated
+tectonic: cache directory is /Users/someone/Library/Caches/Tectonic/bundles
+tectonic bundle: indexing succeeded (134980 entries)
+Using Tectonic.
+
+
+texpresso: handshake success
+
+[info] trace has 0 entries, growing to 8
+[info] writing main.log
+[info] this is the log file
+[info] writing main.synctex
+[info] this is the synctex
+[info] synctex used 2 input files, is 0 pages long
+[info] synctex used 3 input files, is 0 pages long
+[synctex] Closed input: 3
+[synctex] Closed input: 2
+[info] trace has 8 entries, growing to 16
+[info] synctex used 4 input files, is 0 pages long
+[synctex] Closed input: 4
+[info] writing main.aux
+["lookup-file", "read", "successful", "main.tex"]
+["lookup-file", "write", "successful", "main.log"]
+["append-lines", "log", "**"]
+["append-lines", "out", "(main.tex", "\nLaTeX2e <2021-11-15> patch level 1"]
+["append-lines", "log", "(main.tex", "\nLaTeX2e <2021-11-15> patch level 1"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "write", "successful", "main.synctex"]
+["append-lines", "out", "L3 programming layer <2022-02-24> (article.cls"]
+["input-file", 1, "main.tex"]
+["input-file", 2, "article.cls"]
+["append-lines", "out", "Document Class: article 2021\/10\/04 v1.4n Standard LaTeX document class"]
+["append-lines", "log", "L3 programming layer <2022-02-24> (article.cls", "\nDocument Class: article 2021\/10\/04 v1.4n Standard LaTeX document class"]
+["lookup-file", "read", "failed", "size10.clo"]
+["lookup-file", "read", "failed", "size10.clo"]
+["lookup-file", "read", "failed", "size10.clo"]
+["lookup-file", "read", "failed", "size10.clo"]
+["input-file", 3, "size10.clo"]
+["append-lines", "log", "(size10.clo", "\nFile: size10.clo 2021\/10\/04 v1.4n Standard LaTeX file (size option)"]
+["lookup-file", "read", "failed", "lmroman10-regular"]
+["lookup-file", "read", "failed", "tex-text.tec"]
+["append-lines", "log", ")", "\n\\c@part=\\count181", "\n\\c@section=\\count182", "\n\\c@subsection=\\count183", "\n\\c@subsubsection=\\count184", "\n\\c@paragraph=\\count185", "\n\\c@subparagraph=\\count186", "\n\\c@figure=\\count187", "\n\\c@table=\\count188", "\n\\abovecaptionskip=\\skip47", "\n\\belowcaptionskip=\\skip48", "\n\\bibindent=\\dimen138"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["input-file", 4, "l3backend-xetex.def"]
+["append-lines", "log", ") (l3backend-xetex.def", "\nFile: l3backend-xetex.def 2022-02-07 L3 backend support: XeTeX", "\n\\c__kernel_sys_dvipdfmx_version_int=\\count189", "\n\\l__color_backend_stack_int=\\count190", "\n\\g__color_backend_stack_int=\\count191", "\n\\g__graphics_track_int=\\count192", "\n\\l__pdf_internal_box=\\box50", "\n\\g__pdf_backend_object_int=\\count193", "\n\\g__pdf_backend_annotation_int=\\count194", "\n\\g__pdf_backend_link_int=\\count195"]
+["lookup-file", "read", "failed", "main.aux"]
+["lookup-file", "read", "failed", "main.aux"]
+["append-lines", "out", "(size10.clo)) (l3backend-xetex.def)"]
+["append-lines", "out", "No file main.aux."]
+["append-lines", "log", ")", "\nNo file main.aux."]
+["lookup-file", "write", "successful", "main.aux"]
+["append-lines", "log", "\\openout1 = `main.aux'.", "\n"]
+["append-lines", "log", "LaTeX Font Info:    Checking defaults for OML\/cmm\/m\/it on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for OMS\/cmsy\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for OT1\/cmr\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for T1\/cmr\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on in[info] synctex used 5 input files, is 0 pages long
+[synctex] Closed input: 5
+Warning: main.tex:5: Underfull \hbox (badness 10000) detected at line 5
+Warning: main.tex:6: Underfull \hbox (badness 10000) detected at line 6
+[info] trace has 16 entries, growing to 32
+[info] writing main.xdv
+[info] this is the output document
+pre:
+  i: 7
+  num: 25400000
+  den: 473628672
+  mag: 1000
+  comment: tectonic
+[info] output 1 pages long
+[info] synctex used 5 input files, is 1 pages long
+[info] synctex used 6 input files, is 1 pages long
+[synctex] Closed input: 6
+[synctex] Closed input: 1
+[info] finished output
+Document generation: Warnings issued.
+[process] terminating process
+dvi_resmanager_get_fz_font: loading font lmroman12-bold
+[dvi] loading lmroman12-bold (kind RES_FONT)
+dvi_resmanager_get_fz_font: loading font lmroman10-regular
+[dvi] loading lmroman10-regular (kind RES_FONT)
+[process] launched pid 18135 (using /Users/someone/code/lab/taudot-ref/texpresso/build/texpresso-xetex)
+note: "version 2" Tectonic command-line interface activated
+tectonic: cache directory is /Users/someone/Library/Caches/Tectonic/bundles
+tectonic bundle: indexing succeeded (134980 entries)
+Using Tectonic.
+
+
+texpresso: handshake success
+
+[info] writing main.log
+[info] this is the log file
+[info] writing main.synctex
+[info] this is the synctex
+[info] synctex used 2 input files, is 0 pages long
+put line 2.", "\nLaTeX Font Info:    Checking defaults for TS1\/cmr\/m\/n on input line 2.", "\nLaTeX Font Info:    Trying to load font information for TS1+cmr on input line 2", "\n."]
+["lookup-file", "read", "failed", "ts1cmr.fd"]
+["lookup-file", "read", "failed", "ts1cmr.fd"]
+["lookup-file", "read", "failed", "ts1cmr.fd"]
+["lookup-file", "read", "failed", "ts1cmr.fd"]
+["input-file", 5, "ts1cmr.fd"]
+["append-lines", "log", "(ts1cmr.fd", "\nFile: ts1cmr.fd 2019\/12\/16 v2.5j Standard LaTeX font definitions"]
+["append-lines", "log", ")", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for TU\/lmr\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for OMX\/cmex\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for U\/cmr\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2."]
+["lookup-file", "read", "failed", "lmroman12-regular"]
+["lookup-file", "read", "failed", "tex-text.tec"]
+["lookup-file", "read", "failed", "lmroman12-bold"]
+["lookup-file", "read", "failed", "tex-text.tec"]
+["append-lines", "out", "(ts1cmr.fd)", "\nUnderfull \\hbox (badness 10000) detected at line 5", "\n\\TU\/lmr\/m\/n\/10 a b", "\n", "\nUnderfull \\hbox (badness 10000) detected at line 6", "\n\\TU\/lmr\/m\/n\/10 word word"]
+["append-lines", "log", "", "\nUnderfull \\hbox (badness 10000) detected at line 5", "\n\\TU\/lmr\/m\/n\/10 a b", "\n []", "\n", "\nLaTeX Font Info:    External font `cmex10' loaded for size", "\n(Font)              <7> on input line 5.", "\nLaTeX Font Info:    External font `cmex10' loaded for size", "\n(Font)              <5> on input line 5.", "\n", "\nUnderfull \\hbox (badness 10000) detected at line 6", "\n\\TU\/lmr\/m\/n\/10 word word", "\n []", "\n"]
+["lookup-file", "write", "successful", "main.xdv"]
+["append-lines", "log", "[1", "\n"]
+["lookup-file", "read", "successful", "main.aux"]
+["input-file", 6, "main.aux"]
+["append-lines", "out", "[1] (main.aux)"]
+["append-lines", "out", "", "\nLaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.", "\n"]
+["append-lines", "log", "] (main.aux)", "\n", "\nLaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.", "\n"]
+["append-lines", "out", " )"]
+["append-lines", "out", "(see the transcript file for additional information)"]
+["append-lines", "log", " )"]
+["append-lines", "log", "Output written on main.xdv (1 page, 643 bytes)."]
+["truncate-lines", "out", 0]
+["truncate-lines", "log", 0]
+["lookup-file", "read", "successful", "main.tex"]
+["lookup-file", "write", "successful", "main.log"]
+["append-lines", "log", "**"]
+["append-lines", "out", "(main.tex", "\nLaTeX2e <2021-11-15> patch level 1"]
+["append-lines", "log", "(main.tex", "\nLaTeX2e <2021-11-15> patch level 1"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "read", "failed", "article.cls"]
+["lookup-file", "write", "successful", "main.synctex"]
+["append-lines", "out", "L3 programming layer <2022-02-24> (article.cls"]
+["input-file", 1, "main.tex"]
+["input-file", 2, "article.cls"]
+["append-lines", "out", "Document Class: article 2021\/10\/04 v1.4n Standard LaTeX document class"]
+["append-lines", "log", "L3 programming layer <2022-02-24> (article.cls", "\nDocument Class: article 2021\/10\/04 v1.4n Standard LaTeX document class"]
+["lookup-file", "read", "failed", "size10.clo"]
+["lookup-file", "read", "failed", "size10.clo"]
+["lookup-file", "read", "failed", "size10.clo"]
+["lookup-file", "read", "failed", "size10.clo"]
+["input-file", 3, "size10.[info] synctex used 3 input files, is 0 pages long
+[synctex] Closed input: 3
+[synctex] Closed input: 2
+[info] synctex used 4 input files, is 0 pages long
+[synctex] Closed input: 4
+[info] synctex used 5 input files, is 0 pages long
+[synctex] Closed input: 5
+[info] writing main.aux
+[info] synctex used 6 input files, is 0 pages long
+[synctex] Closed input: 6
+Warning: main.tex:5: Underfull \hbox (badness 10000) detected at line 5
+Warning: main.tex:6: Underfull \hbox (badness 10000) detected at line 6
+clo"]
+["append-lines", "log", "(size10.clo", "\nFile: size10.clo 2021\/10\/04 v1.4n Standard LaTeX file (size option)"]
+["lookup-file", "read", "failed", "lmroman10-regular"]
+["lookup-file", "read", "failed", "tex-text.tec"]
+["append-lines", "log", ")", "\n\\c@part=\\count181", "\n\\c@section=\\count182", "\n\\c@subsection=\\count183", "\n\\c@subsubsection=\\count184", "\n\\c@paragraph=\\count185", "\n\\c@subparagraph=\\count186", "\n\\c@figure=\\count187", "\n\\c@table=\\count188", "\n\\abovecaptionskip=\\skip47", "\n\\belowcaptionskip=\\skip48", "\n\\bibindent=\\dimen138"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["lookup-file", "read", "failed", "l3backend-xetex.def"]
+["input-file", 4, "l3backend-xetex.def"]
+["append-lines", "log", ") (l3backend-xetex.def", "\nFile: l3backend-xetex.def 2022-02-07 L3 backend support: XeTeX", "\n\\c__kernel_sys_dvipdfmx_version_int=\\count189", "\n\\l__color_backend_stack_int=\\count190", "\n\\g__color_backend_stack_int=\\count191", "\n\\g__graphics_track_int=\\count192", "\n\\l__pdf_internal_box=\\box50", "\n\\g__pdf_backend_object_int=\\count193", "\n\\g__pdf_backend_annotation_int=\\count194", "\n\\g__pdf_backend_link_int=\\count195"]
+["lookup-file", "read", "successful", "main.aux"]
+["lookup-file", "read", "successful", "main.aux"]
+["lookup-file", "read", "successful", "main.aux"]
+["input-file", 5, "main.aux"]
+["append-lines", "out", "(size10.clo)) (l3backend-xetex.def) (main.aux"]
+["append-lines", "out", "", "\nLaTeX Warning: Label `s' multiply defined.", "\n"]
+["append-lines", "log", ") (main.aux", "\n", "\nLaTeX Warning: Label `s' multiply defined.", "\n"]
+["lookup-file", "write", "successful", "main.aux"]
+["append-lines", "log", ")", "\n\\openout1 = `main.aux'.", "\n"]
+["append-lines", "log", "LaTeX Font Info:    Checking defaults for OML\/cmm\/m\/it on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for OMS\/cmsy\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for OT1\/cmr\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for T1\/cmr\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for TS1\/cmr\/m\/n on input line 2.", "\nLaTeX Font Info:    Trying to load font information for TS1+cmr on input line 2", "\n."]
+["lookup-file", "read", "failed", "ts1cmr.fd"]
+["lookup-file", "read", "failed", "ts1cmr.fd"]
+["lookup-file", "read", "failed", "ts1cmr.fd"]
+["lookup-file", "read", "failed", "ts1cmr.fd"]
+["input-file", 6, "ts1cmr.fd"]
+["append-lines", "log", " (ts1cmr.fd", "\nFile: ts1cmr.fd 2019\/12\/16 v2.5j Standard LaTeX font definitions"]
+["append-lines", "log", ")", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for TU\/lmr\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for OMX\/cmex\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2.", "\nLaTeX Font Info:    Checking defaults for U\/cmr\/m\/n on input line 2.", "\nLaTeX Font Info:    ... okay on input line 2."]
+["lookup-file", "read", "failed", "lmroman12-regular"]
+["lookup-file", "read", "failed", "tex-text.tec"]
+["lookup-file", "read", "failed", "lmroman12-bold"]
+["lookup-file", "read", "failed", "tex-text.tec"]
+["append-lines", "out", ") (ts1cmr.fd)", "\nUnderfull \\hbox (badness 10000) detected at line 5", "\n\\TU\/[info] writing main.xdv
+[info] this is the output document
+pre:
+  i: 7
+  num: 25400000
+  den: 473628672
+  mag: 1000
+  comment: tectonic
+[info] output 1 pages long
+[info] synctex used 6 input files, is 1 pages long
+[info] synctex used 7 input files, is 1 pages long
+[synctex] Closed input: 7
+[synctex] Closed input: 1
+[info] finished output
+Document generation: Warnings issued.
+[process] terminating process
+[rerun] aux byte-stable, convergence reached
+[synctex] Closed input: 7
+[synctex] Closed input: 1
+[info] finished output
+Document generation: Warnings issued.
+[process] terminating process
+lmr\/m\/n\/10 a b", "\n", "\nUnderfull \\hbox (badness 10000) detected at line 6", "\n\\TU\/lmr\/m\/n\/10 word word"]
+["append-lines", "log", "", "\nUnderfull \\hbox (badness 10000) detected at line 5", "\n\\TU\/lmr\/m\/n\/10 a b", "\n []", "\n", "\nLaTeX Font Info:    External font `cmex10' loaded for size", "\n(Font)              <7> on input line 5.", "\nLaTeX Font Info:    External font `cmex10' loaded for size", "\n(Font)              <5> on input line 5.", "\n", "\nUnderfull \\hbox (badness 10000) detected at line 6", "\n\\TU\/lmr\/m\/n\/10 word word", "\n []", "\n"]
+["lookup-file", "write", "successful", "main.xdv"]
+["append-lines", "log", "[1", "\n"]
+["lookup-file", "read", "successful", "main.aux"]
+["input-file", 7, "main.aux"]
+["append-lines", "out", "[1] (main.aux)"]
+["append-lines", "out", "", "\nLaTeX Warning: There were multiply-defined labels.", "\n"]
+["append-lines", "log", "] (main.aux)", "\n", "\nLaTeX Warning: There were multiply-defined labels.", "\n"]
+["append-lines", "out", " )"]
+["append-lines", "out", "(see the transcript file for additional information)"]
+["append-lines", "log", " )"]
+["append-lines", "log", "Output written on main.xdv (1 page, 643 bytes)."]
+["append-lines", "out", "[1] (main.aux)"]
+["append-lines", "out", "", "\nLaTeX Warning: There were multiply-defined labels.", "\n"]
+["append-lines", "log", "] (main.aux)", "\n", "\nLaTeX Warning: There were multiply-defined labels.", "\n"]
+["append-lines", "out", " )"]
+["append-lines", "out", "(see the transcript file for additional information)"]
+["append-lines", "log", " )"]
+["append-lines", "log", "Output written on main.xdv (1 page, 643 bytes)."]

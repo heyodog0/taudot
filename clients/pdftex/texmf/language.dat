@@ -1,0 +1,11 @@
+% language.dat for the prototype: English only (Tectonic's bundle lacks some of TeX Live's patterns, e.g.
+% ukrhyp.tex). Same for the stock and live engines, so it doesn't affect the comparison. Public domain.
+english		hyphen.tex
+=usenglish
+=USenglish
+=american
+dumylang	dumyhyph.tex
+nohyphenation	zerohyph.tex
+british		loadhyph-en-gb.tex
+=UKenglish
+usenglishmax	loadhyph-en-us.tex

@@ -1,0 +1,7 @@
+{
+  "tasks": {
+    "start": "deno run -A preview.ts --folder ../mock-engine/example",
+    "test": "deno test -A"
+  },
+  "fmt": { "lineWidth": 120 }
+}

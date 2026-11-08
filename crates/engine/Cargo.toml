@@ -1,0 +1,38 @@
+[package]
+name = "taudot-engine"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+resolver = "3"
+description = "taudot engine: keeps a local LaTeX project in sync with Overleaf"
+license = "MIT"
+
+[[bin]]
+name = "taudot"
+path = "src/main.rs"
+
+[dependencies]
+overleaf = { path = "../overleaf" }
+ot = { package = "ot2", path = "../ot2" }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+notify = "8"
+pbkdf2 = { version = "0.12", features = ["hmac"] }
+sha1 = "0.10"
+sha2 = "0.10"
+aes = "0.8"
+cbc = "0.1"
+url = "2"
+ignore = "=0.4.23"
+
+[dev-dependencies]
+overleaf = { path = "../overleaf", features = ["fake"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"

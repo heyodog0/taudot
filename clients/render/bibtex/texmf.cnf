@@ -1,0 +1,11 @@
+% BibTeX's settings from TeX Live 2025's texmf.cnf (the rest doesn't apply: the driver gives BibTeX its search paths).
+% Same line width and limits as Overleaf's BibTeX, so the .bbl is the same byte for byte.
+error_line = 79
+half_error_line = 50
+max_print_line = 79
+hash_extra = 600000
+pool_size = 6250000
+buf_size = 200000
+ent_str_size = 500
+glob_str_size = 200000
+max_strings.bibtex = 200000

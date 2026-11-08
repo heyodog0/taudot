@@ -1,0 +1,89 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Wed, 4 Nov 2026 23:43:10 -0500
+Subject: [PATCH 2/9] web2c: open and exit hooks for the live engine
+
+---
+ texk/web2c/lib/openclose.c | 19 +++++++++++++++++--
+ texk/web2c/lib/uexit.c     |  6 ++++++
+ 2 files changed, 23 insertions(+), 2 deletions(-)
+
+diff --git a/texk/web2c/lib/openclose.c b/texk/web2c/lib/openclose.c
+index 1dda1941..51bc90f4 100644
+--- a/texk/web2c/lib/openclose.c
++++ b/texk/web2c/lib/openclose.c
+@@ -206,6 +206,12 @@ recorder_record_output (const_string name)
+    whether or not the open succeeded.  If it did, `nameoffile' is set to
+    the full filename opened, and `namelength' to its length.  */
+ 
++/* Taudot live pdfTeX: hooks set by lib/taudot-live.c when TAUDOT_LIVE_FD is set (NULL otherwise).
++   STAGE 0 is called with the name as given, before any search (files this run has written);
++   STAGE 1 with the path kpathsea found. Either returns NULL to fall back to the normal open. */
++FILE *(*taudot_open_in_hook) (const char *name, int filefmt, int stage) = NULL;
++boolean (*taudot_open_out_hook) (FILE **f_ptr, const char *name, const_string fopen_mode) = NULL;
++
+ boolean
+ open_input (FILE **f_ptr, int filefmt, const_string fopen_mode)
+ {
+@@ -228,6 +234,10 @@ open_input (FILE **f_ptr, int filefmt, const_string fopen_mode)
+     if (fullnameoffile)
+         free(fullnameoffile);
+     fullnameoffile = NULL;
++
++    if (taudot_open_in_hook && filefmt >= 0
++        && (*f_ptr = taudot_open_in_hook (nameoffile + 1, filefmt, 0)))
++        fullnameoffile = xstrdup (nameoffile + 1);
+     
+     /* Look in -output-directory first, if the filename is not
+        absolute.  This is because .aux and other such files will get
+@@ -244,7 +254,7 @@ open_input (FILE **f_ptr, int filefmt, const_string fopen_mode)
+         free (fname0);
+     }
+ #endif
+-    if (output_directory && !kpse_absolute_p (nameoffile+1, false)) {
++    if (*f_ptr == NULL && output_directory && !kpse_absolute_p (nameoffile+1, false)) {
+         fname = concat3 (output_directory, DIR_SEP_STRING, nameoffile + 1);
+         *f_ptr = fopen (fname, fopen_mode);
+ #if !defined(_WIN32)
+@@ -325,7 +335,9 @@ open_input (FILE **f_ptr, int filefmt, const_string fopen_mode)
+                     *f_ptr = nkf_open (fname, fopen_mode);
+                 } else
+ #endif
+-                *f_ptr = xfopen (fname, fopen_mode);
++                if (!taudot_open_in_hook
++                    || !(*f_ptr = taudot_open_in_hook (fname, filefmt, 1)))
++                    *f_ptr = xfopen (fname, fopen_mode);
+ 
+                 /* kpse_find_file always returns a new string. */
+ #if defined(PTEX) && !defined(WIN32)
+@@ -412,6 +424,9 @@ open_output (FILE **f_ptr, const_string fopen_mode)
+ #endif
+     boolean absolute = kpse_absolute_p(nameoffile+1, false);
+ 
++    if (taudot_open_out_hook)
++        return taudot_open_out_hook (f_ptr, nameoffile + 1, fopen_mode);
++
+     /* If we have an explicit output directory, use it. */
+     if (output_directory && !absolute) {
+         fname = concat3(output_directory, DIR_SEP_STRING, nameoffile + 1);
+diff --git a/texk/web2c/lib/uexit.c b/texk/web2c/lib/uexit.c
+index 90a4d9f7..70624a4c 100644
+--- a/texk/web2c/lib/uexit.c
++++ b/texk/web2c/lib/uexit.c
+@@ -4,10 +4,16 @@
+ 
+ #include <w2c/config.h>
+ 
++/* Taudot live pdfTeX: set by lib/taudot-live.c; may not return. */
++void (*taudot_exit_hook) (int) = NULL;
++
+ void
+ uexit (int unix_code)
+ {
+   int final_code;
++
++  if (taudot_exit_hook)
++    taudot_exit_hook (unix_code);
+   
+   if (unix_code == 0)
+     final_code = EXIT_SUCCESS;

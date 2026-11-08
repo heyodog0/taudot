@@ -1,0 +1,108 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Fri, 6 Nov 2026 22:40:44 -0500
+Subject: [PATCH 10/10] pdftex: retired snapshots wait childless for the driver's
+ wake
+
+---
+ texk/web2c/lib/taudot-live.c | 69 ++++++++++++++++++++++++++++++------
+ 1 file changed, 58 insertions(+), 11 deletions(-)
+
+diff --git a/texk/web2c/lib/taudot-live.c b/texk/web2c/lib/taudot-live.c
+index e306f2f0..2842ea08 100644
+--- a/texk/web2c/lib/taudot-live.c
++++ b/texk/web2c/lib/taudot-live.c
+@@ -617,25 +617,71 @@ tl_wait_exit (pid_t a, pid_t b)
+ #endif
+ }
+ 
+-/* The parent side of a snapshot: wait for the runner; when the driver kills it, start a new one. Returns in the
+-   new runner. Exits when the driver does. */
++/* A snapshot whose child the driver retired (SIGTERM: thinning its table of snapshots, each a live process) has no
++   child to be killed: it waits for the driver's SIGUSR1, which a snapshot gets for nothing else, or for the driver's
++   exit. Returns 1 to start a new runner. A SIGUSR1 that came before (while the child was dying) is in the flag. */
++static int
++tl_wait_wake (void)
++{
++#ifdef __APPLE__
++  struct kevent ev[2], out;
++  int n, kq = kqueue ();
++  if (kq < 0)
++    return 0;
++  EV_SET (&ev[0], SIGUSR1, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
++  EV_SET (&ev[1], tl_driver, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT, 0, NULL);
++  if (kevent (kq, ev, 2, NULL, 0, NULL) < 0) {
++    close (kq);
++    return 0;  /* the driver is gone */
++  }
++  while (!tl_want_finish) {
++    n = kevent (kq, NULL, 0, &out, 1, NULL);
++    if (n < 0 && errno == EINTR)
++      continue;  /* the handler ran: the flag says so */
++    if (n < 0 || out.filter == EVFILT_PROC)
++      break;
++  }
++  close (kq);
++  return tl_want_finish != 0;
++#else
++  sigset_t block, old;
++  sigemptyset (&block);
++  sigaddset (&block, SIGUSR1);
++  sigprocmask (SIG_BLOCK, &block, &old);
++  while (!tl_want_finish)
++    sigsuspend (&old);
++  sigprocmask (SIG_SETMASK, &old, NULL);
++  return 1;
++#endif
++}
++
++/* The parent side of a snapshot: wait for the runner; when the driver kills it (SIGKILL), or wakes us after it
++   retired it (SIGTERM, then SIGUSR1), start a new one. Returns in the new runner. Exits when the driver does. */
+ static void
+ tl_be_snapshot (pid_t child)
+ {
++  tl_want_finish = 0;  /* from now on SIGUSR1 means "wake" */
+   for (;;) {
+     int st;
+     pid_t c;
+-    if (tl_wait_exit (child, tl_driver) == tl_driver) {
+-      kill (child, SIGKILL);
+-      _exit (0);
+-    }
+-    while (waitpid (child, &st, 0) < 0)
+-      if (errno != EINTR)
++    if (child) {
++      if (tl_wait_exit (child, tl_driver) == tl_driver) {
++        kill (child, SIGKILL);
++        _exit (0);
++      }
++      while (waitpid (child, &st, 0) < 0)
++        if (errno != EINTR)
++          _exit (3);
++      if (WIFSIGNALED (st) && WTERMSIG (st) == SIGTERM)
++        child = 0;  /* retired */
++      else if (!(WIFSIGNALED (st) && WTERMSIG (st) == SIGKILL)) {
++        tl_send ("X %d %d %d\n", (int) getpid (), (int) child, st);
+         _exit (3);
+-    if (!(WIFSIGNALED (st) && WTERMSIG (st) == SIGKILL)) {
+-      tl_send ("X %d %d %d\n", (int) getpid (), (int) child, st);
+-      _exit (3);
++      }
+     }
++    if (!child && !tl_wait_wake ())
++      _exit (0);
++    tl_want_finish = 0;
+     fflush (stdout);
+     c = fork ();
+     if (c < 0)
+@@ -928,6 +974,7 @@ taudot_live_init (void)
+   signal (SIGUSR1, tl_on_usr1);
+   signal (SIGUSR2, tl_on_usr2);
+   tl_read_ctl ();  /* --serve's fields, for the first run too */
++  tl_send ("V 1 retire\n");  /* what this engine understands: retired snapshots (SIGTERM, SIGUSR1 wakes the parent) */
+   tl_last_finish = tl_now ();
+   tl_on = 1;
+ }
+-- 
+2.50.0
+

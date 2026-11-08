@@ -1,0 +1,92 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1.15in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\newtheorem{proposition}{Proposition}
+
+\title{How Long Does Tea Stay Warm?\\\large A Toy Model of Cooling in a Mug}
+\author{Alice Moss \and Bob Okafor}
+\date{November 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We model a mug of tea as a single well-mixed body that loses heat through its surface and its walls.
+The model has two parameters, both easy to measure in a kitchen, and predicts the time until the tea
+drops below a drinkable temperature to within a minute in our tests.
+\end{abstract}
+
+\section{Introduction}
+Everyone who has forgotten a cup of tea on a desk knows the answer is ``not long enough''.
+Here we ask how long, exactly, and which choices matter most: the shape of the mug, a lid, or milk.
+
+\section{Model}
+Let $T(t)$ be the temperature of the tea and $T_a$ the temperature of the room. Newton's law of cooling gives
+\begin{equation}
+  \frac{dT}{dt} = -k\,(T - T_a), \qquad T(0) = T_0,
+  \label{eq:newton}
+\end{equation}
+where $k = hA/(mc)$ depends on the exposed area $A$, the mass $m$ and the heat capacity $c$.
+The solution is $T(t) = T_a + (T_0 - T_a)\,e^{-kt}$.
+
+\begin{proposition}
+The tea stays above a temperature $T_d$ for a time
+\[
+  t_d = \frac{1}{k}\,\ln\frac{T_0 - T_a}{T_d - T_a}.
+\]
+\end{proposition}
+
+\section{Results}
+With $T_0 = 90^\circ$C, $T_a = 21^\circ$C and $T_d = 55^\circ$C, a lid halves $A$ and so doubles $t_d$.
+Adding milk lowers $T_0$ but also raises $m$; in our tests the two effects nearly cancel.
+
+\begin{table}[ht]
+  \centering
+  \begin{tabular}{lccc}
+    Mug & $A$ (cm$^2$) & $k$ (1/min) & $t_d$ (min) \\
+    \hline
+    Ceramic, open & 50 & 0.031 & 22 \\
+    Ceramic, lid & 25 & 0.017 & 41 \\
+    Glass, open & 50 & 0.036 & 19 \\
+    Steel, double wall & 50 & 0.024 & 29 \\
+  \end{tabular}
+  \caption{Measured cooling rates and drinkable times for four mugs.}
+  \label{tab:mugs}
+\end{table}
+
+\section{Discussion}
+The single-body model ignores the temperature gradient inside the tea. Near the surface the tea cools
+faster than in the middle, and a sip taken from the top is cooler than the average $T$ predicts.
+Stirring removes most of the difference, which is one reason the model fits stirred tea best.
+
+Evaporation is the largest loss we leave out. At $90^\circ$C it carries away more heat than
+radiation and conduction through the walls together, and it falls off steeply as the tea cools.
+A lid stops most of it, which explains why the lid does better than halving $A$ alone would suggest.
+
+The walls matter less than people think. A double-walled steel mug lowers $k$ by about a fifth,
+while a lid lowers it by almost half (Table~\ref{tab:mugs}).
+
+\section{Limitations}
+We measured one mug of each kind, in one kitchen, in November. The room was at $21^\circ$C and
+still; a draught raises $h$ and so $k$. Our thermometer read to $0.5^\circ$C, which limits $t_d$
+to about a minute either way.
+
+\section{Conclusion}
+A lid is the cheapest way to keep tea warm: it nearly doubles the time the tea stays drinkable.
+Everything else, from the mug's material to a splash of milk, moves $t_d$ by a few minutes at most.
+
+\appendix
+\section{Fitting $k$}
+We fit $k$ by least squares to $\ln(T - T_a)$ against $t$, which is linear under \eqref{eq:newton}:
+\[
+  \ln\bigl(T(t) - T_a\bigr) = \ln(T_0 - T_a) - k\,t .
+\]
+Each fit used readings every 30 seconds for 40 minutes. The residuals were below $0.4^\circ$C
+except in the first two minutes, while the mug itself was still warming up.
+
+\section{Measurements}
+For each mug we poured 250 ml of water at $90^\circ$C, waited for the reading to settle, and logged
+the temperature every 30 seconds. The room temperature was logged at the same times.
+We repeated each measurement three times and report the mean $k$; the spread was below 4\%.
+
+\end{document}

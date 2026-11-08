@@ -1,0 +1,11 @@
+target/
+*/node_modules/
+docker/.env.overleafcom
+.DS_Store
+vendor/
+# Replica snapshots (harness/replicate.ts) live in ~/.taudot/replicas/, never here
+.taudot/replicas/
+__pycache__/
+
+# Agents' working notes, briefs and screenshots: kept in a separate private repository.
+docs/agents/

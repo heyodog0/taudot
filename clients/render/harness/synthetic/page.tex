@@ -1,0 +1,20 @@
+% The synthetic page for the measure's tests: text, maths, a rule, colour and an image. Variants (cases.py) change one
+% thing each by a small amount (a text replacement); each must score clearly worse than the floor (MuPDF vs Core Graphics, same PDF).
+\documentclass[10pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor,graphicx,amsmath}
+\pagestyle{empty}
+\begin{document}
+\section*{A synthetic page}
+The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. abc defg hijk lmnop qrstu.
+Sphinx of black quartz, judge my vow. How vexingly quick daft zebras jump. The five boxing wizards jump quickly.
+\[ \int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}, \qquad \sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}. \]
+\noindent\rule{4cm}{0.4pt}
+
+Some \textcolor{red}{coloured words in the middle} of a line, and more text after them to fill the line out.
+
+\noindent\includegraphics[width=6cm]{blobs.png}
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna
+aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+\end{document}

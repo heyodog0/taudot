@@ -1,0 +1,10 @@
+{
+  "name": "taudot-harness",
+  "private": true,
+  "type": "module",
+  "description": "Drives Overleaf's real browser editor (local CE) as the reference client for taudot tests",
+  "engines": { "node": ">=23.6" },
+  "dependencies": {
+    "playwright": "1.64.1"
+  }
+}

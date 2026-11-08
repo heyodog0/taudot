@@ -1,0 +1,178 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Thu, 5 Nov 2026 00:55:42 -0500
+Subject: [PATCH 6/9] pdftex: missing lookups, written files and final extents
+ for reruns
+
+---
+ texk/web2c/lib/openclose.c   |  7 ++-
+ texk/web2c/lib/taudot-live.c | 90 +++++++++++++++++++++++++++++++++++-
+ 2 files changed, 95 insertions(+), 2 deletions(-)
+
+diff --git a/texk/web2c/lib/openclose.c b/texk/web2c/lib/openclose.c
+index 51bc90f4..d19aca3e 100644
+--- a/texk/web2c/lib/openclose.c
++++ b/texk/web2c/lib/openclose.c
+@@ -208,7 +208,8 @@ recorder_record_output (const_string name)
+ 
+ /* Taudot live pdfTeX: hooks set by lib/taudot-live.c when TAUDOT_LIVE_FD is set (NULL otherwise).
+    STAGE 0 is called with the name as given, before any search (files this run has written);
+-   STAGE 1 with the path kpathsea found. Either returns NULL to fall back to the normal open. */
++   STAGE 1 with the path kpathsea found, STAGE 2 with the name as given when nothing was found (the return
++   value is ignored). Stages 0 and 1 return NULL to fall back to the normal open. */
+ FILE *(*taudot_open_in_hook) (const char *name, int filefmt, int stage) = NULL;
+ boolean (*taudot_open_out_hook) (FILE **f_ptr, const char *name, const_string fopen_mode) = NULL;
+ 
+@@ -374,6 +375,10 @@ open_input (FILE **f_ptr, int filefmt, const_string fopen_mode)
+         }
+     }            
+ 
++    /* Taudot: STAGE 2 reports a file that wasn't found (a later run may find it: a first .toc, .bbl). */
++    if (!*f_ptr && taudot_open_in_hook && filefmt >= 0)
++        taudot_open_in_hook (nameoffile + 1, filefmt, 2);
++
+     return *f_ptr != NULL;
+ }
+ 
+diff --git a/texk/web2c/lib/taudot-live.c b/texk/web2c/lib/taudot-live.c
+index df6fc92a..990876aa 100644
+--- a/texk/web2c/lib/taudot-live.c
++++ b/texk/web2c/lib/taudot-live.c
+@@ -82,7 +82,9 @@ tl_send (const char *fmt, ...)
+ 
+ /* ---- project files: read from memory, extents tracked ---- */
+ 
+-struct tl_track { char *rel; char *abs; long hw; int eof; };   /* one per project file ever opened */
++/* One per project file ever opened, or looked for and not found (missing: extent 1, as if its end was read at
++   byte 0, so a rollback for a file that appears later lands before the lookup). */
++struct tl_track { char *rel; char *abs; long hw; int eof; int opened; };
+ static struct tl_track tl_tracks[512];
+ static int tl_ntracks = 0;
+ 
+@@ -300,6 +302,33 @@ tl_open_shadow (const char *name)
+   return tl_reader_file (-1, copy, v->len);
+ }
+ 
++/* A project file looked for and not found. */
++static void
++tl_note_missing (const char *name)
++{
++  char *abs = tl_absname (name);
++  int i;
++  if (strncmp (abs, tl_proj, tl_proj_len) != 0 || access (abs, F_OK) == 0) {
++    free (abs);
++    return;
++  }
++  for (i = 0; i < tl_ntracks; i++)
++    if (strcmp (tl_tracks[i].abs, abs) == 0) {
++      free (abs);
++      return;
++    }
++  if (tl_ntracks == 512) {
++    free (abs);
++    return;
++  }
++  tl_tracks[i].abs = abs;
++  tl_tracks[i].rel = xstrdup (abs + tl_proj_len);
++  tl_tracks[i].hw = 0;
++  tl_tracks[i].eof = 1;
++  tl_tracks[i].opened = 0;
++  tl_ntracks++;
++}
++
+ static FILE *
+ tl_open_in (const char *name, int filefmt, int stage)
+ {
+@@ -310,6 +339,15 @@ tl_open_in (const char *name, int filefmt, int stage)
+   FILE *f;
+   if (filefmt == DUMP_FORMAT)
+     return NULL;
++  if (stage == 2) {
++    tl_note_missing (name);
++    if (filefmt == kpse_tex_format) {
++      char *withtex = concat (name, ".tex");
++      tl_note_missing (withtex);
++      free (withtex);
++    }
++    return NULL;
++  }
+   if (stage == 0) {
+     if (filefmt == kpse_tex_format) {
+       char *withtex = concat (name, ".tex");
+@@ -332,12 +370,17 @@ tl_open_in (const char *name, int filefmt, int stage)
+       return NULL;
+     tl_tracks[i].abs = xstrdup (real);
+     tl_tracks[i].rel = xstrdup (real + tl_proj_len);
++    tl_tracks[i].opened = 0;
+     tl_tracks[i].hw = 0;
+     tl_tracks[i].eof = 0;
+     tl_ntracks++;
+   }
+   if (!(buf = tl_slurp (real, &len)))
+     return NULL;
++  if (!tl_tracks[i].opened) {  /* was missing: it reads from the start now */
++    tl_tracks[i].opened = 1;
++    tl_tracks[i].eof = 0;
++  }
+   return tl_reader_file (i, buf, len);
+ }
+ 
+@@ -596,6 +639,49 @@ taudotshipped (void)
+   }
+ }
+ 
++/* The project files this run wrote (.aux, .toc, .out, ...), as w-<seq>/<rel with '/' as %2F>, for the driver's
++   rerun rule; the disk copies are never touched here. */
++static void
++tl_dump_written (void)
++{
++  char dir[64], *path;
++  int i;
++  snprintf (dir, sizeof dir, "w-%d", tl_seq);
++  path = concat3 (tl_out, "/", dir);
++  mkdir (path, 0755);
++  free (path);
++  for (i = 0; i < tl_nvfiles; i++) {
++    struct tl_vfile *v = tl_vfiles[i];
++    char name[PATH_MAX], *d = name;
++    const char *r;
++    if (v == tl_pdf || v == tl_log || strncmp (v->abs, tl_proj, tl_proj_len) != 0)
++      continue;
++    d += snprintf (name, sizeof name, "%s/", dir);
++    for (r = v->abs + tl_proj_len; *r && d < name + sizeof name - 4; r++) {
++      if (*r == '/') {
++        memcpy (d, "%2F", 3);
++        d += 3;
++      } else
++        *d++ = *r;
++    }
++    *d = 0;
++    tl_dump (v, name);
++  }
++}
++
++/* T runner seq n, then n lines `extent opened rel`: what this run read of each project file. */
++static void
++tl_send_tracks (void)
++{
++  char msg[30000];
++  int i, n;
++  n = snprintf (msg, sizeof msg, "T %d %d %d\n", (int) getpid (), tl_seq, tl_ntracks);
++  for (i = 0; i < tl_ntracks && n < (int) sizeof msg - PATH_MAX - 32; i++)
++    n += snprintf (msg + n, sizeof msg - n, "%ld %d %s\n", tl_tracks[i].hw + tl_tracks[i].eof, tl_tracks[i].opened,
++                   tl_tracks[i].rel);
++  tl_send ("%s", msg);
++}
++
+ static void
+ tl_exit (int code)
+ {
+@@ -606,6 +692,8 @@ tl_exit (int code)
+   tl_dump (tl_pdf, name);
+   snprintf (name, sizeof name, "final-%d.log", tl_seq);
+   tl_dump (tl_log, name);
++  tl_dump_written ();
++  tl_send_tracks ();
+   tl_send ("E %d %d %d %d %llu\n", (int) getpid (), tl_seq, (int) totalpages, code, (unsigned long long) tl_now ());
+   /* Stay: the snapshot that made us resumes only when we are killed. Leave if our snapshot or the driver goes. */
+   tl_wait_exit (tl_parent, tl_driver);

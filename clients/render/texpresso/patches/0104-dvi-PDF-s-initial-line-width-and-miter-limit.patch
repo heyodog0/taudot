@@ -1,0 +1,26 @@
+From e2564194161b6c8b2b96d5abcd8778eaa6ef22a0 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Tue, 3 Nov 2026 13:50:21 -0500
+Subject: [PATCH 104/108] dvi: PDF's initial line width and miter limit
+
+---
+ src/dvi/dvi_context.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/dvi/dvi_context.c b/src/dvi/dvi_context.c
+index 5bd44c5..edf9b2f 100644
+--- a/src/dvi/dvi_context.c
++++ b/src/dvi/dvi_context.c
+@@ -71,6 +71,9 @@ void dvi_context_begin_frame(fz_context *ctx, dvi_context *dc, fz_device *dev)
+   dvi_state *st = &dc->root;
+   st->registers_stack.depth = 0;
+   st->gs = (dvi_graphicstate){0,};
++  // Taudot (MIT): PDF's initial line width and miter limit. Zero made every mitered join a bevel.
++  st->gs.line_width = 1;
++  st->gs.miter_limit = 10;
+   st->gs.ctm = fz_identity;
+   st->gs.ctm.d = -1;
+   st->gs.ctm.e = 72;
+-- 
+2.50.0
+

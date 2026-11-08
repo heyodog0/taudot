@@ -1,0 +1,20 @@
+% Fonts by name through fontspec (as on Overleaf), the families of clients/render/texpresso/tests/fonts/compare.py.
+% Before patch 0005 TeXpresso couldn't find them by name and the text fell into nullfont.
+\documentclass{article}
+\usepackage{fontspec}
+\setmainfont{Latin Modern Roman}
+\newfontfamily\pagella{TeX Gyre Pagella}
+\newfontfamily\libertinus{Libertinus Serif}
+\newfontfamily\stix{STIX Two Text}
+\newcommand\sample[1]{#1: Regular \textbf{bold} \textit{italic} \textbf{\textit{bold italic}}
+
+{\footnotesize Small regular \textbf{bold} \textit{italic} \textbf{\textit{bold italic}}\par}
+
+{\Large Large regular \textbf{bold} \textit{italic} \textbf{\textit{bold italic}}\par}\bigskip}
+\pagestyle{empty}
+\begin{document}
+\sample{Latin Modern Roman}
+{\pagella\sample{TeX Gyre Pagella}}
+{\libertinus\sample{Libertinus Serif}}
+{\stix\sample{STIX Two Text}}
+\end{document}

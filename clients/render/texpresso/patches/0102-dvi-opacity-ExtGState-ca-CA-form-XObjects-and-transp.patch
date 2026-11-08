@@ -1,0 +1,957 @@
+From e6255f3d7174e2897f1f8c30d74af57595c5a9de Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Tue, 3 Nov 2026 13:44:25 -0500
+Subject: [PATCH 102/108] dvi: opacity (ExtGState ca/CA), form XObjects and
+ transparency groups
+
+---
+ src/dvi/dvi_context.c      |  23 +++
+ src/dvi/dvi_prim.c         |   4 +-
+ src/dvi/dvi_special.c      | 316 +++++++++++++++++++++++++++++++++++--
+ src/dvi/dvi_special.re2c.c | 316 +++++++++++++++++++++++++++++++++++--
+ src/dvi/mydvi.h            |  38 +++++
+ 5 files changed, 661 insertions(+), 36 deletions(-)
+
+diff --git a/src/dvi/dvi_context.c b/src/dvi/dvi_context.c
+index 4045ab1..5bd44c5 100644
+--- a/src/dvi/dvi_context.c
++++ b/src/dvi/dvi_context.c
+@@ -66,6 +66,7 @@ void dvi_context_free(fz_context *ctx, dvi_context *dc)
+ 
+ void dvi_context_begin_frame(fz_context *ctx, dvi_context *dc, fz_device *dev)
+ {
++  dvi_context_drop_forms(ctx, dc);
+   dvi_context_set_device(ctx, dc, dev);
+   dvi_state *st = &dc->root;
+   st->registers_stack.depth = 0;
+@@ -81,8 +82,30 @@ void dvi_context_begin_frame(fz_context *ctx, dvi_context *dc, fz_device *dev)
+     dc->pdfcolorstacks.stacks[i].depth = 0;
+ }
+ 
++/* Taudot (MIT): forms are per page; unwind one left open (an unbalanced pdf:bxobj) and drop the lists. */
++void dvi_context_drop_forms(fz_context *ctx, dvi_context *dc)
++{
++  while (dc->form_depth > 0)
++  {
++    dc->form_depth--;
++    fz_device *list_dev = dc->dev;
++    dc->dev = dc->form_stack[dc->form_depth].saved_dev;
++    fz_try(ctx)
++      fz_close_device(ctx, list_dev);
++    fz_always(ctx)
++      fz_drop_device(ctx, list_dev);
++    fz_catch(ctx)
++      ;
++    fz_drop_display_list(ctx, dc->form_stack[dc->form_depth].list);
++  }
++  for (int i = 0; i < dc->form_count; i++)
++    fz_drop_display_list(ctx, dc->forms[i].list);
++  dc->form_count = 0;
++}
++
+ void dvi_context_end_frame(fz_context *ctx, dvi_context *dc)
+ {
++  dvi_context_drop_forms(ctx, dc);
+   dvi_scratch_clear(ctx, &dc->scratch);
+   dvi_context_set_device(ctx, dc, NULL);
+ 
+diff --git a/src/dvi/dvi_prim.c b/src/dvi/dvi_prim.c
+index 92548a0..ffd13d1 100644
+--- a/src/dvi/dvi_prim.c
++++ b/src/dvi/dvi_prim.c
+@@ -37,7 +37,7 @@ static void output_fill_rect(fz_context *ctx, dvi_context *dc, dvi_state *st, in
+     fz_path *path = fz_new_path(ctx);
+     fz_rectto(ctx, path, x0 * s, - y0 * s, x1 * s, - y1 * s);
+     fz_fill_path(ctx, dc->dev, path, 0, st->gs.ctm, fz_device_rgb(ctx),
+-                 st->gs.colors.fill, 1.0, color_params);
++                 st->gs.colors.fill, DVI_FILL_ALPHA(st), color_params);
+     fz_drop_path(ctx, path);
+   }
+ }
+@@ -61,7 +61,7 @@ void dvi_context_flush_text(fz_context *ctx, dvi_context *dc, dvi_state *st)
+     if (!dc->dev)
+       abort();
+     fz_fill_text(ctx, dc->dev, dc->text, fz_identity, fz_device_rgb(ctx),
+-        st->gs.colors.fill, 1.0, color_params);
++        st->gs.colors.fill, DVI_FILL_ALPHA(st), color_params);
+     fz_drop_text(ctx, dc->text);
+     dc->text = NULL;
+   }
+diff --git a/src/dvi/dvi_special.c b/src/dvi/dvi_special.c
+index cdc7985..0390109 100644
+--- a/src/dvi/dvi_special.c
++++ b/src/dvi/dvi_special.c
+@@ -1177,7 +1177,7 @@ embed_image(fz_context *ctx, dvi_context *dc, dvi_state *st, struct xform_spec *
+     else if (h != h)
+       h = w / ar;
+     ctm = fz_pre_scale(fz_pre_translate(ctm, 0, h), w, -h);
+-    fz_fill_image(ctx, dc->dev, img, ctm, 1.0, color_params);
++    fz_fill_image(ctx, dc->dev, img, ctm, DVI_FILL_ALPHA(st), color_params);
+   }
+   fz_always(ctx)
+   {
+@@ -2864,13 +2864,155 @@ static void stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path
+ {
+   fz_stroke_state *stst = new_stroke_state(ctx, st);
+   fz_try(ctx)
+-    fz_stroke_path(ctx, dc->dev, path, stst, ctm, device_cs(ctx), color, 1.0, color_params);
++    fz_stroke_path(ctx, dc->dev, path, stst, ctm, device_cs(ctx), color, DVI_LINE_ALPHA(st), color_params);
+   fz_always(ctx)
+     fz_drop_stroke_state(ctx, stst);
+   fz_catch(ctx)
+     fz_rethrow(ctx);
+ }
+ 
++/* Taudot (MIT): B, B*, b and b*. With transparency, PDF paints the fill and the stroke as one knockout group, so
++ * the stroke replaces the fill under it rather than compositing over it. */
++static void fill_stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path *path, int even_odd,
++                             fz_matrix ctm)
++{
++  bool knockout = st->gs.fill_transp > 0 || st->gs.line_transp > 0;
++  if (knockout)
++  {
++    fz_stroke_state *stst = new_stroke_state(ctx, st);
++    fz_rect area;
++    fz_try(ctx)
++      area = fz_bound_path(ctx, path, stst, ctm);
++    fz_always(ctx)
++      fz_drop_stroke_state(ctx, stst);
++    fz_catch(ctx)
++      fz_rethrow(ctx);
++    fz_begin_group(ctx, dc->dev, area, NULL, 0, 1, FZ_BLEND_NORMAL, 1);
++  }
++  fz_fill_path(ctx, dc->dev, path, even_odd, ctm, device_cs(ctx), st->gs.colors.fill, DVI_FILL_ALPHA(st),
++               color_params);
++  stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
++  if (knockout)
++    fz_end_group(ctx, dc->dev);
++}
++
++/* Taudot (MIT, like this file): transparency. PGF's xetex driver and the transparent package set opacity with an
++ * ExtGState: "pdf:put @pgfextgs << /pgf@ca0.5 << /ca 0.5 >> >>" (or "pdf:put @resources << /ExtGState << ... >> >>")
++ * once, then "pdf:code /pgf@ca0.5 gs" at each use. We remember every dictionary that sets /ca or /CA, by name. */
++
++static dvi_extgstate *extgs_entry(fz_context *ctx, dvi_context *dc, const char *name, size_t len, bool create)
++{
++  if (len >= sizeof(dc->extgs[0].name))
++    return NULL;
++  for (int i = 0; i < dc->extgs_count; i++)
++    if (strlen(dc->extgs[i].name) == len && memcmp(dc->extgs[i].name, name, len) == 0)
++      return &dc->extgs[i];
++  if (!create || dc->extgs_count >= DVI_EXTGS_MAX)
++    return NULL;
++  dvi_extgstate *e = &dc->extgs[dc->extgs_count++];
++  memcpy(e->name, name, len);
++  e->name[len] = 0;
++  e->ca = e->CA = -1;
++  return e;
++}
++
++static bool is_pdf_delim(char c)
++{
++  return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '/' || c == '<' || c == '>' ||
++         c == '[' || c == ']' || c == '(' || c == ')' || c == '{' || c == '}' || c == '%';
++}
++
++/* Scans the body of a pdf:put for "/Name << ... /ca x /CA y ... >>". Nested dictionaries are tracked, so
++ * "/ExtGState << /TRP0.5 << /ca 0.5 >> >>" records TRP0.5. Other keys are skipped. */
++static void scan_extgstates(fz_context *ctx, dvi_context *dc, cursor_t cur, cursor_t lim)
++{
++  cursor_t names[16]; size_t lens[16];
++  int depth = 0;
++  cursor_t pending = NULL; size_t pending_len = 0;
++  while (cur < lim)
++  {
++    char c = *cur;
++    if (c == '<' && cur + 1 < lim && cur[1] == '<')
++    {
++      if (depth < 16) { names[depth] = pending; lens[depth] = pending_len; }
++      depth++;
++      pending = NULL;
++      cur += 2;
++    }
++    else if (c == '>' && cur + 1 < lim && cur[1] == '>')
++    {
++      if (depth > 0) depth--;
++      pending = NULL;
++      cur += 2;
++    }
++    else if (c == '/')
++    {
++      cursor_t n = ++cur;
++      while (cur < lim && !is_pdf_delim(*cur)) cur++;
++      size_t len = cur - n;
++      bool fill = len == 2 && n[0] == 'c' && n[1] == 'a';
++      bool line = len == 2 && n[0] == 'C' && n[1] == 'A';
++      if ((fill || line) && depth >= 1 && depth <= 16 && names[depth - 1])
++      {
++        while (cur < lim && (*cur == ' ' || *cur == '\t' || *cur == '\n' || *cur == '\r')) cur++;
++        char *end;
++        char buf[32];
++        size_t k = 0;
++        while (cur + k < lim && k < sizeof(buf) - 1 && !is_pdf_delim(cur[k])) { buf[k] = cur[k]; k++; }
++        buf[k] = 0;
++        float v = strtof(buf, &end);
++        if (end != buf)
++        {
++          dvi_extgstate *e = extgs_entry(ctx, dc, names[depth - 1], lens[depth - 1], 1);
++          if (e)
++          {
++            if (v < 0) v = 0;
++            if (v > 1) v = 1;
++            if (fill) e->ca = v; else e->CA = v;
++          }
++        }
++        cur += k;
++        pending = NULL;
++      }
++      else
++      {
++        pending = n;
++        pending_len = len;
++      }
++    }
++    else
++    {
++      if (!(c == ' ' || c == '\t' || c == '\n' || c == '\r'))
++        pending = NULL;
++      cur++;
++    }
++  }
++}
++
++/* The "gs" operator: look the name up; for names never put (a page drawn before the one that put them), read the
++ * value from the name the way PGF (pgf@ca0.5, pgf@CA0.5) and the transparent package (TRP0.5) spell it. */
++static void set_extgstate(fz_context *ctx, dvi_context *dc, dvi_state *st, const char *name)
++{
++  float ca = -1, CA = -1;
++  dvi_extgstate *e = extgs_entry(ctx, dc, name, strlen(name), 0);
++  if (e)
++    ca = e->ca, CA = e->CA;
++  else if (strncmp(name, "pgf@ca", 6) == 0)
++    ca = strtof(name + 6, NULL);
++  else if (strncmp(name, "pgf@CA", 6) == 0)
++    CA = strtof(name + 6, NULL);
++  else if (strncmp(name, "TRP", 3) == 0)
++    ca = CA = strtof(name + 3, NULL);
++  else
++    fprintf(stderr, "pdf gs: unknown ExtGState /%s\n", name);
++  if (ca >= 0 || CA >= 0)
++    dvi_context_flush_text(ctx, dc, st);
++  if (ca >= 0)
++    st->gs.fill_transp = 1.0f - fz_clamp(ca, 0, 1);
++  if (CA >= 0)
++    st->gs.line_transp = 1.0f - fz_clamp(CA, 0, 1);
++}
++
+ static bool
+ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
+ {
+@@ -3022,9 +3164,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+             fz_closepath(ctx, path);
+-            fz_fill_path(ctx, dc->dev, path, 0, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
+-            stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
++            fill_stroke_path(ctx, dc, st, path, 0, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -3035,9 +3175,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+             fz_closepath(ctx, path);
+-            fz_fill_path(ctx, dc->dev, path, 1, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
+-            stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
++            fill_stroke_path(ctx, dc, st, path, 1, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -3047,9 +3185,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           {
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+-            fz_fill_path(ctx, dc->dev, path, 0, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
+-            stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
++            fill_stroke_path(ctx, dc, st, path, 0, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -3059,9 +3195,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           {
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+-            fz_fill_path(ctx, dc->dev, path, 1, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
+-            stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
++            fill_stroke_path(ctx, dc, st, path, 1, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -3073,7 +3207,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+             fz_fill_path(ctx, dc->dev, path, 0, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
++                         st->gs.colors.fill, DVI_FILL_ALPHA(st), color_params);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -3084,7 +3218,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+             fz_fill_path(ctx, dc->dev, path, 1, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
++                         st->gs.colors.fill, DVI_FILL_ALPHA(st), color_params);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -3163,9 +3297,16 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           break;
+         }
+ 
++        case PDF_OP_gs:
++        {
++          val v[1];
++          vstack_get_arguments(ctx, stack, v, 1);
++          set_extgstate(ctx, dc, st, val_as_name(ctx, stack, v[0]));
++          break;
++        }
++
+         case PDF_OP_ri:
+         case PDF_OP_i:
+-        case PDF_OP_gs:
+         case PDF_OP_v:
+         case PDF_OP_y:
+         case PDF_OP_BT:
+@@ -4437,6 +4578,136 @@ yy410:
+ 
+ }
+ 
++/* Taudot (MIT, like this file): form XObjects, which PGF uses for transparency groups (\begin{scope}[transparency
++ * group, opacity=...]): "pdf:bxobj @name bbox ...", the content, "pdf:exobj <</Group << /S /Transparency ... >> >>",
++ * and later "pdf:uxobj @name" where it is drawn, after a "gs" that sets the group's opacity. The content is
++ * recorded into a display list at the point of bxobj, then replayed at uxobj, shifted to the current point, inside a
++ * group with the current fill alpha. Forms live for the page. */
++
++static cursor_t parse_obj_name(cursor_t cur, cursor_t lim, char *buf, size_t size)
++{
++  while (cur < lim && *cur == ' ') cur++;
++  size_t k = 0;
++  while (cur < lim && *cur != ' ' && *cur != '<' && k + 1 < size)
++    buf[k++] = *cur++;
++  buf[k] = 0;
++  return cur;
++}
++
++static fz_point current_point(dvi_context *dc, dvi_state *st)
++{
++  return fz_transform_point(fz_make_point(0, 0), dvi_get_ctm(dc, st));
++}
++
++static bool form_begin(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
++{
++  dvi_context_flush_text(ctx, dc, st);
++  if (dc->form_depth >= DVI_FORM_DEPTH)
++  {
++    fprintf(stderr, "pdf:bxobj: forms nested too deep\n");
++    return 0;
++  }
++  int i = dc->form_depth;
++  parse_obj_name(cur, lim, dc->form_stack[i].name, sizeof(dc->form_stack[i].name));
++  dc->form_stack[i].origin = current_point(dc, st);
++  dc->form_stack[i].fill_transp = st->gs.fill_transp;
++  dc->form_stack[i].line_transp = st->gs.line_transp;
++  dc->form_stack[i].saved_dev = dc->dev;
++  dc->form_stack[i].list = NULL;
++  if (dc->dev)
++  {
++    fz_display_list *list = fz_new_display_list(ctx, fz_infinite_rect);
++    fz_try(ctx)
++      dc->dev = fz_new_list_device(ctx, list);
++    fz_catch(ctx)
++    {
++      fz_drop_display_list(ctx, list);
++      fz_rethrow(ctx);
++    }
++    dc->form_stack[i].list = list;
++  }
++  dc->form_depth = i + 1;
++  /* A form's content stream starts opaque. */
++  st->gs.fill_transp = st->gs.line_transp = 0;
++  return 1;
++}
++
++static bool form_end(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
++{
++  dvi_context_flush_text(ctx, dc, st);
++  if (dc->form_depth == 0)
++  {
++    fprintf(stderr, "pdf:exobj without pdf:bxobj\n");
++    return 0;
++  }
++  int i = --dc->form_depth;
++  st->gs.fill_transp = dc->form_stack[i].fill_transp;
++  st->gs.line_transp = dc->form_stack[i].line_transp;
++  fz_display_list *list = dc->form_stack[i].list;
++  if (list)
++  {
++    fz_device *list_dev = dc->dev;
++    dc->dev = dc->form_stack[i].saved_dev;
++    fz_try(ctx)
++      fz_close_device(ctx, list_dev);
++    fz_always(ctx)
++      fz_drop_device(ctx, list_dev);
++    fz_catch(ctx)
++    {
++      fz_drop_display_list(ctx, list);
++      fz_rethrow(ctx);
++    }
++  }
++  if (!list)
++    return 1;
++  if (dc->form_count >= DVI_FORMS_MAX)
++  {
++    fprintf(stderr, "pdf:exobj: too many forms on this page\n");
++    fz_drop_display_list(ctx, list);
++    return 0;
++  }
++  dvi_form *f = &dc->forms[dc->form_count++];
++  memcpy(f->name, dc->form_stack[i].name, sizeof(f->name));
++  f->list = list;
++  f->origin = dc->form_stack[i].origin;
++  size_t n = lim - cur;
++  f->group = fz_memmem(cur, n, "/Transparency", 13) != NULL;
++  f->isolated = fz_memmem(cur, n, "/I true", 7) != NULL;
++  f->knockout = fz_memmem(cur, n, "/K true", 7) != NULL;
++  return 1;
++}
++
++static bool form_use(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
++{
++  dvi_context_flush_text(ctx, dc, st);
++  char name[64];
++  parse_obj_name(cur, lim, name, sizeof(name));
++  dvi_form *f = NULL;
++  for (int i = dc->form_count - 1; i >= 0; i--)
++    if (strcmp(dc->forms[i].name, name) == 0) { f = &dc->forms[i]; break; }
++  if (!f)
++  {
++    if (dc->dev)
++      fprintf(stderr, "pdf:uxobj %s: no such form on this page\n", name);
++    return 1;
++  }
++  if (!dc->dev)
++    return 1;
++  fz_point p = current_point(dc, st);
++  fz_matrix shift = fz_translate(p.x - f->origin.x, p.y - f->origin.y);
++  float alpha = DVI_FILL_ALPHA(st);
++  bool group = f->group || alpha < 1;
++  if (group)
++  {
++    fz_rect area = fz_transform_rect(fz_bound_display_list(ctx, f->list), shift);
++    fz_begin_group(ctx, dc->dev, area, NULL, f->isolated, f->knockout, FZ_BLEND_NORMAL, alpha);
++  }
++  fz_run_display_list(ctx, f->list, dc->dev, shift, fz_infinite_rect, NULL);
++  if (group)
++    fz_end_group(ctx, dc->dev);
++  return 1;
++}
++
+ /* Taudot (MIT, like this file): the specials graphicx's xetex.def emits to clip
+  * an included PDF (trim= or viewport= with clip): "x:gsave", then
+  * "pdf:literal 0 -D W H re W n", the figure, then "x:grestore". Without them the
+@@ -4459,6 +4730,17 @@ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+   {
+     cursor_t p = cur + 4;
+     while (p < lim && *p == ' ') p++;
++    if (lim - p >= 5 && memcmp(p, "bxobj", 5) == 0)
++      return form_begin(ctx, dc, st, p + 5, lim);
++    if (lim - p >= 5 && memcmp(p, "exobj", 5) == 0)
++      return form_end(ctx, dc, st, p + 5, lim);
++    if (lim - p >= 5 && memcmp(p, "uxobj", 5) == 0)
++      return form_use(ctx, dc, st, p + 5, lim);
++    if (lim - p > 4 && memcmp(p, "put ", 4) == 0)
++    {
++      scan_extgstates(ctx, dc, p + 4, lim);
++      return -1;
++    }
+     if (lim - p > 8 && memcmp(p, "literal ", 8) == 0)
+     {
+       p += 8;
+diff --git a/src/dvi/dvi_special.re2c.c b/src/dvi/dvi_special.re2c.c
+index 2c45ebe..61fc0b1 100644
+--- a/src/dvi/dvi_special.re2c.c
++++ b/src/dvi/dvi_special.re2c.c
+@@ -500,7 +500,7 @@ embed_image(fz_context *ctx, dvi_context *dc, dvi_state *st, struct xform_spec *
+     else if (h != h)
+       h = w / ar;
+     ctm = fz_pre_scale(fz_pre_translate(ctm, 0, h), w, -h);
+-    fz_fill_image(ctx, dc->dev, img, ctm, 1.0, color_params);
++    fz_fill_image(ctx, dc->dev, img, ctm, DVI_FILL_ALPHA(st), color_params);
+   }
+   fz_always(ctx)
+   {
+@@ -739,13 +739,155 @@ static void stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path
+ {
+   fz_stroke_state *stst = new_stroke_state(ctx, st);
+   fz_try(ctx)
+-    fz_stroke_path(ctx, dc->dev, path, stst, ctm, device_cs(ctx), color, 1.0, color_params);
++    fz_stroke_path(ctx, dc->dev, path, stst, ctm, device_cs(ctx), color, DVI_LINE_ALPHA(st), color_params);
+   fz_always(ctx)
+     fz_drop_stroke_state(ctx, stst);
+   fz_catch(ctx)
+     fz_rethrow(ctx);
+ }
+ 
++/* Taudot (MIT): B, B*, b and b*. With transparency, PDF paints the fill and the stroke as one knockout group, so
++ * the stroke replaces the fill under it rather than compositing over it. */
++static void fill_stroke_path(fz_context *ctx, dvi_context *dc, dvi_state *st, fz_path *path, int even_odd,
++                             fz_matrix ctm)
++{
++  bool knockout = st->gs.fill_transp > 0 || st->gs.line_transp > 0;
++  if (knockout)
++  {
++    fz_stroke_state *stst = new_stroke_state(ctx, st);
++    fz_rect area;
++    fz_try(ctx)
++      area = fz_bound_path(ctx, path, stst, ctm);
++    fz_always(ctx)
++      fz_drop_stroke_state(ctx, stst);
++    fz_catch(ctx)
++      fz_rethrow(ctx);
++    fz_begin_group(ctx, dc->dev, area, NULL, 0, 1, FZ_BLEND_NORMAL, 1);
++  }
++  fz_fill_path(ctx, dc->dev, path, even_odd, ctm, device_cs(ctx), st->gs.colors.fill, DVI_FILL_ALPHA(st),
++               color_params);
++  stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
++  if (knockout)
++    fz_end_group(ctx, dc->dev);
++}
++
++/* Taudot (MIT, like this file): transparency. PGF's xetex driver and the transparent package set opacity with an
++ * ExtGState: "pdf:put @pgfextgs << /pgf@ca0.5 << /ca 0.5 >> >>" (or "pdf:put @resources << /ExtGState << ... >> >>")
++ * once, then "pdf:code /pgf@ca0.5 gs" at each use. We remember every dictionary that sets /ca or /CA, by name. */
++
++static dvi_extgstate *extgs_entry(fz_context *ctx, dvi_context *dc, const char *name, size_t len, bool create)
++{
++  if (len >= sizeof(dc->extgs[0].name))
++    return NULL;
++  for (int i = 0; i < dc->extgs_count; i++)
++    if (strlen(dc->extgs[i].name) == len && memcmp(dc->extgs[i].name, name, len) == 0)
++      return &dc->extgs[i];
++  if (!create || dc->extgs_count >= DVI_EXTGS_MAX)
++    return NULL;
++  dvi_extgstate *e = &dc->extgs[dc->extgs_count++];
++  memcpy(e->name, name, len);
++  e->name[len] = 0;
++  e->ca = e->CA = -1;
++  return e;
++}
++
++static bool is_pdf_delim(char c)
++{
++  return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '/' || c == '<' || c == '>' ||
++         c == '[' || c == ']' || c == '(' || c == ')' || c == '{' || c == '}' || c == '%';
++}
++
++/* Scans the body of a pdf:put for "/Name << ... /ca x /CA y ... >>". Nested dictionaries are tracked, so
++ * "/ExtGState << /TRP0.5 << /ca 0.5 >> >>" records TRP0.5. Other keys are skipped. */
++static void scan_extgstates(fz_context *ctx, dvi_context *dc, cursor_t cur, cursor_t lim)
++{
++  cursor_t names[16]; size_t lens[16];
++  int depth = 0;
++  cursor_t pending = NULL; size_t pending_len = 0;
++  while (cur < lim)
++  {
++    char c = *cur;
++    if (c == '<' && cur + 1 < lim && cur[1] == '<')
++    {
++      if (depth < 16) { names[depth] = pending; lens[depth] = pending_len; }
++      depth++;
++      pending = NULL;
++      cur += 2;
++    }
++    else if (c == '>' && cur + 1 < lim && cur[1] == '>')
++    {
++      if (depth > 0) depth--;
++      pending = NULL;
++      cur += 2;
++    }
++    else if (c == '/')
++    {
++      cursor_t n = ++cur;
++      while (cur < lim && !is_pdf_delim(*cur)) cur++;
++      size_t len = cur - n;
++      bool fill = len == 2 && n[0] == 'c' && n[1] == 'a';
++      bool line = len == 2 && n[0] == 'C' && n[1] == 'A';
++      if ((fill || line) && depth >= 1 && depth <= 16 && names[depth - 1])
++      {
++        while (cur < lim && (*cur == ' ' || *cur == '\t' || *cur == '\n' || *cur == '\r')) cur++;
++        char *end;
++        char buf[32];
++        size_t k = 0;
++        while (cur + k < lim && k < sizeof(buf) - 1 && !is_pdf_delim(cur[k])) { buf[k] = cur[k]; k++; }
++        buf[k] = 0;
++        float v = strtof(buf, &end);
++        if (end != buf)
++        {
++          dvi_extgstate *e = extgs_entry(ctx, dc, names[depth - 1], lens[depth - 1], 1);
++          if (e)
++          {
++            if (v < 0) v = 0;
++            if (v > 1) v = 1;
++            if (fill) e->ca = v; else e->CA = v;
++          }
++        }
++        cur += k;
++        pending = NULL;
++      }
++      else
++      {
++        pending = n;
++        pending_len = len;
++      }
++    }
++    else
++    {
++      if (!(c == ' ' || c == '\t' || c == '\n' || c == '\r'))
++        pending = NULL;
++      cur++;
++    }
++  }
++}
++
++/* The "gs" operator: look the name up; for names never put (a page drawn before the one that put them), read the
++ * value from the name the way PGF (pgf@ca0.5, pgf@CA0.5) and the transparent package (TRP0.5) spell it. */
++static void set_extgstate(fz_context *ctx, dvi_context *dc, dvi_state *st, const char *name)
++{
++  float ca = -1, CA = -1;
++  dvi_extgstate *e = extgs_entry(ctx, dc, name, strlen(name), 0);
++  if (e)
++    ca = e->ca, CA = e->CA;
++  else if (strncmp(name, "pgf@ca", 6) == 0)
++    ca = strtof(name + 6, NULL);
++  else if (strncmp(name, "pgf@CA", 6) == 0)
++    CA = strtof(name + 6, NULL);
++  else if (strncmp(name, "TRP", 3) == 0)
++    ca = CA = strtof(name + 3, NULL);
++  else
++    fprintf(stderr, "pdf gs: unknown ExtGState /%s\n", name);
++  if (ca >= 0 || CA >= 0)
++    dvi_context_flush_text(ctx, dc, st);
++  if (ca >= 0)
++    st->gs.fill_transp = 1.0f - fz_clamp(ca, 0, 1);
++  if (CA >= 0)
++    st->gs.line_transp = 1.0f - fz_clamp(CA, 0, 1);
++}
++
+ static bool
+ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
+ {
+@@ -897,9 +1039,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+             fz_closepath(ctx, path);
+-            fz_fill_path(ctx, dc->dev, path, 0, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
+-            stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
++            fill_stroke_path(ctx, dc, st, path, 0, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -910,9 +1050,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+             fz_closepath(ctx, path);
+-            fz_fill_path(ctx, dc->dev, path, 1, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
+-            stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
++            fill_stroke_path(ctx, dc, st, path, 1, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -922,9 +1060,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           {
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+-            fz_fill_path(ctx, dc->dev, path, 0, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
+-            stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
++            fill_stroke_path(ctx, dc, st, path, 0, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -934,9 +1070,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           {
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+-            fz_fill_path(ctx, dc->dev, path, 1, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
+-            stroke_path(ctx, dc, st, path, ctm, st->gs.colors.line);
++            fill_stroke_path(ctx, dc, st, path, 1, ctm);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -948,7 +1082,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+             fz_fill_path(ctx, dc->dev, path, 0, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
++                         st->gs.colors.fill, DVI_FILL_ALPHA(st), color_params);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -959,7 +1093,7 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+             fz_matrix ctm = dvi_get_ctm(dc, st);
+             fz_path *path = get_path(ctx, dc);
+             fz_fill_path(ctx, dc->dev, path, 1, ctm, device_cs(ctx),
+-                         st->gs.colors.fill, 1.0, color_params);
++                         st->gs.colors.fill, DVI_FILL_ALPHA(st), color_params);
+           }
+           drop_path(ctx, dc);
+           break;
+@@ -1038,9 +1172,16 @@ pdf_code(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t
+           break;
+         }
+ 
++        case PDF_OP_gs:
++        {
++          val v[1];
++          vstack_get_arguments(ctx, stack, v, 1);
++          set_extgstate(ctx, dc, st, val_as_name(ctx, stack, v[0]));
++          break;
++        }
++
+         case PDF_OP_ri:
+         case PDF_OP_i:
+-        case PDF_OP_gs:
+         case PDF_OP_v:
+         case PDF_OP_y:
+         case PDF_OP_BT:
+@@ -1206,6 +1347,136 @@ dvi_exec_pdf(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, curs
+   */
+ }
+ 
++/* Taudot (MIT, like this file): form XObjects, which PGF uses for transparency groups (\begin{scope}[transparency
++ * group, opacity=...]): "pdf:bxobj @name bbox ...", the content, "pdf:exobj <</Group << /S /Transparency ... >> >>",
++ * and later "pdf:uxobj @name" where it is drawn, after a "gs" that sets the group's opacity. The content is
++ * recorded into a display list at the point of bxobj, then replayed at uxobj, shifted to the current point, inside a
++ * group with the current fill alpha. Forms live for the page. */
++
++static cursor_t parse_obj_name(cursor_t cur, cursor_t lim, char *buf, size_t size)
++{
++  while (cur < lim && *cur == ' ') cur++;
++  size_t k = 0;
++  while (cur < lim && *cur != ' ' && *cur != '<' && k + 1 < size)
++    buf[k++] = *cur++;
++  buf[k] = 0;
++  return cur;
++}
++
++static fz_point current_point(dvi_context *dc, dvi_state *st)
++{
++  return fz_transform_point(fz_make_point(0, 0), dvi_get_ctm(dc, st));
++}
++
++static bool form_begin(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
++{
++  dvi_context_flush_text(ctx, dc, st);
++  if (dc->form_depth >= DVI_FORM_DEPTH)
++  {
++    fprintf(stderr, "pdf:bxobj: forms nested too deep\n");
++    return 0;
++  }
++  int i = dc->form_depth;
++  parse_obj_name(cur, lim, dc->form_stack[i].name, sizeof(dc->form_stack[i].name));
++  dc->form_stack[i].origin = current_point(dc, st);
++  dc->form_stack[i].fill_transp = st->gs.fill_transp;
++  dc->form_stack[i].line_transp = st->gs.line_transp;
++  dc->form_stack[i].saved_dev = dc->dev;
++  dc->form_stack[i].list = NULL;
++  if (dc->dev)
++  {
++    fz_display_list *list = fz_new_display_list(ctx, fz_infinite_rect);
++    fz_try(ctx)
++      dc->dev = fz_new_list_device(ctx, list);
++    fz_catch(ctx)
++    {
++      fz_drop_display_list(ctx, list);
++      fz_rethrow(ctx);
++    }
++    dc->form_stack[i].list = list;
++  }
++  dc->form_depth = i + 1;
++  /* A form's content stream starts opaque. */
++  st->gs.fill_transp = st->gs.line_transp = 0;
++  return 1;
++}
++
++static bool form_end(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
++{
++  dvi_context_flush_text(ctx, dc, st);
++  if (dc->form_depth == 0)
++  {
++    fprintf(stderr, "pdf:exobj without pdf:bxobj\n");
++    return 0;
++  }
++  int i = --dc->form_depth;
++  st->gs.fill_transp = dc->form_stack[i].fill_transp;
++  st->gs.line_transp = dc->form_stack[i].line_transp;
++  fz_display_list *list = dc->form_stack[i].list;
++  if (list)
++  {
++    fz_device *list_dev = dc->dev;
++    dc->dev = dc->form_stack[i].saved_dev;
++    fz_try(ctx)
++      fz_close_device(ctx, list_dev);
++    fz_always(ctx)
++      fz_drop_device(ctx, list_dev);
++    fz_catch(ctx)
++    {
++      fz_drop_display_list(ctx, list);
++      fz_rethrow(ctx);
++    }
++  }
++  if (!list)
++    return 1;
++  if (dc->form_count >= DVI_FORMS_MAX)
++  {
++    fprintf(stderr, "pdf:exobj: too many forms on this page\n");
++    fz_drop_display_list(ctx, list);
++    return 0;
++  }
++  dvi_form *f = &dc->forms[dc->form_count++];
++  memcpy(f->name, dc->form_stack[i].name, sizeof(f->name));
++  f->list = list;
++  f->origin = dc->form_stack[i].origin;
++  size_t n = lim - cur;
++  f->group = fz_memmem(cur, n, "/Transparency", 13) != NULL;
++  f->isolated = fz_memmem(cur, n, "/I true", 7) != NULL;
++  f->knockout = fz_memmem(cur, n, "/K true", 7) != NULL;
++  return 1;
++}
++
++static bool form_use(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t cur, cursor_t lim)
++{
++  dvi_context_flush_text(ctx, dc, st);
++  char name[64];
++  parse_obj_name(cur, lim, name, sizeof(name));
++  dvi_form *f = NULL;
++  for (int i = dc->form_count - 1; i >= 0; i--)
++    if (strcmp(dc->forms[i].name, name) == 0) { f = &dc->forms[i]; break; }
++  if (!f)
++  {
++    if (dc->dev)
++      fprintf(stderr, "pdf:uxobj %s: no such form on this page\n", name);
++    return 1;
++  }
++  if (!dc->dev)
++    return 1;
++  fz_point p = current_point(dc, st);
++  fz_matrix shift = fz_translate(p.x - f->origin.x, p.y - f->origin.y);
++  float alpha = DVI_FILL_ALPHA(st);
++  bool group = f->group || alpha < 1;
++  if (group)
++  {
++    fz_rect area = fz_transform_rect(fz_bound_display_list(ctx, f->list), shift);
++    fz_begin_group(ctx, dc->dev, area, NULL, f->isolated, f->knockout, FZ_BLEND_NORMAL, alpha);
++  }
++  fz_run_display_list(ctx, f->list, dc->dev, shift, fz_infinite_rect, NULL);
++  if (group)
++    fz_end_group(ctx, dc->dev);
++  return 1;
++}
++
+ /* Taudot (MIT, like this file): the specials graphicx's xetex.def emits to clip
+  * an included PDF (trim= or viewport= with clip): "x:gsave", then
+  * "pdf:literal 0 -D W H re W n", the figure, then "x:grestore". Without them the
+@@ -1228,6 +1499,17 @@ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+   {
+     cursor_t p = cur + 4;
+     while (p < lim && *p == ' ') p++;
++    if (lim - p >= 5 && memcmp(p, "bxobj", 5) == 0)
++      return form_begin(ctx, dc, st, p + 5, lim);
++    if (lim - p >= 5 && memcmp(p, "exobj", 5) == 0)
++      return form_end(ctx, dc, st, p + 5, lim);
++    if (lim - p >= 5 && memcmp(p, "uxobj", 5) == 0)
++      return form_use(ctx, dc, st, p + 5, lim);
++    if (lim - p > 4 && memcmp(p, "put ", 4) == 0)
++    {
++      scan_extgstates(ctx, dc, p + 4, lim);
++      return -1;
++    }
+     if (lim - p > 8 && memcmp(p, "literal ", 8) == 0)
+     {
+       p += 8;
+diff --git a/src/dvi/mydvi.h b/src/dvi/mydvi.h
+index e2f2105..c0c3753 100644
+--- a/src/dvi/mydvi.h
++++ b/src/dvi/mydvi.h
+@@ -285,8 +285,32 @@ typedef struct
+   int dash_len;
+   float dash_phase;
+   int h, v;
++  // Taudot (MIT): 1 - alpha of fills (PDF /ca) and strokes (/CA), so the zeroed state is opaque.
++  float fill_transp, line_transp;
+ } dvi_graphicstate;
+ 
++#define DVI_FILL_ALPHA(st) (1.0f - (st)->gs.fill_transp)
++#define DVI_LINE_ALPHA(st) (1.0f - (st)->gs.line_transp)
++
++// Taudot (MIT): ExtGState dictionaries seen in pdf:put specials, by name, for the "gs" operator. Kept across pages:
++// PGF puts them once, on the page where an opacity is first used.
++#define DVI_EXTGS_MAX 256
++typedef struct
++{
++  char name[48];
++  float ca, CA;      // < 0 when the dictionary doesn't set it
++} dvi_extgstate;
++
++#define DVI_FORMS_MAX 64
++#define DVI_FORM_DEPTH 8
++typedef struct
++{
++  char name[64];
++  fz_display_list *list;  // recorded in device space at the point of pdf:bxobj
++  fz_point origin;        // that point, in device space
++  bool group, isolated, knockout;
++} dvi_form;
++
+ typedef struct
+ {
+   dvi_colorstate origin;
+@@ -336,6 +360,19 @@ typedef struct
+   // Pdf color stacks (introduced by pdftex)
+   dvi_colorstacks pdfcolorstacks;
+   float scale;
++  dvi_extgstate extgs[DVI_EXTGS_MAX];
++  int extgs_count;
++  // Taudot (MIT): form XObjects of the page (pdf:bxobj ... pdf:exobj, drawn by pdf:uxobj), as display lists.
++  dvi_form forms[DVI_FORMS_MAX];
++  int form_count;
++  struct {
++    fz_device *saved_dev;
++    fz_display_list *list;
++    fz_point origin;
++    char name[64];
++    float fill_transp, line_transp;
++  } form_stack[DVI_FORM_DEPTH];
++  int form_depth;
+ } dvi_context;
+ 
+ #define DC_ALLOC(ctx, dc, type, count) ((type*)dvi_scratch_alloc(ctx, &(dc)->scratch, sizeof(type) * (count)))
+@@ -347,6 +384,7 @@ bool dvi_state_enter_vf(dvi_context *dc, dvi_state *vfst, const dvi_state *st, d
+ void dvi_context_flush_text(fz_context *ctx, dvi_context *dc, dvi_state *st);
+ void dvi_context_begin_frame(fz_context *ctx, dvi_context *dc, fz_device *dev);
+ void dvi_context_end_frame(fz_context *ctx, dvi_context *dc);
++void dvi_context_drop_forms(fz_context *ctx, dvi_context *dc);
+ 
+ #define inlined static inline __attribute__((unused))
+ 
+-- 
+2.50.0
+

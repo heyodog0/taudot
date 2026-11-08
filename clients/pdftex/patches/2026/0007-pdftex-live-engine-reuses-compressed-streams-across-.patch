@@ -1,0 +1,138 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Fri, 6 Nov 2026 14:50:24 -0500
+Subject: [PATCH 7/9] pdftex: live engine reuses compressed streams across
+ rollbacks
+
+---
+ texk/web2c/pdftexdir/writezip.c | 110 ++++++++++++++++++++++++++++++++
+ 1 file changed, 110 insertions(+)
+
+diff --git a/texk/web2c/pdftexdir/writezip.c b/texk/web2c/pdftexdir/writezip.c
+index f0e62358..299742cf 100644
+--- a/texk/web2c/pdftexdir/writezip.c
++++ b/texk/web2c/pdftexdir/writezip.c
+@@ -30,6 +30,97 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
+ static char *zipbuf = NULL;
+ static z_stream c_stream;       /* compression stream */
+ 
++#ifdef __APPLE__
++/* Taudot (live engine only, GPL): a stream's compressed bytes are kept in $TAUDOT_LIVE_OUT/zcache under the
++   SHA-256 of its uncompressed bytes (and the level and zlib's version), so a rollback that ships the same image or
++   page again copies them instead of deflating again. The stream is gathered whole and deflated in one call at the
++   end; deflate's output doesn't depend on how its input is split, so the bytes are the same as the stock path's. */
++#include <CommonCrypto/CommonDigest.h>
++#include <fcntl.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#define ZC_MIN 32768            /* smaller streams: deflated at the end, not cached */
++static int zc_on = -1;
++static char *zc_dir;
++static unsigned char *zc_in;
++static size_t zc_n, zc_cap;
++
++static void zc_put(const void *p, size_t n)
++{
++    if (zc_n + n > zc_cap) {
++        zc_cap = (zc_n + n) * 2;
++        zc_in = xrealloc(zc_in, zc_cap);
++    }
++    memcpy(zc_in + zc_n, p, n);
++    zc_n += n;
++}
++
++static void zc_write(const char *p, size_t n)
++{
++    if (n == 0)
++        return;
++    pdfgone += xfwrite((void *) p, 1, n, pdffile);
++    pdflastbyte = p[n - 1];
++}
++
++static void zc_finish(int level)
++{
++    char key[2 * CC_SHA256_DIGEST_LENGTH + 64], path[4096], tmp[4200];
++    unsigned char d[CC_SHA256_DIGEST_LENGTH];
++    struct stat st;
++    char *out = NULL;
++    size_t cap, n = 0;
++    int i, fd, err, cached = 0;
++    if (zc_n >= ZC_MIN) {
++        CC_SHA256(zc_in, (CC_LONG) zc_n, d);
++        for (i = 0; i < CC_SHA256_DIGEST_LENGTH; i++)
++            sprintf(key + 2 * i, "%02x", d[i]);
++        snprintf(key + 2 * CC_SHA256_DIGEST_LENGTH, 64, "-%zu-%d-%s", zc_n, level, zlibVersion());
++        snprintf(path, sizeof path, "%s/%s", zc_dir, key);
++        if ((fd = open(path, O_RDONLY)) >= 0) {
++            if (fstat(fd, &st) == 0 && st.st_size > 0) {
++                out = xmalloc((size_t) st.st_size);
++                cached = (read)(fd, out, (size_t) st.st_size) == st.st_size;
++                n = (size_t) st.st_size;
++            }
++            close(fd);
++            if (!cached) {
++                free(out);
++                out = NULL;
++            }
++        }
++    }
++    if (!cached) {
++        cap = deflateBound(&c_stream, zc_n) + 64;
++        out = xmalloc(cap);
++        c_stream.next_in = zc_in;
++        c_stream.avail_in = (uInt) zc_n;
++        c_stream.next_out = (Bytef *) out;
++        c_stream.avail_out = (uInt) cap;
++        err = deflate(&c_stream, Z_FINISH);
++        if (err != Z_STREAM_END)
++            pdftex_fail("zlib: deflate() failed (error code %d)", err);
++        n = cap - c_stream.avail_out;
++        if (zc_n >= ZC_MIN) {
++            snprintf(tmp, sizeof tmp, "%s.%d.part", path, (int) getpid());
++            if ((fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644)) >= 0) {
++                if ((write)(fd, out, n) == (ssize_t) n && close(fd) == 0)
++                    rename(tmp, path);
++                else {
++                    close(fd);
++                    unlink(tmp);
++                }
++            }
++        }
++    }
++    zc_write(out, n);
++    free(out);
++    xfflush(pdffile);
++    pdfstreamlength = (longinteger) n;
++    zc_n = 0;
++}
++#endif
++
+ void writezip(boolean finish)
+ {
+     int err;
+@@ -59,6 +150,25 @@ void writezip(boolean finish)
+         c_stream.avail_out = ZIP_BUF_SIZE;
+     }
+     assert(zipbuf != NULL);
++#ifdef __APPLE__
++    if (zc_on < 0) {
++        const char *o = getenv("TAUDOT_LIVE_OUT");
++        const char *z = getenv("TAUDOT_ZCACHE"); /* "0": off (for measuring) */
++        zc_on = getenv("TAUDOT_LIVE_FD") != NULL && o != NULL && !(z && strcmp(z, "0") == 0);
++        if (zc_on) {
++            zc_dir = concat(o, "/zcache");
++            mkdir(zc_dir, 0777);
++        }
++    }
++    if (zc_on) {
++        zc_put(pdfbuf, (size_t) pdfptr);
++        if (finish)
++            zc_finish(level);
++        else
++            pdfstreamlength = 1;  /* "a stream has begun"; the real length is set at the end */
++        return;
++    }
++#endif
+     c_stream.next_in = pdfbuf;
+     c_stream.avail_in = pdfptr;
+     for (;;) {

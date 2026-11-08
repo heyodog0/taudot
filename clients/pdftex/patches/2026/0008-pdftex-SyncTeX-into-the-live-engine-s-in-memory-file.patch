@@ -1,0 +1,362 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Fri, 6 Nov 2026 15:15:12 -0500
+Subject: [PATCH 8/9] pdftex: SyncTeX into the live engine's in-memory files
+
+---
+ texk/web2c/lib/openclose.c      |  15 +++-
+ texk/web2c/lib/taudot-live.c    | 118 ++++++++++++++++++++++++++++++--
+ texk/web2c/synctexdir/synctex.c |  90 ++++++++++++++++++------
+ 3 files changed, 196 insertions(+), 27 deletions(-)
+
+diff --git a/texk/web2c/lib/openclose.c b/texk/web2c/lib/openclose.c
+index 9eeb7c0c..c03158ba 100644
+--- a/texk/web2c/lib/openclose.c
++++ b/texk/web2c/lib/openclose.c
+@@ -226,6 +226,7 @@ recorder_record_output (const_string name)
+    value is ignored). Stages 0 and 1 return NULL to fall back to the normal open. */
+ FILE *(*taudot_open_in_hook) (const char *name, int filefmt, int stage) = NULL;
+ boolean (*taudot_open_out_hook) (FILE **f_ptr, const char *name, const_string fopen_mode) = NULL;
++const char *taudot_open_in_found = NULL; /* set by the hook on a stage-0 hit: the name it opened */
+ 
+ boolean
+ open_input (FILE **f_ptr, int filefmt, const_string fopen_mode)
+@@ -251,8 +252,18 @@ open_input (FILE **f_ptr, int filefmt, const_string fopen_mode)
+     fullnameoffile = NULL;
+ 
+     if (taudot_open_in_hook && filefmt >= 0
+-        && (*f_ptr = taudot_open_in_hook (nameoffile + 1, filefmt, 0)))
+-        fullnameoffile = xstrdup (nameoffile + 1);
++        && (*f_ptr = taudot_open_in_hook (nameoffile + 1, filefmt, 0))) {
++        /* Name it as kpathsea would have found it on disk: "./NAME" for a relative name searched from ".", with
++           the suffix the hook added (taudot_open_in_found). SyncTeX and the log print this name. */
++        const char *found = taudot_open_in_found ? taudot_open_in_found : nameoffile + 1;
++        string kname = (kpse_absolute_p (found, true) || IS_DIR_SEP (found[0]))
++                       ? xstrdup (found) : concat ("./", found);
++        free (nameoffile);
++        namelength = strlen (kname);
++        nameoffile = xmalloc (namelength + 2);
++        strcpy (nameoffile + 1, kname);
++        fullnameoffile = kname;
++    }
+     
+     /* Look in -output-directory first, if the filename is not
+        absolute.  This is because .aux and other such files will get
+diff --git a/texk/web2c/lib/taudot-live.c b/texk/web2c/lib/taudot-live.c
+index 990876aa..0975db3c 100644
+--- a/texk/web2c/lib/taudot-live.c
++++ b/texk/web2c/lib/taudot-live.c
+@@ -38,6 +38,7 @@
+ extern FILE *(*taudot_open_in_hook) (const char *name, int filefmt, int stage);
+ extern boolean (*taudot_open_out_hook) (FILE **f_ptr, const char *name, const_string fopen_mode);
+ extern void (*taudot_exit_hook) (int);
++extern const char *taudot_open_in_found;
+ 
+ static int tl_on = 0;            /* live mode */
+ static int tl_fd = -1;           /* datagram socket to the driver */
+@@ -198,7 +199,7 @@ tl_reader_file (int track, char *buf, long len)
+ struct tl_vfile { char *abs; char *buf; long len, cap, pos; FILE *f; };
+ static struct tl_vfile *tl_vfiles[256];
+ static int tl_nvfiles = 0;
+-static struct tl_vfile *tl_pdf, *tl_log;
++static struct tl_vfile *tl_pdf, *tl_log, *tl_synctex; /* tl_synctex: the finished .synctex(.gz), once renamed */
+ 
+ static char *
+ tl_absname (const char *name)
+@@ -286,6 +287,100 @@ tl_open_out (FILE **f_ptr, const char *name, const_string mode)
+   return *f_ptr != NULL;
+ }
+ 
++static void tl_dump (struct tl_vfile *v, const char *name);
++
++/* Set by synctex.c when it closes its file: gzip it (after the PDF is out). */
++void (*taudot_synctex_gzip_hook) (const char *name) = NULL;
++int taudot_synctex_gzip_pending = 0;
++
++/* The finished .synctex(.gz) as OUT/<stem>.synctex[.gz]; returns the name written there, or NULL. */
++static const char *
++tl_dump_synctex (const char *stem)
++{
++  static char name[96];
++  int gz;
++  if (!tl_synctex)
++    return NULL;
++  gz = strcmp (tl_synctex->abs + strlen (tl_synctex->abs) - 3, ".gz") == 0;
++  if (gz && taudot_synctex_gzip_pending && taudot_synctex_gzip_hook) {
++    taudot_synctex_gzip_hook (tl_synctex->abs);
++    taudot_synctex_gzip_pending = 0;
++  }
++  snprintf (name, sizeof name, "%s.synctex%s", stem, gz ? ".gz" : "");
++  tl_dump (tl_synctex, name);
++  return name;
++}
++
++/* For SyncTeX (synctex.c): its file is one of these. Names as SyncTeX gives them (relative to the cwd). */
++char *
++taudot_vfile_data (const char *name, long *len)
++{
++  char *abs = tl_absname (name);
++  struct tl_vfile *v = tl_vfind (abs);
++  free (abs);
++  if (!v)
++    return NULL;
++  if (v->f)
++    fflush (v->f);
++  *len = v->len;
++  return v->buf;
++}
++
++void
++taudot_vfile_replace (const char *name, char *buf, long len)
++{
++  char *abs = tl_absname (name);
++  struct tl_vfile *v = tl_vfind (abs);
++  free (abs);
++  if (!v) {
++    free (buf);
++    return;
++  }
++  free (v->buf);
++  v->buf = buf;
++  v->len = v->pos = v->cap = len;
++}
++
++int
++taudot_vfile_remove (const char *name)
++{
++  char *abs = tl_absname (name);
++  int i;
++  for (i = 0; i < tl_nvfiles; i++)
++    if (strcmp (tl_vfiles[i]->abs, abs) == 0) {
++      struct tl_vfile *v = tl_vfiles[i];
++      if (v == tl_synctex)
++        tl_synctex = NULL;
++      free (v->buf);
++      free (v->abs);
++      free (v);
++      tl_vfiles[i] = tl_vfiles[--tl_nvfiles];
++      free (abs);
++      return 0;
++    }
++  free (abs);
++  errno = ENOENT;
++  return -1;
++}
++
++int
++taudot_vfile_rename (const char *from, const char *to)
++{
++  char *a = tl_absname (from), *b = tl_absname (to);
++  struct tl_vfile *v = tl_vfind (a);
++  free (a);
++  if (!v) {
++    free (b);
++    errno = ENOENT;
++    return -1;
++  }
++  taudot_vfile_remove (to);
++  free (v->abs);
++  v->abs = b;
++  tl_synctex = v;
++  return 0;
++}
++
+ static FILE *
+ tl_open_shadow (const char *name)
+ {
+@@ -349,12 +444,18 @@ tl_open_in (const char *name, int filefmt, int stage)
+     return NULL;
+   }
+   if (stage == 0) {
++    static char *found;
++    free (found);
++    found = NULL;
++    taudot_open_in_found = NULL;
+     if (filefmt == kpse_tex_format) {
+       char *withtex = concat (name, ".tex");
+       f = tl_open_shadow (withtex);
+-      free (withtex);
+-      if (f)
++      if (f) {
++        taudot_open_in_found = found = withtex;
+         return f;
++      }
++      free (withtex);
+     }
+     return tl_open_shadow (name);
+   }
+@@ -611,6 +712,13 @@ tl_finish (void)
+     tl_send ("P %d %d %d %llu %llu %llu %llu %s\n", (int) getpid (), tl_seq, (int) totalpages,
+              (unsigned long long) t0, (unsigned long long) t1, (unsigned long long) t2,
+              (unsigned long long) t3, name);
++    { /* then the SyncTeX file, which the PDF doesn't wait for */
++      char stem[64];
++      const char *sname;
++      snprintf (stem, sizeof stem, "pdf-%d-%d", tl_seq, (int) getpid ());
++      if ((sname = tl_dump_synctex (stem)))
++        tl_send ("Y %d %d %llu %s\n", (int) getpid (), tl_seq, (unsigned long long) tl_now (), sname);
++    }
+     _exit (0);
+   }
+   while (waitpid (c, NULL, 0) < 0 && errno == EINTR)
+@@ -654,7 +762,7 @@ tl_dump_written (void)
+     struct tl_vfile *v = tl_vfiles[i];
+     char name[PATH_MAX], *d = name;
+     const char *r;
+-    if (v == tl_pdf || v == tl_log || strncmp (v->abs, tl_proj, tl_proj_len) != 0)
++    if (v == tl_pdf || v == tl_log || strstr (v->abs, ".synctex") || strncmp (v->abs, tl_proj, tl_proj_len) != 0)
+       continue;
+     d += snprintf (name, sizeof name, "%s/", dir);
+     for (r = v->abs + tl_proj_len; *r && d < name + sizeof name - 4; r++) {
+@@ -692,6 +800,8 @@ tl_exit (int code)
+   tl_dump (tl_pdf, name);
+   snprintf (name, sizeof name, "final-%d.log", tl_seq);
+   tl_dump (tl_log, name);
++  snprintf (name, sizeof name, "final-%d", tl_seq);
++  tl_dump_synctex (name);
+   tl_dump_written ();
+   tl_send_tracks ();
+   tl_send ("E %d %d %d %d %llu\n", (int) getpid (), tl_seq, (int) totalpages, code, (unsigned long long) tl_now ());
+diff --git a/texk/web2c/synctexdir/synctex.c b/texk/web2c/synctexdir/synctex.c
+index 28a66580..b8a477cc 100644
+--- a/texk/web2c/synctexdir/synctex.c
++++ b/texk/web2c/synctexdir/synctex.c
+@@ -505,6 +505,7 @@ void synctexinitcommand(void)
+ /*  Free all memory used, close and remove the file if any,
+  *  It is sent locally when there is a problem with synctex output.
+  *  It is sent by pdftex when a fatal error occurred in pdftex.web. */
++static void synctex_close_file (void);
+ void synctexabort(boolean log_opened __attribute__ ((unused)))
+ {
+     SYNCTEX_RETURN_IF_DISABLED;
+@@ -512,11 +513,7 @@ void synctexabort(boolean log_opened __attribute__ ((unused)))
+     printf("\nSynchronize DEBUG: synctex_abort\n");
+ #   endif
+     if (SYNCTEX_FILE) {
+-        if (SYNCTEX_NO_GZ) {
+-            xfclose((FILE *) SYNCTEX_FILE, synctex_ctxt.busy_name);
+-        } else {
+-            gzclose((gzFile) SYNCTEX_FILE);
+-        }
++        synctex_close_file();
+         SYNCTEX_FILE = NULL;
+ #if defined(W32UPTEXSYNCTEX)
+         fsyscp_remove(synctex_ctxt.busy_name);
+@@ -619,6 +616,64 @@ extern FILE *f_fsyscp_fopen(const char *filename, const char *mode);
+ #define remove fsyscp_remove
+ #endif /* W32UPTEXSYNCTEX */
+ 
++#if !defined(W32UPTEXSYNCTEX)
++/* Taudot (the live engine; GPL). When the live runtime is on (its open-for-writing hook is set), the .synctex file
++   is one of its in-memory written files: each forked snapshot has its own copy, and nothing goes to the disk. The
++   text is written plain and gzipped when the file is closed, with gzopen("wb")'s parameters, so the bytes are the
++   same as stock's. rename and remove act on the in-memory files only. */
++extern boolean (*taudot_open_out_hook) (FILE **f_ptr, const char *name, const_string fopen_mode);
++extern char *taudot_vfile_data (const char *name, long *len);
++extern void taudot_vfile_replace (const char *name, char *buf, long len);
++extern int taudot_vfile_rename (const char *from, const char *to);
++extern int taudot_vfile_remove (const char *name);
++extern void (*taudot_synctex_gzip_hook) (const char *name);
++extern int taudot_synctex_gzip_pending;
++#define TAUDOT_SYNCTEX (taudot_open_out_hook != NULL)
++#define rename(a, b) (TAUDOT_SYNCTEX ? taudot_vfile_rename ((a), (b)) : rename ((a), (b)))
++#define remove(a) (TAUDOT_SYNCTEX ? taudot_vfile_remove (a) : remove (a))
++
++static void taudot_synctex_gzip (const char *name)
++{
++    long len = 0;
++    char *in = taudot_vfile_data (name, &len), *out;
++    z_stream z;
++    uLong cap;
++    if (!in)
++        return;
++    memset (&z, 0, sizeof z);
++    if (deflateInit2 (&z, Z_DEFAULT_COMPRESSION, Z_DEFLATED, MAX_WBITS + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK)
++        return;
++    cap = deflateBound (&z, (uLong) len) + 64;
++    out = xmalloc (cap);
++    z.next_in = (Bytef *) in;
++    z.avail_in = (uInt) len;
++    z.next_out = (Bytef *) out;
++    z.avail_out = (uInt) cap;
++    if (deflate (&z, Z_FINISH) == Z_STREAM_END)
++        taudot_vfile_replace (name, out, (long) (cap - z.avail_out));
++    else
++        free (out);
++    deflateEnd (&z);
++}
++#else
++#define TAUDOT_SYNCTEX 0
++#endif
++
++/* Close the synctex file, whichever kind it is. */
++static void synctex_close_file (void)
++{
++    if (TAUDOT_SYNCTEX) {
++        /* gzipped later, by the live runtime, once the PDF is out (taudot_synctex_gzip_hook) */
++        fclose ((FILE *) SYNCTEX_FILE);
++        taudot_synctex_gzip_hook = taudot_synctex_gzip;
++        taudot_synctex_gzip_pending = !SYNCTEX_NO_GZ;
++    } else if (SYNCTEX_NO_GZ) {
++        xfclose ((FILE *) SYNCTEX_FILE, synctex_ctxt.busy_name);
++    } else {
++        gzclose ((gzFile) SYNCTEX_FILE);
++    }
++}
++
+ /*  synctex_dot_open ensures that the foo.synctex file is open.
+  *  In case of problem, it definitely disables synchronization.
+  *  Now all the output synchronization info is gathered in only one file.
+@@ -697,7 +752,12 @@ static void *synctex_dot_open(void)
+             strcat(the_busy_name, synctex_suffix);
+             /*  Initialize SYNCTEX_NO_GZ with the content of \synctex to let the user choose the format. */
+             strcat(the_busy_name, synctex_suffix_busy);
+-            if (SYNCTEX_NO_GZ) {
++            if (TAUDOT_SYNCTEX) {
++                FILE *f = NULL;
++                taudot_open_out_hook (&f, the_busy_name, FOPEN_W_MODE);
++                SYNCTEX_FILE = f;
++                synctex_ctxt.fprintf = (synctex_fprintf_t) (&fprintf);
++            } else if (SYNCTEX_NO_GZ) {
+                 SYNCTEX_FILE = fopen(the_busy_name, FOPEN_W_MODE);
+                 synctex_ctxt.fprintf = (synctex_fprintf_t) (&fprintf);
+             } else {
+@@ -947,11 +1007,7 @@ void synctexterminate(boolean log_opened)
+             if (SYNCTEX_NOT_VOID) {
+                 synctex_record_postamble();
+                 /* close the synctex file */
+-                if (SYNCTEX_NO_GZ) {
+-                    xfclose((FILE *) SYNCTEX_FILE, synctex_ctxt.busy_name);
+-                } else {
+-                    gzclose((gzFile) SYNCTEX_FILE);
+-                }
++                synctex_close_file();
+                 SYNCTEX_FILE = NULL;
+                 /*  renaming the working synctex file */
+                 if (0 == rename(synctex_ctxt.busy_name, the_real_syncname)) {
+@@ -1001,11 +1057,7 @@ void synctexterminate(boolean log_opened)
+                 }
+             } else {
+                 /* close and remove the synctex file because there are no pages of output */
+-                if (SYNCTEX_NO_GZ) {
+-                    xfclose((FILE *) SYNCTEX_FILE, synctex_ctxt.busy_name);
+-                } else {
+-                    gzclose((gzFile) SYNCTEX_FILE);
+-                }
++                synctex_close_file();
+                 SYNCTEX_FILE = NULL;
+                 remove(synctex_ctxt.busy_name);
+             }
+@@ -1052,11 +1104,7 @@ void synctexterminate(boolean log_opened)
+         remove(the_real_syncname);
+         if (SYNCTEX_FILE) {
+             /* close the synctex file */
+-            if (SYNCTEX_NO_GZ) {
+-                xfclose((FILE *) SYNCTEX_FILE, synctex_ctxt.busy_name);
+-            } else {
+-                gzclose((gzFile) SYNCTEX_FILE);
+-            }
++            synctex_close_file();
+             SYNCTEX_FILE = NULL;
+             /*  removing the working synctex file */
+             remove(synctex_ctxt.busy_name);

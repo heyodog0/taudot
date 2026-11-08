@@ -1,0 +1,7 @@
+txp-render
+*.o
+.build/
+*.dSYM/
+.txp-render.texpresso
+clients/render/swift/.build/
+txp-render.new

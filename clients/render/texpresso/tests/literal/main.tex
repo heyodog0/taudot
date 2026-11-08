@@ -1,0 +1,20 @@
+% Patch 0108: pdf:literal and friends, as dvipdfmx draws them. At the current point: "pdf:literal", "pdf:content"
+% (in q/Q). Direct, relative to the DVI origin (1in, 1in from the top left, y up; dvipdfmx starts every page with
+% "1 0 0 1 72 720 cm"): "pdf:literal direct", also inside a \scalebox (scaled about the current point).
+% "pdf:direct" and "pdf:page" are pdfTeX-compatibility forms Tectonic's dvipdfmx doesn't draw: nothing there.
+% Compare with Tectonic's PDF drawn by mutool.
+\documentclass{article}
+\usepackage{graphicx}
+\pagestyle{empty}
+\begin{document}
+Here\special{pdf:literal q 1 0 0 rg 0 0 20 10 re f Q} a red box at the point.
+
+There\special{pdf:content 0 0 1 rg 0 -5 30 5 re f} a blue one in q/Q, then this text stays black.
+
+\special{pdf:literal direct q 0 0.6 0 rg 100 -300 80 40 re f Q}%
+\special{pdf:direct q 1 0.5 0 rg 200 -300 80 40 re f Q}%
+\special{pdf:page q 0.5 0 0.5 rg 300 -300 80 40 re f Q}%
+Direct literal: a green box in the middle of the page; no orange or purple one.
+
+\scalebox{2}{\special{pdf:literal direct q 0 0.7 0.7 rg 100 -150 40 40 re f Q}scaled}
+\end{document}

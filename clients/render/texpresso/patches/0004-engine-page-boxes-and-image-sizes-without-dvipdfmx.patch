@@ -1,0 +1,1162 @@
+From 903cf9752b44cc02535c992df3260ead72e1e12f Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Tue, 3 Nov 2026 13:47:40 -0500
+Subject: [PATCH 4/6] engine: page boxes and image sizes without dvipdfmx
+
+---
+ src/engine/Makefile            |   6 +-
+ src/engine/engine/taudot-pic.c | 814 +++++++++++++++++++++++++++++++++
+ src/engine/engine/taudot-pic.h |  52 +++
+ src/engine/engine/xetex-ini.c  |   3 -
+ src/engine/engine/xetex-pic.c  | 141 +++---
+ src/engine/main/main.c         |   5 +
+ 6 files changed, 927 insertions(+), 94 deletions(-)
+ create mode 100644 src/engine/engine/taudot-pic.c
+ create mode 100644 src/engine/engine/taudot-pic.h
+
+diff --git a/src/engine/Makefile b/src/engine/Makefile
+index d6762d3..66935ab 100644
+--- a/src/engine/Makefile
++++ b/src/engine/Makefile
+@@ -38,11 +38,11 @@ PKG_CONFIG=pkg-config
+ 
+ ## Build configuration
+ 
+-PKG=freetype2 harfbuzz graphite2 fontconfig libpng $(PKGSYS)
+-CFLAGS = -Iinclude -Ilayout -Idpx $(shell $(PKG_CONFIG) $(PKG) --cflags) $(_CFLAGS) $(_FLAGS) $(CSYSFLAGS)
++PKG=freetype2 harfbuzz graphite2 fontconfig $(PKGSYS)
++CFLAGS = -Iinclude -Ilayout $(shell $(PKG_CONFIG) $(PKG) --cflags) $(_CFLAGS) $(_FLAGS) $(CSYSFLAGS)
+ CXXFLAGS = -std=c++17 $(CFLAGS) $(_CXXFLAGS)
+ LDFLAGS = $(_LDFLAGS) -lm -lz $(shell $(PKG_CONFIG) $(PKG) --libs) $(_LDFLAGS) $(_FLAGS) $(LDSYSFLAGS)
+-DIRS=engine layout dpx main
++DIRS=engine layout main
+ 
+ 
+ ## Internal variables
+diff --git a/src/engine/engine/taudot-pic.c b/src/engine/engine/taudot-pic.c
+new file mode 100644
+index 0000000..cb51033
+--- /dev/null
++++ b/src/engine/engine/taudot-pic.c
+@@ -0,0 +1,814 @@
++/* taudot-pic.c: see taudot-pic.h.
++ *
++ * Copyright (c) 2026 the Taudot authors. MIT License: permission is hereby
++ * granted, free of charge, to any person obtaining a copy of this software and
++ * associated documentation files (the "Software"), to deal in the Software
++ * without restriction, including without limitation the rights to use, copy,
++ * modify, merge, publish, distribute, sublicense, and/or sell copies of the
++ * Software, and to permit persons to whom the Software is furnished to do so,
++ * subject to the following conditions: the above copyright notice and this
++ * permission notice shall be included in all copies or substantial portions of
++ * the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
++ *
++ * Written from the PDF, JFIF, Exif, PNG and BMP specifications and from
++ * measuring what the engine answered before (golden values). PDFs are parsed
++ * by Core Graphics; the page tree is walked here so that inheritance, box
++ * fallback and refusals behave exactly as before. Image headers are read here
++ * directly: ImageIO resolves JFIF against Exif differently.
++ *
++ * Core Graphics runs in a child process: the engine forks at every snapshot
++ * under TeXpresso, and CGPDFDocumentCreateWithProvider aborts in a forked
++ * process (it reports analytics over XPC). So the engine re-executes itself as
++ * `texpresso-xetex -taudot-pdfinfo count|box PAGE BOX`, passes the PDF on
++ * stdin and reads one line back (taudot_pdfinfo_main below).
++ */
++
++#ifndef __APPLE__
++#error "taudot-pic.c needs Core Graphics (macOS). Other platforms are not supported yet."
++#endif
++
++#include <CoreGraphics/CoreGraphics.h>
++#include <errno.h>
++#include <fcntl.h>
++#include <mach-o/dyld.h>
++#include <math.h>
++#include <signal.h>
++#include <spawn.h>
++#include <sys/wait.h>
++#include <unistd.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include "taudot-pic.h"
++
++/* ---- reading through the bridge ---- */
++
++static unsigned char *read_all(rust_input_handle_t h, size_t *len)
++{
++    size_t n = ttstub_input_get_size(h);
++    if (ttstub_input_seek(h, 0, SEEK_SET) != 0)
++        return NULL;
++    unsigned char *buf = malloc(n ? n : 1);
++    if (!buf)
++        return NULL;
++    size_t got = 0;
++    while (got < n) {
++        ssize_t r = ttstub_input_read(h, (char *)buf + got, n - got);
++        if (r <= 0)
++            break;
++        got += r;
++    }
++    *len = got;
++    return buf;
++}
++
++/* ---- PDF, in the helper process (Core Graphics) ---- */
++
++static CGPDFDocumentRef pdf_from_bytes(const unsigned char *buf, size_t len)
++{
++    CFDataRef data = CFDataCreate(NULL, buf, (CFIndex)len);
++    if (!data)
++        return NULL;
++    CGDataProviderRef prov = CGDataProviderCreateWithCFData(data);
++    CFRelease(data);
++    if (!prov)
++        return NULL;
++    CGPDFDocumentRef doc = CGPDFDocumentCreateWithProvider(prov);
++    CGDataProviderRelease(prov);
++    return doc;
++}
++
++/* NULL if it isn't a PDF we accept (unparseable, encrypted, or a malformed
++ * /Version in the catalog). May rewrite the header line in buf. */
++static CGPDFDocumentRef cg_open(unsigned char *buf, size_t len)
++{
++    CGPDFDocumentRef doc = pdf_from_bytes(buf, len);
++    /* Core Graphics wants "%PDF-" first; the engine used to accept any header. If
++     * the first line is another comment of at least 8 bytes, rewrite it in place
++     * (no offsets move) and try again. */
++    if (!doc && len > 8 && buf[0] == '%' && memcmp(buf, "%PDF-", 5)) {
++        int one_line = 1;
++        for (int i = 0; i < 8; i++)
++            if (buf[i] == '\n' || buf[i] == '\r')
++                one_line = 0;
++        if (one_line) {
++            memcpy(buf, "%PDF-1.7", 8);
++            doc = pdf_from_bytes(buf, len);
++        }
++    }
++    if (!doc)
++        return NULL;
++
++    /* Encrypted files are refused, even ones that open without a password. */
++    if (CGPDFDocumentIsEncrypted(doc)) {
++        CGPDFDocumentRelease(doc);
++        return NULL;
++    }
++
++    /* A /Version in the catalog must be a name of the form major.minor. */
++    CGPDFDictionaryRef cat = CGPDFDocumentGetCatalog(doc);
++    CGPDFObjectRef v;
++    if (cat && CGPDFDictionaryGetObject(cat, "Version", &v)) {
++        const char *name;
++        unsigned int major, minor;
++        if (!CGPDFObjectGetValue(v, kCGPDFObjectTypeName, &name) ||
++            sscanf(name, "%u.%u", &major, &minor) != 2) {
++            CGPDFDocumentRelease(doc);
++            return NULL;
++        }
++    }
++
++    return doc;
++}
++
++static int is_number(CGPDFObjectRef o)
++{
++    CGPDFObjectType t = CGPDFObjectGetType(o);
++    return t == kCGPDFObjectTypeInteger || t == kCGPDFObjectTypeReal;
++}
++
++static double number(CGPDFObjectRef o)
++{
++    CGPDFInteger i;
++    CGPDFReal r;
++    if (CGPDFObjectGetValue(o, kCGPDFObjectTypeInteger, &i))
++        return (double)i;
++    if (CGPDFObjectGetValue(o, kCGPDFObjectTypeReal, &r))
++        return (double)r;
++    return 0;
++}
++
++static CGPDFDictionaryRef page_tree(CGPDFDocumentRef doc)
++{
++    CGPDFDictionaryRef cat = CGPDFDocumentGetCatalog(doc), pages;
++    if (!cat || !CGPDFDictionaryGetDictionary(cat, "Pages", &pages))
++        return NULL;
++    return pages;
++}
++
++/* /Count of a page-tree node: 1 = it's a number (*n set), 0 = absent, -1 = not a number. */
++static int node_count(CGPDFDictionaryRef node, int *n)
++{
++    CGPDFObjectRef o;
++    if (!CGPDFDictionaryGetObject(node, "Count", &o))
++        return 0;
++    if (!is_number(o))
++        return -1;
++    *n = (int)number(o);
++    return 1;
++}
++
++static int cg_page_count(CGPDFDocumentRef doc)
++{
++    CGPDFDictionaryRef pages = page_tree(doc);
++    int n;
++    if (!pages || node_count(pages, &n) != 1)
++        return 0;
++    return n;
++}
++
++enum { B_MEDIA, B_CROP, B_ART, B_TRIM, B_BLEED, B_ROTATE, B_RESOURCES, B_N };
++static const char *const keys[B_N] = {"MediaBox", "CropBox", "ArtBox", "TrimBox", "BleedBox", "Rotate", "Resources"};
++
++/* Reads 4 numbers from a box array. -1 if an entry isn't a number. */
++static int box_numbers(CGPDFObjectRef box, double r[4])
++{
++    CGPDFArrayRef a;
++    CGPDFObjectGetValue(box, kCGPDFObjectTypeArray, &a);
++    for (size_t i = 0; i < 4; i++) {
++        CGPDFObjectRef o;
++        if (!CGPDFArrayGetObject(a, i, &o) || !is_number(o))
++            return -1;
++        r[i] = number(o);
++    }
++    return 0;
++}
++
++static int cg_page_box(CGPDFDocumentRef doc, int page_no, int box, double rect[4], double m[6])
++{
++    CGPDFDictionaryRef node = page_tree(doc);
++    int count;
++    if (!node || node_count(node, &count) != 1)
++        return -1;
++    if (page_no <= 0 || page_no > count)
++        return -1;
++
++    /* Walk down to the page; each node's entries override its ancestors'. */
++    CGPDFObjectRef found[B_N] = {0};
++    int idx = page_no - 1, depth = 30;
++    for (;;) {
++        if (--depth == 0)
++            return -1;
++        for (int k = 0; k < B_N; k++) {
++            CGPDFObjectRef o;
++            if (CGPDFDictionaryGetObject(node, keys[k], &o) &&
++                CGPDFObjectGetType(o) != kCGPDFObjectTypeNull)
++                found[k] = o;
++        }
++        CGPDFObjectRef kidsobj;
++        if (!CGPDFDictionaryGetObject(node, "Kids", &kidsobj))
++            break; /* a leaf */
++        CGPDFArrayRef kids;
++        if (!CGPDFObjectGetValue(kidsobj, kCGPDFObjectTypeArray, &kids))
++            return -1;
++        size_t n = CGPDFArrayGetCount(kids), i;
++        CGPDFDictionaryRef next = NULL;
++        for (i = 0; i < n; i++) {
++            CGPDFDictionaryRef kid;
++            if (!CGPDFArrayGetDictionary(kids, i, &kid))
++                return -1;
++            int c, r = node_count(kid, &c);
++            if (r < 0)
++                return -1;
++            if (r == 0)
++                c = 1;
++            if (idx < c) {
++                next = kid;
++                break;
++            }
++            idx -= c;
++        }
++        if (!next)
++            return -1;
++        node = next;
++    }
++
++    CGPDFDictionaryRef res;
++    if (!found[B_RESOURCES] || !CGPDFObjectGetValue(found[B_RESOURCES], kCGPDFObjectTypeDictionary, &res))
++        return -1;
++
++    /* Boxes: MediaBox required; any box present must be an array of 4. */
++    if (!found[B_MEDIA])
++        return -1;
++    for (int k = B_MEDIA; k <= B_BLEED; k++) {
++        CGPDFArrayRef a;
++        if (found[k] && (!CGPDFObjectGetValue(found[k], kCGPDFObjectTypeArray, &a) || CGPDFArrayGetCount(a) != 4))
++            return -1;
++    }
++    CGPDFObjectRef crop = found[B_CROP] ? found[B_CROP] : found[B_MEDIA], chosen;
++    switch (box) {
++    case 2: chosen = found[B_MEDIA]; break;
++    case 3: chosen = found[B_BLEED] ? found[B_BLEED] : crop; break;
++    case 4: chosen = found[B_TRIM] ? found[B_TRIM] : crop; break;
++    case 5: chosen = found[B_ART] ? found[B_ART] : crop; break;
++    default: chosen = crop; break;
++    }
++    double media[4];
++    if (box_numbers(chosen, rect) < 0 || box_numbers(found[B_MEDIA], media) < 0)
++        return -1;
++    /* Clamp each edge to the media box, without normalising the corners. */
++    if (rect[0] < media[0]) rect[0] = media[0];
++    if (rect[1] < media[1]) rect[1] = media[1];
++    if (rect[2] > media[2]) rect[2] = media[2];
++    if (rect[3] > media[3]) rect[3] = media[3];
++
++    /* /Rotate: whole multiples of 90 turn the page clockwise; a fraction refuses the
++     * page; other whole numbers are ignored. */
++    m[0] = m[3] = 1;
++    m[1] = m[2] = m[4] = m[5] = 0;
++    if (found[B_ROTATE]) {
++        if (!is_number(found[B_ROTATE]))
++            return -1;
++        double deg = number(found[B_ROTATE]);
++        if (deg != (double)(int)deg)
++            return -1;
++        int rot = (int)deg;
++        if (rot != 0 && rot % 90 == 0) {
++            rot %= 360;
++            if (rot < 0)
++                rot += 360;
++            double llx = rect[0], lly = rect[1], urx = rect[2], ury = rect[3];
++            /* Each maps the box onto itself turned, with its lower-left corner where it was. */
++            if (rot == 90) {
++                m[0] = m[3] = 0; m[1] = -1; m[2] = 1;
++                m[4] = llx - lly; m[5] = lly + urx;
++            } else if (rot == 180) {
++                m[0] = m[3] = -1;
++                m[4] = llx + urx; m[5] = lly + ury;
++            } else if (rot == 270) {
++                m[0] = m[3] = 0; m[1] = 1; m[2] = -1;
++                m[4] = llx + ury; m[5] = lly - llx;
++            }
++        }
++    }
++    return 0;
++}
++
++/* The helper: `-taudot-pdfinfo count` prints "N"; `-taudot-pdfinfo box PAGE BOX`
++ * prints "ok" and ten doubles (rect, matrix) in %a, or "fail", for PAGE as
++ * \XeTeXpdffile gives it (clamped to the document: past the end means the last
++ * page, negative counts from the end, then at least 1). The PDF is on stdin. */
++int taudot_pdfinfo_main(int argc, char **argv)
++{
++    size_t cap = 1 << 16, len = 0;
++    unsigned char *buf = malloc(cap);
++    for (;;) {
++        if (len == cap && !(buf = realloc(buf, cap *= 2)))
++            return 1;
++        ssize_t r = read(0, buf + len, cap - len);
++        if (r < 0 && errno == EINTR)
++            continue;
++        if (r <= 0)
++            break;
++        len += r;
++    }
++    CGPDFDocumentRef doc = buf ? cg_open(buf, len) : NULL;
++    if (argc >= 3 && !strcmp(argv[2], "count")) {
++        printf("%d\n", doc ? cg_page_count(doc) : 0);
++    } else if (argc >= 5 && !strcmp(argv[2], "box")) {
++        double r[4], m[6];
++        int pages = doc ? cg_page_count(doc) : 0, page = atoi(argv[3]);
++        if (page > pages)
++            page = pages;
++        if (page < 0)
++            page = pages + 1 + page;
++        if (page < 1)
++            page = 1;
++        if (doc && cg_page_box(doc, page, atoi(argv[4]), r, m) == 0)
++            printf("ok %a %a %a %a %a %a %a %a %a %a\n", r[0], r[1], r[2], r[3], m[0], m[1], m[2], m[3], m[4], m[5]);
++        else
++            printf("fail\n");
++    } else {
++        return 2;
++    }
++    if (doc)
++        CGPDFDocumentRelease(doc);
++    free(buf);
++    return 0;
++}
++
++/* ---- PDF, in the engine: run the helper ---- */
++
++struct taudot_pdf {
++    unsigned char *buf;
++    size_t len;
++    int count; /* -1 until asked */
++};
++
++taudot_pdf *taudot_pdf_open(rust_input_handle_t h)
++{
++    taudot_pdf *pdf = malloc(sizeof *pdf);
++    if (!pdf)
++        return NULL;
++    pdf->buf = read_all(h, &pdf->len);
++    pdf->count = -1;
++    if (!pdf->buf) {
++        free(pdf);
++        return NULL;
++    }
++    return pdf;
++}
++
++void taudot_pdf_close(taudot_pdf *pdf)
++{
++    if (!pdf)
++        return;
++    free(pdf->buf);
++    free(pdf);
++}
++
++/* Runs the helper with args after "-taudot-pdfinfo", the PDF on its stdin; its first
++ * output line in out. Only stdin, stdout and stderr reach it (the protocol socket doesn't). */
++static int run_helper(taudot_pdf *pdf, char *const args[], char *out, size_t outlen)
++{
++    char self[4096];
++    uint32_t size = sizeof self;
++    if (_NSGetExecutablePath(self, &size) != 0)
++        return -1;
++    char *argv[8] = {self, "-taudot-pdfinfo"};
++    int n = 2;
++    for (int i = 0; args[i] && n < 7; i++)
++        argv[n++] = args[i];
++    argv[n] = NULL;
++
++    int in[2], outp[2];
++    if (pipe(in) != 0)
++        return -1;
++    if (pipe(outp) != 0) {
++        close(in[0]); close(in[1]);
++        return -1;
++    }
++    posix_spawn_file_actions_t fa;
++    posix_spawnattr_t at;
++    posix_spawn_file_actions_init(&fa);
++    posix_spawn_file_actions_adddup2(&fa, in[0], 0);
++    posix_spawn_file_actions_adddup2(&fa, outp[1], 1);
++    posix_spawn_file_actions_adddup2(&fa, 2, 2);
++    posix_spawnattr_init(&at);
++    posix_spawnattr_setflags(&at, POSIX_SPAWN_CLOEXEC_DEFAULT);
++    pid_t pid;
++    extern char **environ;
++    int err = posix_spawn(&pid, self, &fa, &at, argv, environ);
++    posix_spawn_file_actions_destroy(&fa);
++    posix_spawnattr_destroy(&at);
++    close(in[0]);
++    close(outp[1]);
++    if (err != 0) {
++        close(in[1]); close(outp[0]);
++        return -1;
++    }
++
++    /* Write the PDF; a helper that exits early must not kill us with SIGPIPE. */
++    struct sigaction ign = {0}, old;
++    ign.sa_handler = SIG_IGN;
++    sigaction(SIGPIPE, &ign, &old);
++    for (size_t off = 0; off < pdf->len;) {
++        ssize_t w = write(in[1], pdf->buf + off, pdf->len - off);
++        if (w < 0 && errno == EINTR)
++            continue;
++        if (w <= 0)
++            break;
++        off += w;
++    }
++    close(in[1]);
++    sigaction(SIGPIPE, &old, NULL);
++
++    size_t got = 0;
++    for (;;) {
++        ssize_t r = read(outp[0], out + got, outlen - 1 - got);
++        if (r < 0 && errno == EINTR)
++            continue;
++        if (r <= 0)
++            break;
++        got += r;
++        if (got == outlen - 1)
++            break;
++    }
++    out[got] = 0;
++    close(outp[0]);
++    int status;
++    while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
++        ;
++    return WIFEXITED(status) && WEXITSTATUS(status) == 0 && got > 0 ? 0 : -1;
++}
++
++int taudot_pdf_page_count(taudot_pdf *pdf)
++{
++    if (pdf->count < 0) {
++        char out[64];
++        char *args[] = {"count", NULL};
++        pdf->count = run_helper(pdf, args, out, sizeof out) == 0 ? atoi(out) : 0;
++    }
++    return pdf->count;
++}
++
++int taudot_pdf_page_box(taudot_pdf *pdf, int page_no, int box, double rect[4], double m[6])
++{
++    char out[512], p[16], b[16];
++    snprintf(p, sizeof p, "%d", page_no);
++    snprintf(b, sizeof b, "%d", box);
++    char *args[] = {"box", p, b, NULL};
++    if (run_helper(pdf, args, out, sizeof out) != 0 || strncmp(out, "ok ", 3))
++        return -1;
++    return sscanf(out + 3, "%la %la %la %la %la %la %la %la %la %la", &rect[0], &rect[1], &rect[2], &rect[3],
++                  &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]) == 10 ? 0 : -1;
++}
++
++/* ---- images ---- */
++
++static int read_exact(rust_input_handle_t h, void *buf, size_t n)
++{
++    return ttstub_input_read(h, buf, n) == (ssize_t)n ? 0 : -1;
++}
++
++static int get_byte(rust_input_handle_t h)
++{
++    return ttstub_input_getc(h);
++}
++
++static int get_pair(rust_input_handle_t h)
++{
++    int a = get_byte(h), b = get_byte(h);
++    if (a < 0 || b < 0)
++        return -1;
++    return (a << 8) | b;
++}
++
++/* Exif (TIFF) integer of n bytes at p, big- or little-endian. */
++static int32_t tiff_int(const unsigned char *p, int n, int big)
++{
++    uint32_t v = 0;
++    if (big)
++        for (int i = 0; i < n; i++) v = (v << 8) | p[i];
++    else
++        for (int i = n - 1; i >= 0; i--) v = (v << 8) | p[i];
++    return (int32_t)v;
++}
++
++/* Resolution from an Exif segment (`len` bytes after "Exif\0"), used only when
++ * no JFIF segment before it gave one. Reads IFD0's XResolution, YResolution and
++ * ResolutionUnit, and Microsoft's PixelUnit/PixelPerUnitX/Y. Two quirks are
++ * kept so that answers don't change: resolutions are whole-number divisions of
++ * the rational, and a rational's numerator and denominator carry over to a
++ * resolution tag of another type; the Microsoft tags read their value from the
++ * entry after their own. */
++static void exif_dpi(const unsigned char *buf, size_t len, double *xdpi, double *ydpi)
++{
++    const unsigned char *p = buf, *end = buf + len;
++    while (p < end && *p == 0)
++        p++;
++    if (p + 8 >= end)
++        return;
++    const unsigned char *tiff = p;
++    int big;
++    if (p[0] == 'M' && p[1] == 'M')
++        big = 1;
++    else if (p[0] == 'I' && p[1] == 'I')
++        big = 0;
++    else
++        return;
++    if (tiff_int(p + 2, 2, big) != 42)
++        return;
++    int32_t ifd = tiff_int(p + 4, 4, big);
++    if (ifd < 0 || tiff + ifd + 2 > end)
++        return;
++    p = tiff + ifd;
++    int fields = tiff_int(p, 2, big);
++    p += 2;
++
++    int num = 0, den = 0;
++    double xres = 0, yres = 0, unit = 1.0, unit_ms = 0;
++    unsigned int xres_ms = 0, yres_ms = 0;
++#define NEED(n) do { if (p + (n) > end) return; } while (0)
++    while (fields-- > 0) {
++        NEED(12);
++        int tag = tiff_int(p, 2, big), type = tiff_int(p + 2, 2, big), cnt = tiff_int(p + 4, 4, big);
++        int value;
++        p += 8;
++        switch (type) {
++        case 1: case 7: value = p[0]; p += 4; break;        /* BYTE, UNDEFINED */
++        case 3: value = tiff_int(p, 2, big); p += 4; break; /* SHORT */
++        case 4: case 9: value = tiff_int(p, 4, big); p += 4; break;
++        case 5: case 10: {                                  /* RATIONAL */
++            value = tiff_int(p, 4, big);
++            p += 4;
++            const unsigned char *r = tiff + value;
++            if (value < 0 || r + 8 > end)
++                return;
++            num = tiff_int(r, 4, big);
++            den = tiff_int(r + 4, 4, big);
++            break;
++        }
++        default: value = 0; p += 4; break;
++        }
++        switch (tag) {
++        case 282: if (den != 0) xres = num / den; break;
++        case 283: if (den != 0) yres = num / den; break;
++        case 296:
++            if (value == 2) unit = 1.0;
++            else if (value == 3) unit = 2.54;
++            break;
++        case 0x5110:
++            if (type != 1 || cnt != 1)
++                return;
++            NEED(4);
++            unit_ms = p[0] == 1 ? 0.0254 : 0.0;
++            p += 4;
++            break;
++        case 0x5111:
++            if (type != 4 || cnt != 1)
++                return;
++            NEED(4);
++            xres_ms = (unsigned int)tiff_int(p, 4, big);
++            p += 4;
++            break;
++        case 0x5112:
++            if (type != 4 || cnt != 1)
++                return;
++            NEED(4);
++            yres_ms = (unsigned int)tiff_int(p, 4, big);
++            p += 4;
++            break;
++        }
++    }
++#undef NEED
++    double ex, ey;
++    if (xres > 0 && yres > 0) {
++        ex = xres * unit;
++        ey = yres * unit;
++    } else if (xres_ms > 0 && yres_ms > 0 && unit_ms > 0) {
++        ex = xres_ms * unit_ms;
++        ey = yres_ms * unit_ms;
++    } else {
++        ex = 72.0 * unit;
++        ey = 72.0 * unit;
++    }
++    if (*xdpi < 0.1 && *ydpi < 0.1) {
++        *xdpi = ex;
++        *ydpi = ey;
++    }
++}
++
++static int is_sof(int m)
++{
++    return m >= 0xc0 && m <= 0xcf && m != 0xc4 && m != 0xc8 && m != 0xcc;
++}
++
++/* Walks the markers up to the first SOFn. dpi comes from JFIF (units 1: per
++ * inch, 2: per cm, else 72) or, failing that, Exif; else 72. */
++static int jpeg_info(rust_input_handle_t h, unsigned int *w, unsigned int *ht, double *xd, double *yd)
++{
++    double xdpi = 0, ydpi = 0;
++    int found = 0;
++    if (ttstub_input_seek(h, 0, SEEK_SET) != 0)
++        return -1;
++    while (!found) {
++        /* A marker: 0xFF, then any 0x00/0xFF fill, then its code. */
++        if (get_byte(h) != 0xff)
++            break;
++        int m;
++        do
++            m = get_byte(h);
++        while (m == 0 || m == 0xff);
++        if (m < 0)
++            break;
++        if (m == 0xd8 || (m >= 0xd0 && m <= 0xd7))
++            continue; /* SOI, RSTn: no length */
++        int len = get_pair(h);
++        if (len < 0)
++            return -1;
++        len -= 2;
++        size_t start = ttstub_input_seek(h, 0, SEEK_CUR);
++        if (is_sof(m)) {
++            unsigned char s[6];
++            if (read_exact(h, s, 6) < 0)
++                return -1;
++            *ht = (s[1] << 8) | s[2];
++            *w = (s[3] << 8) | s[4];
++            found = 1;
++            break;
++        }
++        if ((m == 0xe0 || m == 0xe1 || m == 0xee) && len > 5) {
++            char sig[5];
++            if (read_exact(h, sig, 5) < 0)
++                return -1;
++            if (m == 0xe0 && !memcmp(sig, "JFIF\0", 5)) {
++                unsigned char j[9];
++                if (read_exact(h, j, 9) < 0)
++                    return -1;
++                double xden = (j[3] << 8) | j[4], yden = (j[5] << 8) | j[6];
++                if (j[2] == 1) {
++                    xdpi = xden;
++                    ydpi = yden;
++                } else if (j[2] == 2) {
++                    xdpi = xden * 2.54;
++                    ydpi = yden * 2.54;
++                } else {
++                    xdpi = ydpi = 72.0;
++                }
++            } else if (m == 0xe1 && !memcmp(sig, "Exif\0", 5)) {
++                size_t n = len - 5;
++                unsigned char *buf = malloc(n ? n : 1);
++                if (!buf)
++                    return -1;
++                if (read_exact(h, buf, n) == 0)
++                    exif_dpi(buf, n, &xdpi, &ydpi);
++                free(buf);
++            }
++        } else if (m == 0xe2 && len >= 14) {
++            char sig[12];
++            if (read_exact(h, sig, 12) < 0)
++                return -1;
++        }
++        ttstub_input_seek(h, start + len, SEEK_SET);
++    }
++    if (!found)
++        return -1;
++    if (xdpi < 0.1 && ydpi < 0.1)
++        xdpi = ydpi = 72.0;
++    *xd = 72.0 / xdpi;
++    *yd = 72.0 / ydpi;
++    return 0;
++}
++
++static uint32_t be32(const unsigned char *p)
++{
++    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
++}
++
++static uint32_t crc32_png(const unsigned char *p, size_t n)
++{
++    uint32_t c = 0xffffffffu;
++    for (size_t i = 0; i < n; i++) {
++        c ^= p[i];
++        for (int k = 0; k < 8; k++)
++            c = (c >> 1) ^ (0xedb88320u & (0u - (c & 1)));
++    }
++    return c ^ 0xffffffffu;
++}
++
++/* IHDR for the size; the first valid pHYs before IDAT, in pixels per metre, for density. */
++static int png_info(rust_input_handle_t h, unsigned int *w, unsigned int *ht, double *xd, double *yd)
++{
++    static const unsigned char sig[8] = {137, 80, 78, 71, 13, 10, 26, 10};
++    unsigned char b[8];
++    uint32_t xppm = 0, yppm = 0;
++    int have_phys = 0;
++    if (ttstub_input_seek(h, 0, SEEK_SET) != 0 || read_exact(h, b, 8) < 0 || memcmp(b, sig, 8))
++        return -1;
++    for (int first = 1;; first = 0) {
++        if (read_exact(h, b, 8) < 0)
++            return -1;
++        uint32_t len = be32(b);
++        if (first && memcmp(b + 4, "IHDR", 4))
++            return -1;
++        if (!memcmp(b + 4, "IDAT", 4) || !memcmp(b + 4, "IEND", 4))
++            break;
++        if (!memcmp(b + 4, "IHDR", 4) || !memcmp(b + 4, "pHYs", 4)) {
++            if (len > 64)
++                return -1;
++            unsigned char c[4 + 64 + 4];
++            memcpy(c, b + 4, 4);
++            if (read_exact(h, c + 4, len + 4) < 0)
++                return -1;
++            int crc_ok = crc32_png(c, 4 + len) == be32(c + 4 + len);
++            if (!memcmp(b + 4, "IHDR", 4)) {
++                if (len != 13 || !crc_ok)
++                    return -1;
++                *w = be32(c + 4);
++                *ht = be32(c + 8);
++            } else if (crc_ok && len == 9 && !have_phys) {
++                have_phys = 1;
++                if (c[12] == 1) {
++                    xppm = be32(c + 4);
++                    yppm = be32(c + 8);
++                }
++            }
++        } else {
++            ttstub_input_seek(h, (ssize_t)len + 4, SEEK_CUR);
++        }
++    }
++    *xd = xppm ? 72.0 / 0.0254 / xppm : 1.0;
++    *yd = yppm ? 72.0 / 0.0254 / yppm : 1.0;
++    return 0;
++}
++
++static uint32_t le32(const unsigned char *p)
++{
++    return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24);
++}
++
++static unsigned le16(const unsigned char *p)
++{
++    return p[0] | (p[1] << 8);
++}
++
++/* BITMAPCOREHEADER (no resolution) or BITMAPINFOHEADER and its later versions. */
++static int bmp_info(rust_input_handle_t h, unsigned int *w, unsigned int *ht, double *xd, double *yd)
++{
++    unsigned char b[18 + 124];
++    if (ttstub_input_seek(h, 0, SEEK_SET) != 0 || read_exact(h, b, 18) < 0)
++        return -1;
++    if (b[0] != 'B' || b[1] != 'M' || le32(b + 6) != 0)
++        return -1;
++    uint32_t hsize = le32(b + 14);
++    if (hsize != 12 && hsize != 40 && hsize != 64 && hsize != 108 && hsize != 124)
++        return -1;
++    if (read_exact(h, b + 18, hsize - 4) < 0)
++        return -1;
++    const unsigned char *p = b + 18;
++    uint32_t xppm, yppm;
++    if (hsize == 12) {
++        *w = le16(p);
++        *ht = le16(p + 2);
++        if (le16(p + 4) != 1)
++            return -1;
++        xppm = yppm = 0;
++    } else {
++        int32_t hh = (int32_t)le32(p + 4);
++        *w = le32(p);
++        *ht = hh < 0 ? -hh : hh;
++        if (le16(p + 8) != 1)
++            return -1;
++        xppm = le32(p + 20);
++        yppm = le32(p + 24);
++    }
++    if (xppm > 0 && yppm > 0) {
++        *xd = 72.0 / (xppm * 0.0254);
++        *yd = 72.0 / (yppm * 0.0254);
++    } else {
++        *xd = *yd = 1.0;
++    }
++    return 0;
++}
++
++static int starts_with(rust_input_handle_t h, const char *s, size_t n)
++{
++    char b[8];
++    if (ttstub_input_seek(h, 0, SEEK_SET) != 0 || read_exact(h, b, n) < 0)
++        return 0;
++    return !memcmp(b, s, n);
++}
++
++int taudot_image_info(rust_input_handle_t h, unsigned int *w, unsigned int *ht, double *xd, double *yd)
++{
++    if (starts_with(h, "\xff\xd8", 2))
++        return jpeg_info(h, w, ht, xd, yd);
++    if (starts_with(h, "BM", 2))
++        return bmp_info(h, w, ht, xd, yd);
++    if (starts_with(h, "\x89PNG\r\n\x1a\n", 8))
++        return png_info(h, w, ht, xd, yd);
++    return 1;
++}
+diff --git a/src/engine/engine/taudot-pic.h b/src/engine/engine/taudot-pic.h
+new file mode 100644
+index 0000000..71230a9
+--- /dev/null
++++ b/src/engine/engine/taudot-pic.h
+@@ -0,0 +1,52 @@
++/* taudot-pic.h: page boxes of included PDFs and pixel sizes of images, for
++ * \XeTeXpdffile, \XeTeXpicfile and \XeTeXpdfpagecount (xetex-pic.c).
++ *
++ * Copyright (c) 2026 the Taudot authors. MIT License: permission is hereby
++ * granted, free of charge, to any person obtaining a copy of this software and
++ * associated documentation files (the "Software"), to deal in the Software
++ * without restriction, including without limitation the rights to use, copy,
++ * modify, merge, publish, distribute, sublicense, and/or sell copies of the
++ * Software, and to permit persons to whom the Software is furnished to do so,
++ * subject to the following conditions: the above copyright notice and this
++ * permission notice shall be included in all copies or substantial portions of
++ * the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
++ *
++ * Replaces the dvipdfmx (GPL) calls the engine used for this. The answers are
++ * the same as dvipdfmx's, value for value (checked against golden values,
++ * clients/render/texpresso/tests/pics in the Taudot repository).
++ */
++
++#ifndef TAUDOT_PIC_H
++#define TAUDOT_PIC_H
++
++#include "tectonic_bridge_core.h"
++
++typedef struct taudot_pdf taudot_pdf;
++
++/* Reads the whole file behind `handle`. Files we don't accept (unparseable,
++ * encrypted, a malformed /Version in the catalog) have 0 pages and no boxes. */
++taudot_pdf *taudot_pdf_open(rust_input_handle_t handle);
++void taudot_pdf_close(taudot_pdf *pdf);
++
++/* /Count of the page tree, 0 if missing. */
++int taudot_pdf_page_count(taudot_pdf *pdf);
++
++/* Box of page `page_no` as \XeTeXpdffile gives it (1-based; past the end is
++ * the last page, negative counts from the end, then at least 1): `box` is XeTeX's pdfbox_* (crop, media,
++ * bleed, trim, art; anything else means crop). Missing boxes fall back as in
++ * the PDF spec (crop to media, the others to crop), the result is clamped to
++ * the media box, and `matrix` (a b c d e f) applies the page's /Rotate.
++ * rect is llx lly urx ury. 0 on success, -1 if the page can't be used. */
++int taudot_pdf_page_box(taudot_pdf *pdf, int page_no, int box,
++                        double rect[4], double matrix[6]);
++
++/* JPEG, BMP or PNG: size in pixels and density (72 / dpi; 1.0 when the file
++ * doesn't say). 0 on success, nonzero if the format isn't recognised. */
++int taudot_image_info(rust_input_handle_t handle, unsigned int *width,
++                      unsigned int *height, double *xdensity, double *ydensity);
++
++/* Entry point of the Core Graphics helper (see taudot-pic.c); main() calls it when
++ * argv[1] is "-taudot-pdfinfo". */
++int taudot_pdfinfo_main(int argc, char **argv);
++
++#endif
+diff --git a/src/engine/engine/xetex-ini.c b/src/engine/engine/xetex-ini.c
+index 092777c..27a3b5b 100644
+--- a/src/engine/engine/xetex-ini.c
++++ b/src/engine/engine/xetex-ini.c
+@@ -13,7 +13,6 @@
+ #include "xetex-core.h"
+ #include "xetex-xetexd.h"
+ #include "xetex-synctex.h"
+-#include "dpx-pdfobj.h" /* pdf_files_{init,close} */
+ #include "xetex_bindings.h" /* FORMAT_SERIAL */
+ 
+ /* All the following variables are declared in xetex-xetexd.h */
+@@ -3472,7 +3471,6 @@ tt_cleanup(void) {
+         it would result in a segfault.
+     */
+ 
+-    pdf_files_close();
+     free(TEX_format_default);
+     free(font_used);
+     deinitialize_shipout_variables();
+@@ -3869,7 +3867,6 @@ tt_run_engine(const char *dump_name, const char *input_file_name, time_t build_d
+     if (semantic_pagination_enabled)
+         INTPAR(xetex_generate_actual_text) = 1;
+ 
+-    pdf_files_init();
+     synctex_init_command();
+     start_input(input_file_name);
+     history = HISTORY_SPOTLESS;
+diff --git a/src/engine/engine/xetex-pic.c b/src/engine/engine/xetex-pic.c
+index fdeab57..b48b9a7 100644
+--- a/src/engine/engine/xetex-pic.c
++++ b/src/engine/engine/xetex-pic.c
+@@ -39,13 +39,7 @@ XeTeX_pic.c
+ #include "xetex-core.h"
+ #include "xetex-xetexd.h"
+ #include "xetex-ext.h"
+-#include "dpx-dpxutil.h"
+-#include "dpx-pdfdoc.h"
+-#include "dpx-pdfdraw.h"
+-#include "dpx-pdfobj.h"
+-#include "dpx-pngimage.h"
+-#include "dpx-jpegimage.h"
+-#include "dpx-bmpimage.h"
++#include "taudot-pic.h" /* Taudot: replaces dvipdfmx (GPL) for sizes and page boxes */
+ 
+ 
+ /* load_picture() needs some helper types and functions */
+@@ -77,110 +71,86 @@ count_pdf_file_pages (void)
+ {
+     int pages;
+     rust_input_handle_t handle;
+-    pdf_file *pf;
++    taudot_pdf *pf;
+ 
+     handle = ttstub_input_open (name_of_file, TTBC_FILE_FORMAT_PICT, 0);
+     if (handle == NULL)
+         return 0;
+ 
+-    if ((pf = pdf_open(name_of_file, handle)) == NULL) {
++    if ((pf = taudot_pdf_open(handle)) == NULL) {
+         /* TODO: issue warning */
+         ttstub_input_close(handle);
+         return 0;
+     }
+ 
+-    pages = pdf_doc_get_page_count(pf);
+-    pdf_close(pf);
++    pages = taudot_pdf_page_count(pf);
++    taudot_pdf_close(pf);
+     ttstub_input_close(handle);
+     return pages;
+ }
+ 
+ 
++static double min4(double a, double b, double c, double d)
++{
++    double m = a;
++    if (b < m) m = b;
++    if (c < m) m = c;
++    if (d < m) m = d;
++    return m;
++}
++
++static double max4(double a, double b, double c, double d)
++{
++    double m = a;
++    if (b > m) m = b;
++    if (c > m) m = c;
++    if (d > m) m = d;
++    return m;
++}
++
+ static int
+ pdf_get_rect (char *filename, rust_input_handle_t handle, int page_num, int pdf_box, real_rect* box)
+ {
+-    int pages, dpx_options;
+-    pdf_file *pf;
+-    pdf_obj *page;
+-    pdf_rect bbox;
+-    pdf_tmatrix matrix;
+-    pdf_coord p1, p2, p3, p4;
+-
+-    if ((pf = pdf_open(filename, handle)) == NULL) {
++    taudot_pdf *pf;
++    double r[4], m[6], x[4], y[4], llx, lly, urx, ury;
++    int i;
++
++    (void) filename;
++    if ((pf = taudot_pdf_open(handle)) == NULL) {
+         /* TODO: issue warning */
+         return -1;
+     }
+ 
+-    pages = pdf_doc_get_page_count(pf);
+-
+-    if (page_num > pages)
+-        page_num = pages;
+-    if (page_num < 0)
+-        page_num = pages + 1 + page_num;
+-    if (page_num < 1)
+-        page_num = 1;
+-
+-    /* OMG, magic numbers specifying page bound types do not agree between
+-     * xdvipdfmx code (dpx-pdfdoc.c:pdf_doc_get_page) and XeTeX/Apple's
+-     * pdfbox_* definitions (xetex-ext.h). */
+-
+-    switch (pdf_box) {
+-    case pdfbox_media:
+-        dpx_options = 2;
+-        break;
+-    case pdfbox_bleed:
+-        dpx_options = 5;
+-        break;
+-    case pdfbox_trim:
+-        dpx_options = 4;
+-        break;
+-    case pdfbox_art:
+-        dpx_options = 3;
+-        break;
+-    case pdfbox_crop:
+-    default:
+-        dpx_options = 1;
+-        break;
+-    }
+-
+-    page = pdf_doc_get_page(pf, page_num, dpx_options, &bbox, &matrix, NULL);
+-    pdf_close(pf);
++    /* taudot_pdf_page_box clamps page_num to the document as XeTeX did here
++     * (one helper process instead of two). */
++    i = taudot_pdf_page_box(pf, page_num, pdf_box, r, m);
++    taudot_pdf_close(pf);
+ 
+-    if (page == NULL) {
++    if (i != 0) {
+         /* TODO: issue warning */
+         return -1;
+     }
+ 
+-    pdf_release_obj(page);
+-
+-    /* Image's attribute "bbox" here is affected by /Rotate entry of included
+-     * PDF page.
+-     */
+-    p1.x = bbox.llx;
+-    p1.y = bbox.lly;
+-    pdf_dev_transform(&p1, &matrix);
+-
+-    p2.x = bbox.urx;
+-    p2.y = bbox.lly;
+-    pdf_dev_transform(&p2, &matrix);
+-
+-    p3.x = bbox.urx;
+-    p3.y = bbox.ury;
+-    pdf_dev_transform(&p3, &matrix);
+-
+-    p4.x = bbox.llx;
+-    p4.y = bbox.ury;
+-    pdf_dev_transform(&p4, &matrix);
++    /* The box's corners after the page's /Rotate, and their bounds. */
++    x[0] = r[0]; y[0] = r[1];
++    x[1] = r[2]; y[1] = r[1];
++    x[2] = r[2]; y[2] = r[3];
++    x[3] = r[0]; y[3] = r[3];
++    for (i = 0; i < 4; i++) {
++        double px = x[i], py = y[i];
++        x[i] = m[0] * px + m[2] * py + m[4];
++        y[i] = m[1] * px + m[3] * py + m[5];
++    }
+ 
+-    bbox.llx = min4(p1.x, p2.x, p3.x, p4.x);
+-    bbox.lly = min4(p1.y, p2.y, p3.y, p4.y);
+-    bbox.urx = max4(p1.x, p2.x, p3.x, p4.x);
+-    bbox.ury = max4(p1.y, p2.y, p3.y, p4.y);
++    llx = min4(x[0], x[1], x[2], x[3]);
++    lly = min4(y[0], y[1], y[2], y[3]);
++    urx = max4(x[0], x[1], x[2], x[3]);
++    ury = max4(y[0], y[1], y[2], y[3]);
+ 
+-    box->x = 72.27 / 72 * bbox.llx;
+-    box->y = 72.27 / 72 * bbox.lly;
+-    box->wd = 72.27 / 72 * (bbox.urx - bbox.llx);
+-    box->ht = 72.27 / 72 * (bbox.ury - bbox.lly);
++    box->x = 72.27 / 72 * llx;
++    box->y = 72.27 / 72 * lly;
++    box->wd = 72.27 / 72 * (urx - llx);
++    box->ht = 72.27 / 72 * (ury - lly);
+ 
+     return 0;
+ }
+@@ -194,12 +164,7 @@ get_image_size_in_inches (rust_input_handle_t handle, double *width, double *hei
+     unsigned int width_pix, height_pix;
+     double xdensity, ydensity;
+ 
+-    if (check_for_jpeg(handle))
+-        err = jpeg_get_bbox(handle, &width_pix, &height_pix, &xdensity, &ydensity);
+-    else if (check_for_bmp(handle))
+-        err = bmp_get_bbox(handle, &width_pix, &height_pix, &xdensity, &ydensity);
+-    else if (check_for_png(handle))
+-        err = png_get_bbox(handle, &width_pix, &height_pix, &xdensity, &ydensity);
++    err = taudot_image_info(handle, &width_pix, &height_pix, &xdensity, &ydensity);
+ 
+     if (err) {
+         *width = -1;
+diff --git a/src/engine/main/main.c b/src/engine/main/main.c
+index 3893932..199eeed 100644
+--- a/src/engine/main/main.c
++++ b/src/engine/main/main.c
+@@ -15,6 +15,7 @@
+ #include "tectonic_bridge_core_generated.h"
+ #include "providers.h"
+ #include "texpresso_protocol.h"
++int taudot_pdfinfo_main(int argc, char **argv); /* Taudot: engine/taudot-pic.c */
+ #include "common.h"
+ #include "../engine/xetex-xetexd.h"
+ #define LOG 0
+@@ -962,6 +963,10 @@ int main(int argc, char **argv)
+   const char *doc_path = NULL;
+   bool dashdash = 0;
+ 
++  /* Taudot: the Core Graphics helper for included PDFs (engine/taudot-pic.c). */
++  if (argc >= 2 && !strcmp(argv[1], "-taudot-pdfinfo"))
++    return taudot_pdfinfo_main(argc, argv);
++
+   for (int i = 1; i < argc; i++)
+   {
+     if (!dashdash && argv[i][0] == '-')
+-- 
+2.50.0
+

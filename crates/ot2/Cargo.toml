@@ -1,0 +1,16 @@
+[package]
+name = "ot2"
+version = "0.1.0"
+edition = "2021"
+description = "Operational transform core for taudot (clean-room): Overleaf's sharejs-text-ot and history-ot formats"
+license = "MIT"
+publish = false
+rust-version = "1.85"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+proptest = "1"

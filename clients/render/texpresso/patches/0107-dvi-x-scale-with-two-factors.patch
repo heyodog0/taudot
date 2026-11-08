@@ -1,0 +1,83 @@
+From aa990431bb6290850ef1b6035ae3c5d635da0d1a Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Tue, 3 Nov 2026 14:17:05 -0500
+Subject: [PATCH 107/108] dvi: x:scale with two factors
+
+---
+ src/dvi/dvi_special.c      | 24 ++++++++++++++++++++++++
+ src/dvi/dvi_special.re2c.c | 24 ++++++++++++++++++++++++
+ 2 files changed, 48 insertions(+)
+
+diff --git a/src/dvi/dvi_special.c b/src/dvi/dvi_special.c
+index 0a460e4..2ddaeea 100644
+--- a/src/dvi/dvi_special.c
++++ b/src/dvi/dvi_special.c
+@@ -5345,6 +5345,30 @@ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+     return pdf_code(ctx, dc, st, q, q + 1);
+   if (n == 10 && memcmp(cur, "x:grestore", 10) == 0)
+     return pdf_code(ctx, dc, st, Q, Q + 1);
++  /* graphicx's \scalebox{sx}[sy] with sx != sy: "x:scale sx sy". TeXpresso's rule takes one factor, so it scaled
++     both axes by sx and dropped sy. */
++  if (n > 8 && memcmp(cur, "x:scale ", 8) == 0)
++  {
++    char buf[64];
++    size_t len = n - 8;
++    if (len < sizeof(buf))
++    {
++      memcpy(buf, cur + 8, len);
++      buf[len] = 0;
++      char *e1, *e2;
++      float sx = strtof(buf, &e1);
++      float sy = e1 != buf ? strtof(e1, &e2) : 0;
++      if (e1 != buf && e2 != e1)
++      {
++        while (*e2 == ' ') e2++;
++        if (*e2 == 0)
++        {
++          st->gs.ctm = fz_concat(fz_scale(sx, sy), st->gs.ctm);
++          return 1;
++        }
++      }
++    }
++  }
+   if (n > 4 && memcmp(cur, "pdf:", 4) == 0)
+   {
+     cursor_t p = cur + 4;
+diff --git a/src/dvi/dvi_special.re2c.c b/src/dvi/dvi_special.re2c.c
+index c74aca9..820e9fc 100644
+--- a/src/dvi/dvi_special.re2c.c
++++ b/src/dvi/dvi_special.re2c.c
+@@ -2114,6 +2114,30 @@ taudot_extra_special(fz_context *ctx, dvi_context *dc, dvi_state *st, cursor_t c
+     return pdf_code(ctx, dc, st, q, q + 1);
+   if (n == 10 && memcmp(cur, "x:grestore", 10) == 0)
+     return pdf_code(ctx, dc, st, Q, Q + 1);
++  /* graphicx's \scalebox{sx}[sy] with sx != sy: "x:scale sx sy". TeXpresso's rule takes one factor, so it scaled
++     both axes by sx and dropped sy. */
++  if (n > 8 && memcmp(cur, "x:scale ", 8) == 0)
++  {
++    char buf[64];
++    size_t len = n - 8;
++    if (len < sizeof(buf))
++    {
++      memcpy(buf, cur + 8, len);
++      buf[len] = 0;
++      char *e1, *e2;
++      float sx = strtof(buf, &e1);
++      float sy = e1 != buf ? strtof(e1, &e2) : 0;
++      if (e1 != buf && e2 != e1)
++      {
++        while (*e2 == ' ') e2++;
++        if (*e2 == 0)
++        {
++          st->gs.ctm = fz_concat(fz_scale(sx, sy), st->gs.ctm);
++          return 1;
++        }
++      }
++    }
++  }
+   if (n > 4 && memcmp(cur, "pdf:", 4) == 0)
+   {
+     cursor_t p = cur + 4;
+-- 
+2.50.0
+

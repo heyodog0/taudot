@@ -1,0 +1,27 @@
+// Everforest Dark. Source: https://github.com/tinted-theming/schemes/blob/spec-0.11/base16/everforest-dark-medium.yaml
+// Licence: MIT, copyright Tinted Theming (full text in THIRD_PARTY.md). Base16 scheme mapped to the 16 ANSI colours as base16-shell does.
+
+extension ShippedThemes {
+  static let everforestDark = Shipped(id: "everforest-dark", name: "Everforest Dark", dark: true, ghostty: """
+palette = 0=#2d353b
+palette = 1=#e67e80
+palette = 2=#a7c080
+palette = 3=#dbbc7f
+palette = 4=#7fbbb3
+palette = 5=#d699b6
+palette = 6=#83c092
+palette = 7=#859289
+palette = 8=#475258
+palette = 9=#e67e80
+palette = 10=#a7c080
+palette = 11=#dbbc7f
+palette = 12=#7fbbb3
+palette = 13=#d699b6
+palette = 14=#83c092
+palette = 15=#d3c6aa
+background = 2d353b
+foreground = 859289
+cursor-color = 859289
+selection-background = 3d484d
+""")
+}

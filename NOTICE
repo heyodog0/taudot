@@ -1,0 +1,42 @@
+Taudot
+Copyright (C) 2026 Ryan Truong
+https://github.com/heyodog0/taudot
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General
+Public License as published by the Free Software Foundation, version 3 (see LICENSE), with the additional terms
+below.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details.
+
+Additional terms (section 7(b) of the GNU Affero General Public License, version 3)
+
+1. Attribution. Every copy of this program, modified or not, and every work based on it must preserve the following
+   author attribution, and show it where the program shows its legal notices or version (its About window, its
+   `--version` output, or, for a network service, a page reachable from every screen):
+
+       Based on Taudot by Ryan Truong — https://github.com/heyodog0/taudot
+
+   A modified version must also say that it is modified. Unmodified copies may say "Taudot by Ryan Truong" instead
+   of "Based on Taudot by Ryan Truong".
+
+2. Name. These terms do not grant any right to use the name "Taudot" or its logo for a modified version (section
+   7(e)); a modified version must use a different name.
+
+Parts of this repository with their own licence keep it:
+
+- clients/render/dvi/       MIT, Copyright (c) 2023 Frédéric Bour (derived from TeXpresso); see its LICENSE
+- clients/render/fonts/     MIT; see its LICENSE
+- clients/render/rt/        MIT; see its LICENSE
+- clients/pdftex/           GPL-2.0-or-later (patches to, and drivers of, pdfTeX); see its LICENSE
+- harness/ce-threads/       AGPL-3.0 (it runs inside Overleaf CE and calls its code; never shipped in the app);
+                            see its README.md
+- tools/release/COPYING-GPL-2   the GPL text shipped beside the GPL programs in a release
+
+THIRD_PARTY.md lists the third-party material inside the AGPL parts and its licences: the MIT ancestors of
+crates/ot2 (ShareJS, ot.js) and the colour themes in clients/mac/Sources/TaudotShared/ShippedThemes/.
+
+TeXpresso itself (MIT, github.com/let-def/texpresso) is not in this repository: install.sh clones it into vendor/
+and applies the patches in clients/render/texpresso/patches/. The TeX engines that Taudot runs (pdfTeX, XeTeX,
+LuaTeX and their tools) are separate programs under their own licences, built from TeX Live's source.

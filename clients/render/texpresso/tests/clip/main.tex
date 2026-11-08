@@ -1,0 +1,16 @@
+% Patch 0002: clipped figures (trim/viewport with clip) must clip; unclipped ones must not change.
+% Make fig.pdf first: tectonic figsrc.tex && mv figsrc.pdf fig.pdf
+\documentclass{article}
+\usepackage{graphicx}
+\pagestyle{empty}
+\begin{document}
+\fbox{\includegraphics[width=8cm, trim=0 0 0 120, clip]{fig.pdf}}
+
+\fbox{\includegraphics[width=8cm, viewport=0 0 300 200, clip]{fig.pdf}}
+\newpage
+\fbox{\includegraphics[width=8cm]{fig.pdf}}
+
+\fbox{\includegraphics[width=8cm, trim=0 0 0 120]{fig.pdf}}
+
+\fbox{\includegraphics[width=4cm, viewport=0 0 300 200]{fig.pdf}}
+\end{document}

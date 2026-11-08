@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened-runtime exceptions for a Developer ID build (sign.sh with an identity). Unused for ad-hoc builds.
+     Neovim's LuaJIT compiles machine code at run time: JIT and unsigned executable memory. The vendored dylibs are
+     signed with the same identity, so no library-validation exception is needed. -->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-jit</key><true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+</dict>
+</plist>

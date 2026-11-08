@@ -1,0 +1,71 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Thu, 5 Nov 2026 00:02:13 -0500
+Subject: [PATCH 4/9] pdftex: getc_unlocked for map, encoding and Type 1 reads
+ (from 1.40.29)
+
+---
+ texk/web2c/pdftexdir/ptexmac.h | 13 +++++++++++++
+ texk/web2c/pdftexdir/utils.c   |  2 +-
+ texk/web2c/pdftexdir/writet1.c |  4 ++--
+ 3 files changed, 16 insertions(+), 3 deletions(-)
+
+diff --git a/texk/web2c/pdftexdir/ptexmac.h b/texk/web2c/pdftexdir/ptexmac.h
+index 00a32c96..22ab4252 100644
+--- a/texk/web2c/pdftexdir/ptexmac.h
++++ b/texk/web2c/pdftexdir/ptexmac.h
+@@ -29,6 +29,19 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
+ #    define random() rand()
+ #  endif
+ 
++/* pdfTeX is single-threaded, so reading files does not need the
++   locking that getc does on every character (same as in XeTeX).
++   Backported from pdfTeX 1.40.29 (2026-10-28) by Taudot: reading speed only.  */
++#  ifdef WIN32
++#    ifdef __MINGW32__
++#      define GETC(f) getc(f)
++#    else
++#      define GETC(f) _getc_nolock(f)
++#    endif
++#  else
++#    define GETC(f) getc_unlocked(f)
++#  endif
++
+ /* Pascal WEB macros */
+ #  define maxinteger 0x7FFFFFFF
+ #  define maxdimen   0x3FFFFFFF
+diff --git a/texk/web2c/pdftexdir/utils.c b/texk/web2c/pdftexdir/utils.c
+index 7f5e5041..a7e183b8 100644
+--- a/texk/web2c/pdftexdir/utils.c
++++ b/texk/web2c/pdftexdir/utils.c
+@@ -368,7 +368,7 @@ int xfflush(FILE * stream)
+ 
+ int xgetc(FILE * stream)
+ {
+-    int c = getc(stream);
++    int c = GETC(stream);
+     if (c < 0 && c != EOF)
+         pdftex_fail("getc() failed (%s)", strerror(errno));
+     return c;
+diff --git a/texk/web2c/pdftexdir/writet1.c b/texk/web2c/pdftexdir/writet1.c
+index f2a8386c..a2f407ce 100644
+--- a/texk/web2c/pdftexdir/writet1.c
++++ b/texk/web2c/pdftexdir/writet1.c
+@@ -26,7 +26,7 @@ along with this program.  If not, see  <http://www.gnu.org/licenses/>.  */
+ 
+ #define t1_open()        open_input(&t1_file, kpse_type1_format, FOPEN_RBIN_MODE)
+ #define t1_close()       xfclose(t1_file, cur_file_name)
+-#define t1_getchar()     getc(t1_file)
++#define t1_getchar()     GETC(t1_file)
+ #define t1_putchar       fb_putchar
+ #define t1_offset        fb_offset
+ #define t1_ungetchar(c)  ungetc(c, t1_file)
+@@ -43,7 +43,7 @@ along with this program.  If not, see  <http://www.gnu.org/licenses/>.  */
+ 
+ #define enc_open()       open_input(&enc_file, kpse_enc_format, FOPEN_RBIN_MODE)
+ #define enc_close()      xfclose(enc_file, cur_file_name)
+-#define enc_getchar()    getc(enc_file)
++#define enc_getchar()    GETC(enc_file)
+ #define enc_eof()        feof(enc_file)
+ 
+ #define valid_code(c)    (c >= 0 && c < 256)

@@ -1,0 +1,97 @@
+From c9a6f66f02009bce11526a32d930ea3ec9be8382 Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Tue, 3 Nov 2026 14:25:55 -0500
+Subject: [PATCH 6/6] engine: taudot-pdfinfo, a small helper for PDF boxes
+
+---
+ src/engine/Makefile            |  8 +++++++-
+ src/engine/engine/taudot-pic.c | 22 +++++++++++++++++++++-
+ 2 files changed, 28 insertions(+), 2 deletions(-)
+
+diff --git a/src/engine/Makefile b/src/engine/Makefile
+index 66935ab..4c5bfcc 100644
+--- a/src/engine/Makefile
++++ b/src/engine/Makefile
+@@ -57,7 +57,13 @@ OBJECTS ?= $(foreach dir,$(DIRS), $(patsubst %.cpp,$(BUILD)/%.o, $(patsubst %.c,
+ 
+ ## Main targets
+ 
+-all: $(BUILD)/$(XETEX_BIN)
++all: $(BUILD)/$(XETEX_BIN) $(BUILD)/taudot-pdfinfo
++
++# Taudot: the Core Graphics helper for included PDFs (engine/taudot-pic.c) as a small
++# program of its own; the engine runs it if it sits next to it (it starts in ~12 ms,
++# the engine itself in ~35 ms).
++$(BUILD)/taudot-pdfinfo: engine/taudot-pic.c engine/taudot-pic.h | $(BUILD_DIRS)
++	$(_CC) -O2 -DTAUDOT_PDFINFO_MAIN -Iinclude -I../include -o $@ engine/taudot-pic.c -framework CoreGraphics -framework CoreFoundation
+ 
+ clean:
+ 	rm -f  $(OBJECTS)
+diff --git a/src/engine/engine/taudot-pic.c b/src/engine/engine/taudot-pic.c
+index cb51033..4aba4f1 100644
+--- a/src/engine/engine/taudot-pic.c
++++ b/src/engine/engine/taudot-pic.c
+@@ -20,7 +20,9 @@
+  * under TeXpresso, and CGPDFDocumentCreateWithProvider aborts in a forked
+  * process (it reports analytics over XPC). So the engine re-executes itself as
+  * `texpresso-xetex -taudot-pdfinfo count|box PAGE BOX`, passes the PDF on
+- * stdin and reads one line back (taudot_pdfinfo_main below).
++ * stdin and reads one line back (taudot_pdfinfo_main below). The same code
++ * built with -DTAUDOT_PDFINFO_MAIN is `taudot-pdfinfo`, a small program that
++ * starts much faster than the engine; the engine runs it when it's next to it.
+  */
+ 
+ #ifndef __APPLE__
+@@ -43,6 +45,7 @@
+ 
+ #include "taudot-pic.h"
+ 
++#ifndef TAUDOT_PDFINFO_MAIN
+ /* ---- reading through the bridge ---- */
+ 
+ static unsigned char *read_all(rust_input_handle_t h, size_t *len)
+@@ -63,6 +66,7 @@ static unsigned char *read_all(rust_input_handle_t h, size_t *len)
+     *len = got;
+     return buf;
+ }
++#endif
+ 
+ /* ---- PDF, in the helper process (Core Graphics) ---- */
+ 
+@@ -339,6 +343,12 @@ int taudot_pdfinfo_main(int argc, char **argv)
+     return 0;
+ }
+ 
++#ifdef TAUDOT_PDFINFO_MAIN
++int main(int argc, char **argv)
++{
++    return taudot_pdfinfo_main(argc, argv);
++}
++#else
+ /* ---- PDF, in the engine: run the helper ---- */
+ 
+ struct taudot_pdf {
+@@ -377,6 +387,15 @@ static int run_helper(taudot_pdf *pdf, char *const args[], char *out, size_t out
+     uint32_t size = sizeof self;
+     if (_NSGetExecutablePath(self, &size) != 0)
+         return -1;
++    /* taudot-pdfinfo next to the engine if there is one, else the engine itself. */
++    char *slash = strrchr(self, '/');
++    if (slash && (size_t)(slash - self) + sizeof "/taudot-pdfinfo" <= sizeof self) {
++        char helper[4096];
++        memcpy(helper, self, slash - self);
++        strcpy(helper + (slash - self), "/taudot-pdfinfo");
++        if (access(helper, X_OK) == 0)
++            strcpy(self, helper);
++    }
+     char *argv[8] = {self, "-taudot-pdfinfo"};
+     int n = 2;
+     for (int i = 0; args[i] && n < 7; i++)
+@@ -812,3 +831,4 @@ int taudot_image_info(rust_input_handle_t h, unsigned int *w, unsigned int *ht,
+         return png_info(h, w, ht, xd, yd);
+     return 1;
+ }
++#endif /* !TAUDOT_PDFINFO_MAIN */
+-- 
+2.50.0
+

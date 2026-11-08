@@ -1,0 +1,51 @@
+From dda2bdaeea92f5a57e3e5c14ac7f32b717509eff Mon Sep 17 00:00:00 2001
+From: taudot <taudot@localhost>
+Date: Tue, 3 Nov 2026 13:33:03 -0500
+Subject: [PATCH 3/6] main: input seek returns the new offset
+
+---
+ src/engine/main/main.c | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/src/engine/main/main.c b/src/engine/main/main.c
+index 333408e..3893932 100644
+--- a/src/engine/main/main.c
++++ b/src/engine/main/main.c
+@@ -448,6 +448,16 @@ size_t ttstub_input_get_size(ttbc_input_handle_t *handle)
+   return file_stat.st_size;
+ }
+ 
++/* Taudot (MIT): like Tectonic's, return the new offset, not fseek's 0. dvipdfmx
++ * finds a PDF's xref with seek(0, SEEK_END), so without this every PDF failed
++ * to load outside TeXpresso ("Error while parsing PDF file"). */
++static size_t file_seek(FILE *f, ssize_t offset, int whence)
++{
++  if (fseek(f, offset, whence) != 0)
++    return (size_t)-1;
++  return (size_t)ftell(f);
++}
++
+ size_t ttstub_input_seek(ttbc_input_handle_t *handle,
+                          ssize_t offset,
+                          int whence)
+@@ -456,7 +466,7 @@ size_t ttstub_input_seek(ttbc_input_handle_t *handle,
+   {
+     txp_input *input = input_as_txp(handle);
+     if (input->id == -1)
+-      return fseek(input->file, offset, whence);
++      return file_seek(input->file, offset, whence);
+ 
+     int ofs = offset;
+     if (whence == SEEK_CUR)
+@@ -478,7 +488,7 @@ size_t ttstub_input_seek(ttbc_input_handle_t *handle,
+ 
+     return input->file_pos + input->buf_pos;
+   }
+-  return fseek(input_as_file(handle), offset, whence);
++  return file_seek(input_as_file(handle), offset, whence);
+ }
+ 
+ static ssize_t internal_input_read(ttbc_input_handle_t *handle, char *data, size_t len)
+-- 
+2.50.0
+

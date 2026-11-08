@@ -1,0 +1,284 @@
+*taudot.txt*  Live Overleaf editing from Neovim, through the taudot engine
+
+==============================================================================
+CONTENTS                                                    *taudot-contents*
+
+  1. Introduction ............................. |taudot-intro|
+  2. Setup .................................... |taudot-setup|
+  3. Commands ................................. |taudot-commands|
+  4. Mappings ................................. |taudot-mappings|
+  5. Statusline ............................... |taudot-statusline|
+  6. Highlights ............................... |taudot-highlights|
+  7. How it works ............................. |taudot-internals|
+  8. PDF preview ............................ |taudot-preview|
+
+==============================================================================
+1. INTRODUCTION                                                *taudot-intro*
+
+taudot keeps a local folder in sync with an Overleaf project. A separate
+process, the engine, owns all the state. This plugin is one of its clients:
+it sends what you type to the engine and shows what others type, with their
+colour fading after a few seconds, their cursors, and their comments.
+
+Buffers stay normal buffers on the folder's files, so LSP, treesitter and
+your own mappings work as usual. Writing (|:w|) is not needed: the engine
+writes the files. |:w| on a synced buffer just clears 'modified'.
+
+Requires Neovim 0.12 or later and a running engine (or the mock engine in
+`clients/mock-engine`).
+
+==============================================================================
+2. SETUP                                                       *taudot-setup*
+
+Nothing is needed beyond adding the plugin to 'runtimepath'. To change the
+defaults, call setup before the first |:Taudot|: >lua
+
+  require('taudot').setup({
+    socket = '~/.taudot/engine.sock',  -- $TAUDOT_SOCKET wins
+    author_groups = { 'DiagnosticInfo', 'DiagnosticWarn', 'DiagnosticOk',
+                      'DiagnosticHint', 'Special', 'DiagnosticError' },
+    fade_ms = 3000,             -- how long a collaborator's colour lasts
+    underline_unconfirmed = true,
+    cursor_label = 'inline',    -- 'inline', 'eol' or 'none'
+    signs = { comment = '▍', change = '▎' },
+    show_resolved = false,      -- draw resolved comments too, dimmed
+    send_delay = 50,            -- ms to batch your keystrokes
+    cursor_delay = 150,         -- ms between cursor updates
+    mappings = true,            -- review keys, see |taudot-mappings|
+    mapping_prefix = '<leader>a',
+    comment_K = true,           -- K on a comment shows its thread
+    inline = true,              -- comment text at the end of its line
+    hover = false,              -- thread in a float when the cursor rests
+    panel = { width = 44 },     -- the review panel, |taudot-panel|
+    picker = 'auto',            -- 'auto' (Telescope if installed), 'telescope',
+                                -- 'select' (vim.ui.select) or 'quickfix'
+    reconnect = true,
+  })
+<
+==============================================================================
+3. COMMANDS                                                 *taudot-commands*
+
+:Taudot open [{folder}]                                       *:Taudot-open*
+    Open the project in {folder} (default: the current directory) and attach
+    every loaded buffer whose file is one of its docs. Files opened later
+    attach on their own.
+
+:Taudot status                                              *:Taudot-status*
+    Engine version, connection, each attached doc's seq and unconfirmed
+    edits, and who is online.
+
+:Taudot panel                                                *:Taudot-panel*
+    Open or close the review panel (|taudot-panel|).
+
+:Taudot comments [all] [qf]                               *:Taudot-comments*
+    Every comment thread in the project in a picker: the author's colour,
+    who, when, the commented text, the first words and how many replies.
+    Resolved threads only with `all`. With Telescope installed: a preview of
+    the file around the comment and the whole thread, and these keys:
+      <CR>    go to the comment
+      <C-r>   reply
+      <C-e>   resolve, or reopen a resolved one
+      <C-d>   delete the thread (asks first)
+      <C-a>   show resolved threads too, or hide them again
+    Without Telescope: |vim.ui.select|, and picking one goes there. With `qf`:
+    the quickfix list. On a server without comment threads (Overleaf CE) it
+    lists the comment ranges with no messages.
+
+:Taudot changes [qf]                                       *:Taudot-changes*
+    Every tracked change in the project, the same way. Telescope keys: <CR>
+    go there, <C-y> accept, <C-x> reject.
+
+:Taudot inline [on|off]                                     *:Taudot-inline*
+    The comment text at the end of each commented line (`▍ Bob: first
+    words… (+2)`, dim). Without an argument it toggles. It is hidden while
+    the panel is open.
+
+:Taudot thread                                              *:Taudot-thread*
+    The threads and tracked changes under the cursor, in a float (what K
+    shows).
+
+:[range]Taudot comment [{text}]                            *:Taudot-comment*
+    Comment on the visual selection (whole lines with a linewise selection or
+    a plain line range). Without {text} it opens the comment box
+    (|taudot-writing|). Needs a server with
+    comment threads (overleaf.com, Server Pro), not Overleaf CE.
+
+:Taudot reply [{text}]                                       *:Taudot-reply*
+:Taudot toggle                                              *:Taudot-toggle*
+:Taudot resolve                                            *:Taudot-resolve*
+:Taudot reopen                                              *:Taudot-reopen*
+:Taudot delete-thread                                *:Taudot-delete-thread*
+    Act on the comment thread under the cursor (asks which one if several).
+    `toggle` resolves an open thread and reopens a resolved one.
+    `delete-thread` asks first; it deletes it for everyone.
+
+:Taudot edit-message [{text}]                         *:Taudot-edit-message*
+:Taudot delete-message                              *:Taudot-delete-message*
+    Edit or delete one of your own messages in the thread under the cursor.
+
+:[range]Taudot accept                                       *:Taudot-accept*
+:[range]Taudot reject                                       *:Taudot-reject*
+    Accept or reject the tracked changes under the cursor, or in the lines
+    of [range]. Rejecting undoes them (inserted text goes, deleted text comes
+    back). Overleaf CE can't accept tracked changes; reject works there.
+
+:Taudot track [on|off]                                       *:Taudot-track*
+    Make your own edits tracked changes, or stop. Without an argument it
+    toggles. The statusline shows `TC` while it is on.
+
+:Taudot reconnect                                        *:Taudot-reconnect*
+    Drop and remake the engine connection. Attached buffers catch up from
+    their last seq and then send what they kept.
+
+:Taudot close                                                *:Taudot-close*
+    Detach every buffer and disconnect. The engine keeps syncing.
+
+==============================================================================
+4. MAPPINGS                                                 *taudot-mappings*
+
+On by default, under `mapping_prefix` (default <leader>a, so <leader>ap is
+the panel). A key you have already mapped is left alone; |:checkhealth|
+taudot lists the ones skipped. `mappings = false` turns them all off.
+
+Everywhere:
+  {prefix}p   review panel on/off                       |taudot-panel|
+  {prefix}l   list comments                             |:Taudot-comments|
+  {prefix}L   list tracked changes                      |:Taudot-changes|
+  {prefix}t   track my edits on/off                     |:Taudot-track|
+  {prefix}i   comment text at line ends on/off          |:Taudot-inline|
+  {prefix}s   status
+  {prefix}o   open the project of this file
+
+In a synced file (buffer-local):
+  {prefix}c   comment on the word under the cursor; in visual mode, on the
+              selection
+  {prefix}r   reply to the comment under the cursor
+  {prefix}R   resolve it, or reopen it
+  {prefix}d   delete its thread (asks first)
+  {prefix}e   edit one of your messages in it
+  {prefix}a   accept the tracked change here (visual: in the lines)
+  {prefix}x   reject the tracked change here (visual: in the lines)
+
+<Plug> mappings, for your own keys:
+<Plug>(TaudotOpen)        open the project of the current file's folder
+<Plug>(TaudotStatus)      |:Taudot-status|
+<Plug>(TaudotComments)    |:Taudot-comments|
+<Plug>(TaudotThread)      |:Taudot-thread|
+<Plug>(TaudotComment)     (visual) |:Taudot-comment| on the selection
+<Plug>(TaudotReply)       |:Taudot-reply|
+<Plug>(TaudotResolve)     |:Taudot-resolve|
+<Plug>(TaudotAccept)      |:Taudot-accept| (normal and visual)
+<Plug>(TaudotReject)      |:Taudot-reject| (normal and visual)
+<Plug>(TaudotTrack)       |:Taudot-track| toggle
+
+With `comment_K = true` (the default), attached buffers get a buffer-local
+K: on a comment it shows the thread (messages with author and time), on a
+tracked change who made it and when; elsewhere it it falls back to LSP hover,
+or to the built-in |K|.
+
+Review panel                                                   *taudot-panel*
+
+{prefix}p or |:Taudot-panel| opens a narrow split on the right, like
+Overleaf's Review panel: the current file's comments and tracked changes
+as cards, in the order they come in the text. A comment card has the
+author, when, the commented text, the messages and the replies; a change
+card who added or deleted what. It updates as others comment, reply,
+resolve and edit, and shows who else is here.
+
+It follows your cursor: the card for the comment or change under it is
+highlighted and scrolled into view. Moving in the panel moves the editor to
+that card's text. Keys in the panel:
+  <CR>   go to the text
+  r      reply              R   resolve, or reopen
+  a      accept             x   reject
+  d      delete the thread  H   show or hide resolved threads
+  q      close
+
+Writing                                                      *taudot-writing*
+
+Comments, replies and edits open a small box at the cursor, titled with what
+you are answering ("Comment on 'the text'", "Reply to Bob"). It is a
+markdown buffer, so write as many lines as you like. <C-s> sends (in insert
+or normal mode), and so does <CR> in normal mode; q or <Esc> in normal mode
+cancels. Leaving the box without sending keeps the text for next time.
+
+==============================================================================
+5. STATUSLINE                                             *taudot-statusline*
+
+`require('taudot').statusline()` returns an empty string when no project is
+open, otherwise: a dot for the connection (● in sync, ◐ edits unconfirmed or
+connecting, ○ offline), the number of unconfirmed edits as `3↑`, and the
+`TC` when your edits are tracked, and the
+initials of everyone else online, in their colours: >lua
+
+  vim.o.statusline = '%f %m%=%{%v:lua.require("taudot").statusline()%} '
+<
+==============================================================================
+6. HIGHLIGHTS                                             *taudot-highlights*
+
+Every group is a `default` link to an existing group, so it follows your
+colourscheme and you can override it. No colour is hard-coded.
+
+TaudotAuthor1 .. 6     A collaborator's colour. Links to `author_groups`.
+TaudotFade{n}_{step}   Generated: the author colour blended into Normal's
+                        background, thinner at each step. Without
+                        'termguicolors' the terminal's ANSI palette is used.
+TaudotCursor{n}        A collaborator's cursor (generated).
+TaudotCursorLabel{n}   Their initials (generated).
+TaudotUnconfirmed      Your text the engine hasn't confirmed. Dotted
+                        underline by default.
+TaudotComment          Commented text. -> DiagnosticUnderlineInfo
+TaudotCommentSign      The comment sign. -> DiagnosticSignInfo
+TaudotCommentResolved  A resolved comment, with `show_resolved`. -> Comment
+TaudotTrackedInsert{n} Tracked inserted text: underlined in the author
+                        colour on a light tint (generated).
+TaudotTrackedDelete{n} Tracked deleted text, shown inline where it was,
+                        struck through in the author colour (generated).
+TaudotTrackChanges     The `TC` in the statusline. -> DiagnosticWarn
+TaudotStatusOnline     -> DiagnosticOk
+TaudotStatusBusy       -> DiagnosticWarn
+TaudotStatusOffline    -> DiagnosticError
+TaudotInline           Comment text at line ends. -> Comment
+TaudotPanelTitle       The panel's title. -> Title
+TaudotPanelTime        Times and line numbers. -> Comment
+TaudotPanelQuote       The commented text on a card. -> String
+TaudotPanelText        Messages. -> Normal
+TaudotPanelResolved    A resolved card. -> Comment
+TaudotPanelCurrent     The card under your cursor. -> CursorLine
+TaudotPanelInsert      Added text on a change card. -> DiffAdd
+TaudotPanelDelete      Deleted text on a change card. -> DiffDelete
+TaudotPanelSeparator   Lines between cards. -> WinSeparator
+TaudotPanelHint        Counts and key hints. -> Comment
+
+==============================================================================
+7. HOW IT WORKS                                            *taudot-internals*
+
+The plugin talks JSON-RPC to the engine over its Unix socket (docs/api.md in
+the taudot repo). Positions are UTF-8 byte offsets, as |nvim_buf_attach()|
+reports them.
+
+`on_bytes` only records which byte ranges changed. The new text is read on
+the next tick, because during undo Neovim reports changes after the buffer
+already holds the final text. Batches go out every `send_delay` ms, one
+request at a time. Remote edits are transformed past your unconfirmed ones,
+then applied with |nvim_buf_set_text()| while an echo guard ignores the
+resulting `on_bytes`. If the buffer and the plugin's copy of the doc ever
+disagree, the buffer is reloaded from the engine (and you are told how many
+unconfirmed edits that dropped).
+
+Check the setup with |:checkhealth| taudot.
+
+==============================================================================
+8. PDF PREVIEW                                               *taudot-preview*
+
+When $TAUDOT_PREVIEW_SOCKET is set, as in the Rex layout, taudot links
+Neovim with the PDF preview pane through SyncTeX:
+
+- When the cursor rests on a line of a .tex file, the preview scrolls to
+  where that line is typeset (if it is out of view) and marks it briefly.
+- Double-click in the PDF: Neovim jumps to the source line and gets focus.
+
+Nothing to configure. The link is independent of the engine connection and
+retries every second while the preview isn't running.
+
+ vim:tw=78:ts=8:ft=help:norl:
