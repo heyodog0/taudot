@@ -8,4 +8,4 @@ vendor/
 __pycache__/
 
 # Agents' working notes, briefs and screenshots: kept in a separate private repository.
-docs/agents/
+/docs/agents

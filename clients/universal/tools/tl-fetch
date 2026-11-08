@@ -1,0 +1,5 @@
+#!/bin/sh
+# MIT. TAU_FETCH for the interposer: fetch one TeX Live file into TEXSTORE_ROOT from the store (warm-up only).
+here=$(cd "$(dirname "$0")" && pwd)
+export TEXSTORE_URL=${TEXSTORE_URL:-https://texlive.taudot.app}
+exec uv run --no-project python -I "$here/../../../tools/texstore/client.py" fetch "$1"

@@ -29,6 +29,7 @@ Parts of this repository with their own licence keep it:
 - clients/render/dvi/       MIT, Copyright (c) 2023 Frédéric Bour (derived from TeXpresso); see its LICENSE
 - clients/render/fonts/     MIT; see its LICENSE
 - clients/render/rt/        MIT; see its LICENSE
+- clients/universal/       MIT (libtau, tau-live, tau-tdl: meant to be embedded); see its LICENSE
 - clients/pdftex/           GPL-2.0-or-later (patches to, and drivers of, pdfTeX); see its LICENSE
 - harness/ce-threads/       AGPL-3.0 (it runs inside Overleaf CE and calls its code; never shipped in the app);
                             see its README.md

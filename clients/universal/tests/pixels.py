@@ -1,0 +1,95 @@
+# MIT. An independent check of the paragraph pass: draw the pass's lines and the exact page's same lines with Core
+# Graphics (no MuPDF) and count the pixels that differ. No tolerance: any channel of any pixel counts.
+#
+# The pass's content stream becomes a page of a copy of the exact PDF (all the document's fonts in its resources),
+# moved by the offset the line match found, so both are drawn by the same renderer from the same fonts.
+import io
+
+import pikepdf
+import Quartz
+from Foundation import NSData
+
+SCALE = 4  # 288 dpi
+
+
+def pass_pdf(exact_path, page_index, content, dx, dy):
+    pdf = pikepdf.open(exact_path)
+    page = pdf.pages[page_index]
+    fonts, xobjs = pikepdf.Dictionary(), pikepdf.Dictionary()
+    for pg in pdf.pages:  # the pass may use a font the page doesn't (first used elsewhere)
+        res = pg.obj.get("/Resources", {})
+        for k, v in res.get("/Font", {}).items():
+            fonts[k] = v
+        for k, v in res.get("/XObject", {}).items():
+            xobjs[k] = v
+    res = page.obj.get("/Resources") or pikepdf.Dictionary()
+    res["/Font"] = fonts
+    res["/XObject"] = xobjs
+    page.obj["/Resources"] = res
+    page.obj["/Contents"] = pdf.make_stream(b"q 1 0 0 1 %.4f %.4f cm\n" % (dx, dy) + content + b"\nQ\n")
+    if "/Annots" in page.obj:
+        del page.obj["/Annots"]
+    out = io.BytesIO()
+    pdf.save(out)
+    return out.getvalue()
+
+
+def render(pdf_bytes, page_index, rect):
+    """RGBA bytes of RECT (x0, y0, x1, y1 in PDF points) of a page, at SCALE, on white."""
+    data = NSData.dataWithBytes_length_(pdf_bytes, len(pdf_bytes))
+    doc = Quartz.CGPDFDocumentCreateWithProvider(Quartz.CGDataProviderCreateWithCFData(data))
+    page = Quartz.CGPDFDocumentGetPage(doc, page_index + 1)
+    x0, y0, x1, y1 = rect
+    w, h = int(round((x1 - x0) * SCALE)), int(round((y1 - y0) * SCALE))
+    cs = Quartz.CGColorSpaceCreateDeviceRGB()
+    ctx = Quartz.CGBitmapContextCreate(None, w, h, 8, w * 4, cs, Quartz.kCGImageAlphaPremultipliedLast)
+    Quartz.CGContextSetRGBFillColor(ctx, 1, 1, 1, 1)
+    Quartz.CGContextFillRect(ctx, Quartz.CGRectMake(0, 0, w, h))
+    Quartz.CGContextScaleCTM(ctx, SCALE, SCALE)
+    Quartz.CGContextTranslateCTM(ctx, -x0, -y0)
+    Quartz.CGContextDrawPDFPage(ctx, page)
+    img = Quartz.CGBitmapContextCreateImage(ctx)
+    return bytes(Quartz.CGDataProviderCopyData(Quartz.CGImageGetDataProvider(img))), w, h
+
+
+def ink_right(rgba, w, h, left_px):
+    right = left_px
+    for y in range(h):
+        row = rgba[y * w * 4:(y + 1) * w * 4]
+        for x in range(w - 1, right, -1):
+            if row[4 * x] < 250 or row[4 * x + 1] < 250 or row[4 * x + 2] < 250:
+                right = x
+                break
+    return right
+
+
+def diff(exact_path, page_index, content, dx, dy, baselines, x_start):
+    """(differing pixels, visibly differing pixels (> 64 in a channel), pixels compared). BASELINES and X_START
+    are in the pass's coordinates; the band runs from 3 pt below the last baseline to 7.5 pt above the first."""
+    with open(exact_path, "rb") as f:
+        exact = f.read()
+    mine = pass_pdf(exact_path, page_index, content, dx, dy)
+    top, bottom = max(baselines) + dy + 7.5, min(baselines) + dy - 3
+    left = x_start + dx - 1
+    with pikepdf.open(exact_path) as doc:
+        pw = float(doc.pages[page_index].mediabox[2])
+    a, w, h = render(mine, page_index, (left, bottom, pw, top))
+    right = left + (ink_right(a, w, h, 0) + 1) / SCALE + 2
+    a, w, h = render(mine, page_index, (left, bottom, right, top))
+    b, _, _ = render(exact, page_index, (left, bottom, right, top))
+    n = vis = 0
+    import os
+    dump = os.environ.get("PIX_DUMP")
+    if dump and a != b:
+        from PIL import Image, ImageChops
+        os.makedirs(dump, exist_ok=True)
+        k = len(os.listdir(dump)) // 3
+        ia, ib = Image.frombytes("RGBA", (w, h), a), Image.frombytes("RGBA", (w, h), b)
+        ia.save(f"{dump}/{k}-pass.png"); ib.save(f"{dump}/{k}-exact.png")
+        ImageChops.difference(ia.convert("RGB"), ib.convert("RGB")).point(lambda v: 255 if v else 0).save(f"{dump}/{k}-diff.png")
+    for i in range(0, len(a), 4):
+        d = max(abs(a[i] - b[i]), abs(a[i + 1] - b[i + 1]), abs(a[i + 2] - b[i + 2]))
+        if d:
+            n += 1
+            vis += d > 64
+    return n, vis, w * h
