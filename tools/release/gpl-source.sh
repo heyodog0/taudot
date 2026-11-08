@@ -1,5 +1,6 @@
 #!/bin/sh
-# The complete source of the GPL programs in Taudot.app (the live pdfTeX: pdftex, pdftex-live; BibTeX), for a release:
+# The complete source of the GPL programs in Taudot.app (the live pdfTeX: pdftex, pdftex-live; BibTeX; universal's
+# stock pdftex, xetex, luahbtex, xdvipdfmx, bibtex), for a release:
 #   tools/release/gpl-source.sh VERSION OUTDIR [COMMIT]     → OUTDIR/taudot-gpl-source-VERSION.tar.gz
 # It holds clients/pdftex at COMMIT (default HEAD: the release commit) — our patches for each TeX Live year, apply.sh
 # (which names each TeX Live source release with its URL and SHA-512), build.sh and the driver — plus SOURCES.txt,
@@ -16,7 +17,8 @@ name="taudot-gpl-source-$version"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/$name" "$out"
-git -C "$repo" archive --format=tar "$rev" clients/pdftex clients/render/bibtex | tar -x -C "$tmp/$name"
+git -C "$repo" archive --format=tar "$rev" clients/pdftex clients/render/bibtex \
+  clients/universal/build-engines.sh clients/universal/build-formats.sh clients/universal/env.sh | tar -x -C "$tmp/$name"
 cp "$repo/tools/release/COPYING-GPL-2" "$tmp/$name/COPYING"
 {
   echo "Taudot $version: source of the GPL programs it ships"
@@ -36,6 +38,13 @@ cp "$repo/tools/release/COPYING-GPL-2" "$tmp/$name/COPYING"
   echo "  SERIES=YEAR sh clients/pdftex/build.sh all"
   echo "(apply.sh fetches the TeX Live release, checks its SHA-512 and applies clients/pdftex/patches/YEAR/;"
   echo "clients/pdftex/README.md describes the patches and the build.)"
+  echo
+  echo "Taudot.app/Contents/Resources/universal/bin/ holds pdftex, xetex, luahbtex (run as pdflatex, xelatex,"
+  echo "lualatex), xdvipdfmx and bibtex built WITHOUT changes from the TeX Live 2026 source release above"
+  echo "(texlive-20260301-source.tar.xz, the same SHA-512), with TeX Live's own libraries; universal/fmt/ holds the"
+  echo "formats those engines built. To rebuild: unpack that release, then"
+  echo "  sh clients/universal/build-engines.sh     (configure flags and the zlib-as-a-dylib relink are in it)"
+  echo "  sh clients/universal/build-formats.sh"
 } > "$tmp/$name/SOURCES.txt"
 tar -C "$tmp" -czf "$out/$name.tar.gz" "$name"
 echo "$out/$name.tar.gz"

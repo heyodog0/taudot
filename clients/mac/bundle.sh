@@ -156,6 +156,7 @@ lic=$(mktemp -d)
 uv run --no-project --quiet python "$rel/vendor.py" "$app" --licences "$lic" > "$out/vendored.txt"
 uv run --no-project --quiet python "$rel/notices.py" "$app/Contents/Resources/Acknowledgements.txt" --licences "$lic" \
   --texpresso "$T" --neovim-licence "$nvim_licence" --sparkle-licence "$sp/LICENSE" --version "$short" \
+  $([ -d "$app/Contents/Resources/universal" ] && [ -d "$ref/universal/src-2026" ] && printf -- '--texlive-src %s ' "$ref/universal/src-2026") \
   $(B=$(brew --prefix 2>/dev/null) && for k in freetype libpng brotli; do [ -d "$B/opt/$k" ] && printf -- '--static-keg %s ' "$B/opt/$k"; done) >&2
 rm -rf "$lic"
 cp "$rel/COPYING-GPL-2" "$app/Contents/Resources/"
