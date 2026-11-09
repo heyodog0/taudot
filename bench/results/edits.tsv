@@ -1,4 +1,4 @@
-date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact	final_ms	final_exact	xdvipdfmx_ms
+date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact	final_ms	final_exact	self_ms	xdvipdfmx_ms
 2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-1512.03385	pdflatex	1	0	4			473.30		473.30		
 2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-1512.03385	pdflatex	2	0	4			468.93		468.93		
 2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-1512.03385	pdflatex	3	0	4			451.83		451.83		
@@ -869,3 +869,513 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	taudot-universal	tau-live 735481cd32	synth-100	xelatex	28	4	71	4.50	exact	9.69	yes	60.52	yes	116.99
 2026-11-09	taudot-universal	tau-live 735481cd32	synth-100	xelatex	29	4	71	4.52	exact	8.57	yes	63.60	yes	113.70
 2026-11-09	taudot-universal	tau-live 735481cd32	synth-100	xelatex	30	4	71	5.25	exact	9.20	yes	63.45	yes	114.83
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	1	0	50			1315.38		1315.38		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	2	0	50			1270.55		1270.55		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	3	0	50			1295.03		1295.03		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	4	0	50			1257.38		1257.38		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	5	0	50			1285.63		1285.63		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	6	0	50			1255.29		1255.29		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	7	1	9			1269.65		1269.65		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	8	1	9			1257.58		1257.58		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	9	1	9			1261.46		1261.46		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	10	1	9			1253.88		1253.88		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	11	1	9			1275.38		1275.38		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	12	1	9			1263.42		1263.42		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	13	2	90			1255.61		1255.61		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	14	2	90			1252.45		1252.45		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	15	2	90			1266.78		1266.78		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	16	2	90			1247.12		1247.12		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	17	2	90			1251.35		1251.35		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	18	2	90			1242.43		1242.43		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	19	3	30			1267.98		1267.98		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	20	3	30			1256.51		1256.51		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	21	3	30			1280.43		1280.43		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	22	3	30			1256.24		1256.24		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	23	3	30			1298.77		1298.77		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	24	3	30			1280.44		1280.44		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	25	4	70			1246.89		1246.89		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	26	4	70			1260.48		1260.48		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	27	4	70			1350.96		1350.96		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	28	4	70			1341.04		1341.04		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	29	4	70			1344.86		1344.86		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	30	4	70			1347.68		1347.68		
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	1	0	50			1417.42	ref	1417.42	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	2	0	50			1418.10	ref	1418.10	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	3	0	50			1411.24	ref	1411.24	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	4	0	50			1429.23	ref	1429.23	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	5	0	50			1420.08	ref	1420.08	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	6	0	50			1414.57	ref	1414.57	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	7	1	9			1419.77	ref	1419.77	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	8	1	9			1408.17	ref	1408.17	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	9	1	9			1408.49	ref	1408.49	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	10	1	9			1414.21	ref	1414.21	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	11	1	9			1410.32	ref	1410.32	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	12	1	9			1424.21	ref	1424.21	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	13	2	90			1419.63	ref	1419.63	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	14	2	90			1406.50	ref	1406.50	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	15	2	90			1432.79	ref	1432.79	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	16	2	90			1407.46	ref	1407.46	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	17	2	90			1405.74	ref	1405.74	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	18	2	90			1439.16	ref	1439.16	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	19	3	30			1399.71	ref	1399.71	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	20	3	30			1405.26	ref	1405.26	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	21	3	30			1420.20	ref	1420.20	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	22	3	30			1419.42	ref	1419.42	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	23	3	30			1404.02	ref	1404.02	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	24	3	30			1496.76	ref	1496.76	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	25	4	70			1497.95	ref	1497.95	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	26	4	70			1447.48	ref	1447.48	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	27	4	70			1515.15	ref	1515.15	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	28	4	70			1454.12	ref	1454.12	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	29	4	70			1523.33	ref	1523.33	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	30	4	70			1407.00	ref	1407.00	ref	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	1	0	50		no event	69.04	yes	526.46	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	2	0	50	13.61	exact	65.63	yes	518.20	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	3	0	50	9.93	exact	61.45	yes	507.95	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	4	0	50	9.05	exact	55.08	yes	508.51	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	5	0	50	9.35	exact	55.24	yes	513.75	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	6	0	50	8.13	exact	56.35	yes	527.92	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	7	1	9	18.68	exact	66.94	yes	923.07	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	8	1	9	15.85	exact	58.08	yes	912.99	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	9	1	9	10.63	exact	51.03	yes	915.66	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	10	1	9	15.48	exact	59.07	yes	916.84	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	11	1	9	13.03	exact	59.77	yes	955.33	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	12	1	9	26.79	exact	70.50	yes	926.57	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	13	2	90		no event	96.76	yes	163.22	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	14	2	90	9.42	exact	57.20	yes	149.51	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	15	2	90	8.03	exact	56.19	yes	157.98	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	16	2	90	8.49	exact	63.35	yes	169.28	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	17	2	90	8.82	exact	59.90	yes	162.46	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	18	2	90	8.56	exact	57.90	yes	169.20	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	19	3	30		none/split	69.49	yes	755.13	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	20	3	30		none/split	66.00	yes	747.81	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	21	3	30		none/split	64.04	yes	743.27	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	22	3	30		none/split	61.57	yes	782.66	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	23	3	30		none/split	60.62	yes	700.44	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	24	3	30		none/split	60.32	yes	706.74	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	25	4	70	12.81	exact	66.81	yes	338.67	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	26	4	70	9.01	exact	59.84	yes	330.44	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	27	4	70	9.07	provisional/heights	59.04	yes	337.80	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	28	4	70	9.59	exact	57.79	yes	347.28	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	29	4	70	9.27	exact	55.50	yes	330.32	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	30	4	70	8.37	exact	55.56	yes	343.24	yes	
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	1	0	148			960.67		960.67		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	2	0	148			968.32		968.32		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	3	0	148			964.93		964.93		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	4	0	148			972.39		972.39		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	5	0	148			965.26		965.26		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	6	0	148			956.17		956.17		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	7	1	29			954.73		954.73		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	8	1	29			955.19		955.19		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	9	1	29			961.35		961.35		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	10	1	29			972.39		972.39		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	11	1	29			986.86		986.86		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	12	1	29			953.82		953.82		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	13	2	268			952.63		952.63		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	14	2	268			947.87		947.87		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	15	2	268			971.60		971.60		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	16	2	268			969.74		969.74		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	17	2	268			955.76		955.76		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	18	2	268			948.61		948.61		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	19	3	88			951.28		951.28		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	20	3	88			945.80		945.80		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	21	3	88			999.31		999.31		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	22	3	88			973.77		973.77		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	23	3	88			967.79		967.79		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	24	3	88			957.88		957.88		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	25	4	208			950.26		950.26		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	26	4	208			980.35		980.35		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	27	4	208			977.36		977.36		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	28	4	208			999.51		999.51		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	29	4	208			985.15		985.15		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	30	4	208			980.61		980.61		
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	1	0	148			1142.44	ref	1142.44	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	2	0	148			1095.03	ref	1095.03	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	3	0	148			1169.91	ref	1169.91	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	4	0	148			1121.27	ref	1121.27	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	5	0	148			1169.70	ref	1169.70	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	6	0	148			1291.70	ref	1291.70	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	7	1	29			1329.10	ref	1329.10	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	8	1	29			3330.10	ref	3330.10	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	9	1	29			2527.47	ref	2527.47	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	10	1	29			1261.49	ref	1261.49	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	11	1	29			1211.82	ref	1211.82	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	12	1	29			1202.96	ref	1202.96	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	13	2	268			1180.02	ref	1180.02	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	14	2	268			1193.73	ref	1193.73	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	15	2	268			1184.48	ref	1184.48	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	16	2	268			1187.73	ref	1187.73	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	17	2	268			1239.40	ref	1239.40	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	18	2	268			1345.51	ref	1345.51	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	19	3	88			1259.12	ref	1259.12	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	20	3	88			1227.96	ref	1227.96	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	21	3	88			1203.76	ref	1203.76	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	22	3	88			1198.99	ref	1198.99	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	23	3	88			1221.03	ref	1221.03	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	24	3	88			1193.52	ref	1193.52	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	25	4	208			1169.66	ref	1169.66	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	26	4	208			1188.53	ref	1188.53	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	27	4	208			1234.72	ref	1234.72	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	28	4	208			1190.27	ref	1190.27	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	29	4	208			1507.36	ref	1507.36	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	30	4	208			1347.60	ref	1347.60	ref	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	1	0	148		no event	41.37	yes	521.54	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	2	0	148	7.39	exact	38.75	yes	500.96	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	3	0	148	4.28	exact	41.65	yes	485.17	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	4	0	148	6.02	provisional/heights	41.74	yes	490.60	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	5	0	148	5.36	exact	37.68	yes	490.83	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	6	0	148	4.34	exact	40.73	yes	488.00	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	7	1	29		no event	32.85	yes	874.50	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	8	1	29	6.91	exact	29.86	yes	871.10	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	9	1	29	7.31	exact	30.72	yes	859.11	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	10	1	29	6.20	exact	31.91	yes	826.49	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	11	1	29	5.69	exact	29.63	yes	846.21	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	12	1	29	6.89	exact	30.45	yes	828.62	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	13	2	268		no event	41.31	yes	138.65	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	14	2	268	4.19	exact	39.48	yes	139.83	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	15	2	268	18.60	exact	57.36	yes	152.93	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	16	2	268	3.12	exact	38.65	yes	141.24	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	17	2	268	3.25	exact	39.91	yes	141.05	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	18	2	268	3.68	exact	40.49	yes	141.01	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	19	3	88		no event	28.52	yes	650.16	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	20	3	88	5.99	exact	27.34	yes	667.70	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	21	3	88	5.75	exact	25.66	yes	661.85	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	22	3	88	5.46	exact	26.75	yes	649.31	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	23	3	88	5.08	exact	24.59	yes	644.92	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	24	3	88	6.29	exact	27.31	yes	651.80	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	25	4	208		no event	37.35	yes	308.42	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	26	4	208	3.93	exact	36.84	yes	312.27	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	27	4	208	4.39	exact	39.26	yes	307.60	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	28	4	208	5.71	exact	39.40	yes	313.75	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	29	4	208	3.79	exact	36.73	yes	304.01	yes	
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	30	4	208	5.56	exact	37.89	yes	312.38	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	1	0	148		no event	42.72	yes	429.14	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	2	0	148	16.49	exact	28.77	yes	418.40	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	3	0	148	13.78	exact	35.44	yes	413.87	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	4	0	148	13.28	provisional/heights	27.03	yes	413.15	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	5	0	148	13.97	exact	37.36	yes	418.61	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	6	0	148	13.25	exact	27.32	yes	416.90	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	7	1	29	16.90	exact	32.80	yes	762.16	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	8	1	29	13.75	exact	27.31	yes	745.25	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	9	1	29	15.31	exact	26.30	yes	776.34	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	10	1	29	14.28	exact	28.73	yes	775.00	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	11	1	29	13.37	exact	28.27	yes	738.66	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	12	1	29	14.32	exact	27.84	yes	755.16	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	13	2	268		no event	41.64	yes	139.70	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	14	2	268	12.93	exact	31.92	yes	121.67	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	15	2	268	13.10	exact	28.94	yes	120.53	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	16	2	268	14.27	exact	44.45	yes	130.25	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	17	2	268	13.44	exact	33.09	yes	139.30	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	18	2	268	13.88	exact	38.65	yes	142.60	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	19	3	88		no event	44.21	yes	623.28	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	20	3	88	14.66	exact	30.96	yes	613.61	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	21	3	88	81.83	exact	471.69	yes	1783.21	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	22	3	88	65.48	exact	161.48	yes	1035.09	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	23	3	88	20.01	exact	39.28	yes	1267.09	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	24	3	88	22.78	exact	65.73	yes	1288.95	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	25	4	208		no event	52.40	yes	609.09	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	26	4	208	22.87	exact	45.15	yes	424.61	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	27	4	208	55.48	exact	270.47	yes	919.61	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	28	4	208	64.60	exact	197.03	yes	718.57	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	29	4	208	35.31	exact	284.77	yes	678.13	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	30	4	208	49.76	exact	80.76	yes	485.25	yes	
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	1	0	150			719.66		719.66		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	2	0	150			743.01		743.01		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	3	0	150			1352.70		1352.70		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	4	0	150			1106.51		1106.51		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	5	0	150			1388.01		1388.01		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	6	0	150			1182.13		1182.13		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	7	1	29			1687.68		1687.68		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	8	1	29			1083.92		1083.92		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	9	1	29			1035.10		1035.10		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	10	1	29			862.29		862.29		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	11	1	29			848.08		848.08		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	12	1	29			997.54		997.54		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	13	2	271			980.51		980.51		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	14	2	271			960.30		960.30		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	15	2	271			1344.15		1344.15		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	16	2	271			841.12		841.12		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	17	2	271			860.89		860.89		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	18	2	271			700.08		700.08		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	19	3	90			708.36		708.36		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	20	3	90			747.67		747.67		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	21	3	90			709.77		709.77		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	22	3	90			731.14		731.14		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	23	3	90			729.20		729.20		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	24	3	90			713.16		713.16		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	25	4	211			759.84		759.84		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	26	4	211			708.43		708.43		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	27	4	211			700.71		700.71		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	28	4	211			727.03		727.03		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	29	4	211			765.55		765.55		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	30	4	211			734.74		734.74		
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	1	0	150			1998.75	ref	1998.75	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	2	0	150			1840.72	ref	1840.72	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	3	0	150			1797.69	ref	1797.69	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	4	0	150			1816.87	ref	1816.87	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	5	0	150			1836.07	ref	1836.07	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	6	0	150			1435.73	ref	1435.73	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	7	1	29			2033.85	ref	2033.85	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	8	1	29			1827.83	ref	1827.83	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	9	1	29			1354.00	ref	1354.00	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	10	1	29			1500.02	ref	1500.02	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	11	1	29			2344.76	ref	2344.76	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	12	1	29			1551.09	ref	1551.09	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	13	2	271			1482.44	ref	1482.44	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	14	2	271			1359.46	ref	1359.46	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	15	2	271			1374.29	ref	1374.29	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	16	2	271			1386.03	ref	1386.03	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	17	2	271			1375.46	ref	1375.46	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	18	2	271			1384.90	ref	1384.90	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	19	3	90			1395.65	ref	1395.65	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	20	3	90			1358.03	ref	1358.03	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	21	3	90			1375.27	ref	1375.27	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	22	3	90			1391.55	ref	1391.55	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	23	3	90			1631.01	ref	1631.01	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	24	3	90			1330.21	ref	1330.21	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	25	4	211			1310.11	ref	1310.11	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	26	4	211			1325.80	ref	1325.80	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	27	4	211			1444.81	ref	1444.81	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	28	4	211			1311.73	ref	1311.73	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	29	4	211			1292.54	ref	1292.54	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	30	4	211			1264.18	ref	1264.18	ref	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	1	0	150		no event	26.67	yes	352.08	yes	263.66
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	2	0	150	60.89	exact	18.48	yes	325.47	yes	236.03
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	3	0	150	16.43	provisional/heights	25.66	yes	321.82	yes	246.42
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	4	0	150	8.15	exact	13.36	yes	361.24	yes	239.45
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	5	0	150	8.51	exact	18.23	yes	324.94	yes	246.05
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	6	0	150	8.40	exact	16.31	yes	363.32	yes	254.15
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	7	1	29		no event	30.16	yes	600.97	yes	93.80
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	8	1	29	11.49	exact	13.61	yes	561.28	yes	92.06
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	9	1	29	10.71	exact	11.06	yes	558.59	yes	93.49
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	10	1	29	13.27	exact	14.97	yes	571.94	yes	91.78
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	11	1	29	10.67	exact	15.08	yes	576.75	yes	94.53
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	12	1	29	10.22	exact	9.86	yes	576.64	yes	91.20
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	13	2	271		no event	71.67	yes	123.18	yes	393.20
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	14	2	271		none/split	42.54	yes	97.71	yes	386.11
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	15	2	271		none/split	46.79	yes	100.07	yes	399.18
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	16	2	271		none/split	15.45	yes	96.61	yes	381.82
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	17	2	271		none/split	35.53	yes	88.39	yes	399.09
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	18	2	271		none/split	29.94	yes	102.21	yes	393.23
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	19	3	90		no event	32.14	yes	475.46	yes	164.79
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	20	3	90	10.04	exact	20.27	yes	445.42	yes	163.94
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	21	3	90	26.36	exact	38.45	yes	476.99	yes	167.64
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	22	3	90	21.49	exact	42.58	yes	496.04	yes	158.91
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	23	3	90	10.85	exact	26.04	yes	483.13	yes	163.14
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	24	3	90	10.35	exact	22.89	yes	464.32	yes	157.62
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	25	4	211		no event	34.30	yes	244.40	yes	299.66
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	26	4	211		none/split	49.63	yes	234.94	yes	300.36
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	27	4	211		none/split	46.76	yes	214.85	yes	307.97
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	28	4	211		none/split	27.44	yes	216.07	yes	305.61
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	29	4	211		none/split	20.77	yes	207.05	yes	318.28
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	30	4	211		none/split	36.14	yes	218.73	yes	306.09
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	1	0	149			3105.84		3105.84		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	2	0	149			3101.42		3101.42		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	3	0	149			3058.87		3058.87		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	4	0	149			3113.19		3113.19		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	5	0	149			3177.11		3177.11		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	6	0	149			3172.21		3172.21		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	7	1	29			3130.02		3130.02		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	8	1	29			3071.71		3071.71		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	9	1	29			3062.89		3062.89		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	10	1	29			3057.96		3057.96		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	11	1	29			3085.36		3085.36		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	12	1	29			3093.83		3093.83		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	13	2	268			3055.06		3055.06		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	14	2	268			3058.39		3058.39		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	15	2	268			3069.20		3069.20		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	16	2	268			3034.06		3034.06		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	17	2	268			3029.47		3029.47		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	18	2	268			3148.53		3148.53		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	19	3	89			3209.45		3209.45		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	20	3	89			3096.04		3096.04		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	21	3	89			3086.75		3086.75		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	22	3	89			3041.10		3041.10		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	23	3	89			3246.59		3246.59		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	24	3	89			3109.55		3109.55		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	25	4	209			3058.27		3058.27		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	26	4	209			3030.89		3030.89		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	27	4	209			3066.46		3066.46		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	28	4	209			3144.80		3144.80		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	29	4	209			3168.60		3168.60		
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	30	4	209			3250.56		3250.56		
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	1	0	149			3432.59	ref	3432.59	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	2	0	149			6754.89	ref	6754.89	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	3	0	149			3397.46	ref	3397.46	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	4	0	149			3452.54	ref	3452.54	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	5	0	149			3308.19	ref	3308.19	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	6	0	149			3283.44	ref	3283.44	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	7	1	29			3299.19	ref	3299.19	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	8	1	29			3382.58	ref	3382.58	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	9	1	29			3390.82	ref	3390.82	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	10	1	29			3287.21	ref	3287.21	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	11	1	29			3330.01	ref	3330.01	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	12	1	29			3367.33	ref	3367.33	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	13	2	268			3335.04	ref	3335.04	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	14	2	268			3343.68	ref	3343.68	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	15	2	268			3346.21	ref	3346.21	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	16	2	268			3357.33	ref	3357.33	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	17	2	268			3283.93	ref	3283.93	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	18	2	268			3379.36	ref	3379.36	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	19	3	89			3324.48	ref	3324.48	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	20	3	89			3346.42	ref	3346.42	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	21	3	89			3285.70	ref	3285.70	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	22	3	89			3379.41	ref	3379.41	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	23	3	89			3419.11	ref	3419.11	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	24	3	89			3499.01	ref	3499.01	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	25	4	209			3498.81	ref	3498.81	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	26	4	209			3504.61	ref	3504.61	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	27	4	209			3408.17	ref	3408.17	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	28	4	209			3445.19	ref	3445.19	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	29	4	209			3505.52	ref	3505.52	ref	
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	30	4	209			3363.86	ref	3363.86	ref	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	1	0	149	27.04	exact	75.78	yes	1639.90	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	2	0	149	23.74	exact	77.99	yes	1607.62	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	3	0	149	26.06	exact	78.55	yes	1571.65	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	4	0	149	24.82	provisional/heights	77.26	yes	1632.43	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	5	0	149	23.16	exact	73.18	yes	1757.62	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	6	0	149	50.76	exact	129.92	yes	1726.21	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	7	1	29		none/insert	90.91	yes	2953.07	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	8	1	29	32.66	exact	72.56	yes	2766.51	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	9	1	29	30.82	exact	74.09	yes	2800.83	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	10	1	29	31.05	exact	74.72	yes	2829.36	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	11	1	29	27.39	exact	69.27	yes	2735.61	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	12	1	29	29.04	exact	71.60	yes	2767.96	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	13	2	268		no event	101.35	yes	459.87	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	14	2	268	18.36	exact	93.55	yes	428.05	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	15	2	268	15.21	exact	91.45	yes	438.04	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	16	2	268	16.68	exact	92.96	yes	457.01	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	17	2	268	17.93	exact	89.59	yes	444.96	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	18	2	268	16.50	exact	89.62	yes	446.99	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	19	3	89		no event	105.06	yes	2153.83	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	20	3	89	34.59	exact	94.47	yes	2290.41	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	21	3	89	31.32	exact	80.90	yes	2153.56	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	22	3	89	37.01	exact	96.53	yes	2268.29	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	23	3	89	28.30	exact	107.11	yes	2275.83	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	24	3	89	30.78	exact	94.01	yes	2221.71	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	25	4	209		no event	106.08	yes	1019.42	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	26	4	209	19.14	exact	85.42	yes	975.16	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	27	4	209	26.30	exact	85.64	yes	986.94	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	28	4	209	17.72	exact	82.59	yes	998.28	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	29	4	209	19.15	exact	94.63	yes	990.52	yes	
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	30	4	209	19.27	exact	91.63	yes	998.88	yes	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	1	0	4	13.49	exact	2170.57	claim	1459.02	yes	2.17	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	2	0	4	13.51	exact	1272.38	claim	582.38	yes	2.06	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	3	0	4	13.26	exact	1673.49	claim	953.05	yes	1.96	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	4	0	4	14.65	exact	1282.00	claim	594.45	yes	2.06	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	5	0	4	14.49	exact	1403.08	claim	654.05	yes	1.88	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	6	0	4	14.83	exact	1604.53	claim	764.01	yes	1.87	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	7	1	0	6.70	exact	1426.18	claim	665.33	yes	1.20	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	8	1	0	6.44	exact	1874.57	claim	916.55	yes	1.05	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	9	1	0	6.75	exact	1435.91	claim	686.90	yes	1.14	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	10	1	0	6.45	exact	1330.41	claim	601.56	yes	1.04	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	11	1	0	6.52	exact	1304.03	claim	632.02	yes	1.00	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	12	1	0	7.62	exact	1335.25	claim	615.11	yes	1.09	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	13	2	8	6.82	exact	2304.11	claim	1236.63	yes	1.05	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	14	2	8	7.18	exact	1489.86	claim	699.75	yes	1.15	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	15	2	8	7.17	exact	1473.08	claim	579.88	yes	1.12	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	16	2	8	6.92	exact	1470.62	claim	627.34	yes	1.10	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	17	2	8	7.31	exact	1307.98	claim	617.53	yes	1.05	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	18	2	8	7.07	exact	1340.49	claim	659.18	yes	1.12	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	19	3	2	9.71	exact	1312.55	claim	607.36	yes	1.46	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	20	3	2	9.47	exact	1809.05	claim	777.29	yes	1.57	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	21	3	2	9.45	exact	1395.19	claim	620.79	yes	1.47	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	22	3	2	10.58	exact	1416.01	claim	623.38	yes	1.48	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	23	3	2	9.57	exact	1372.94	claim	633.46	yes	1.53	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	24	3	2	9.58	exact	1332.71	claim	641.51	yes	1.48	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	25	4	7	3.64	exact	1287.96	claim	603.52	yes	0.63	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	26	4	7	3.58	exact	1437.97	claim	733.51	yes	0.58	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	27	4	7	4.14	exact	1553.26	claim	734.19	yes	0.62	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	28	4	7	4.17	exact	1614.01	claim	696.32	yes	0.72	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	29	4	7	3.87	exact	1450.82	claim	776.24	yes	0.66	
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	30	4	7	3.76	exact	1366.18	claim	683.68	yes	0.66	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	1	0			n/a	123.80	n/a	123.80	n/a	8.41	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	2	0			n/a	122.56	n/a	122.56	n/a	6.78	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	3	0			n/a	133.88	n/a	133.88	n/a	18.75	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	4	0			n/a	122.80	n/a	122.80	n/a	6.98	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	5	0			n/a	120.61	n/a	120.61	n/a	6.95	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	6	0			n/a	123.28	n/a	123.28	n/a	6.75	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	7	1			n/a	118.24	n/a	118.24	n/a	6.68	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	8	1			n/a	118.27	n/a	118.27	n/a	7.11	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	9	1			n/a	119.90	n/a	119.90	n/a	6.55	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	10	1			n/a	121.10	n/a	121.10	n/a	6.77	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	11	1			n/a	120.14	n/a	120.14	n/a	6.34	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	12	1			n/a	121.81	n/a	121.81	n/a	5.93	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	13	2			n/a	121.74	n/a	121.74	n/a	5.80	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	14	2			n/a	122.85	n/a	122.85	n/a	6.03	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	15	2			n/a	122.10	n/a	122.10	n/a	5.86	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	16	2			n/a	121.13	n/a	121.13	n/a	5.86	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	17	2			n/a	111.14	n/a	111.14	n/a	7.00	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	18	2			n/a	121.88	n/a	121.88	n/a	5.87	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	19	3			n/a	121.94	n/a	121.94	n/a	5.99	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	20	3			n/a	129.69	n/a	129.69	n/a	14.85	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	21	3			n/a	117.66	n/a	117.66	n/a	5.88	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	22	3			n/a	116.47	n/a	116.47	n/a	5.89	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	23	3			n/a	122.83	n/a	122.83	n/a	7.02	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	24	3			n/a	121.18	n/a	121.18	n/a	6.17	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	25	4			n/a	119.73	n/a	119.73	n/a	5.51	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	26	4			n/a	109.62	n/a	109.62	n/a	5.59	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	27	4			n/a	119.53	n/a	119.53	n/a	5.95	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	28	4			n/a	121.15	n/a	121.15	n/a	6.40	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	29	4			n/a	120.21	n/a	120.21	n/a	6.05	
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	30	4			n/a	123.75	n/a	123.75	n/a	6.87	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	1	0	4	239.45	provisional	609.55	yes	609.55	yes	117	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	2	0	4	173.47	provisional	362.43	yes	362.43	yes	27	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	3	0	4	147.86	provisional	347.49	yes	347.49	yes	27	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	4	0	4	188.65	provisional	432.60	yes	432.60	yes	54	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	5	0	4	149.80	provisional	337.61	yes	337.61	yes	26	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	6	0	4	154.05	provisional	344.22	yes	344.22	yes	26	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	7	1	0	131.90	provisional	314.51	yes	314.51	yes	20	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	8	1	0	132.06	provisional	341.34	yes	341.34	yes	21	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	9	1	0	135.17	provisional	339.50	yes	339.50	yes	28	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	10	1	0	128.58	provisional	308.88	yes	308.88	yes	21	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	11	1	0	131.86	provisional	322.58	yes	322.58	yes	20	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	12	1	0	128.22	provisional	386.17	yes	386.17	yes	20	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	13	2	8	129.27	provisional	330.54	yes	330.54	yes	24	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	14	2	8	133.54	provisional	371.91	yes	371.91	yes	23	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	15	2	8	137.43	provisional	334.21	yes	334.21	yes	25	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	16	2	8	132.76	provisional	323.50	yes	323.50	yes	23	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	17	2	8	131.75	provisional	321.84	yes	321.84	yes	22	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	18	2	8	133.54	provisional	327.25	yes	327.25	yes	24	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	19	3	2	148.64	provisional	334.65	yes	334.65	yes	26	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	20	3	2	144.70	provisional	331.88	yes	331.88	yes	25	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	21	3	2	153.33	provisional	377.78	yes	377.78	yes	36	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	22	3	2	144.29	provisional	389.75	yes	389.75	yes	26	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	23	3	2	140.03	provisional	330.15	yes	330.15	yes	28	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	24	3	2	142.87	provisional	333.97	yes	333.97	yes	27	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	25	4	7	143.85	provisional	388.43	yes	388.43	yes	26	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	26	4	7	148.79	provisional	402.98	yes	402.98	yes	33	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	27	4	7	160.25	provisional	615.37	yes	615.37	yes	25	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	28	4	7	156.30	provisional	371.72	yes	371.72	yes	37	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	29	4	7	148.81	provisional	425.42	yes	425.42	yes	31	
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	30	4	7	285.44	provisional	1098.94	yes	1098.94	yes	170	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	1	0	4		n/a	376.38	n/a	546.11	n/a	303.98	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	2	0	4		n/a	34.25	n/a	201.21	n/a	33.75	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	3	0	4		n/a	27.91	n/a	181.92	n/a	27.79	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	4	0	4		n/a	28.19	n/a	230.17	n/a	27.08	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	5	0	4		n/a	24.64	n/a	81.43	n/a	24.47	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	6	0	4		n/a	80.21	n/a	126.80	n/a	80.06	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	7	1	0		n/a	308.61	n/a	503.27	n/a	307.49	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	8	1	0		n/a	5.59	n/a	291.14	n/a	5.40	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	9	1	0		n/a	5.69	n/a	189.80	n/a	5.55	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	10	1	0		n/a	6.48	n/a	188.23	n/a	6.34	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	11	1	0		n/a	6.38	n/a	190.31	n/a	6.24	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	12	1	0		n/a	6.33	n/a	189.81	n/a	6.18	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	13	2	8		n/a	24.60	n/a	40.06	n/a	24.42	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	14	2	8		n/a	21.66	n/a	35.80	n/a	21.47	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	15	2	8		n/a	21.52	n/a	35.54	n/a	21.37	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	16	2	8		n/a	21.95	n/a	36.47	n/a	21.80	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	17	2	8		n/a	22.44	n/a	35.82	n/a	22.27	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	18	2	8		n/a	23.17	n/a	33.72	n/a	22.96	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	19	3	2		n/a	23.27	n/a	196.34	n/a	23.11	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	20	3	2		n/a	17.26	n/a	195.84	n/a	17.12	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	21	3	2		n/a	17.80	n/a	198.19	n/a	17.65	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	22	3	2		n/a	17.12	n/a	192.64	n/a	16.96	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	23	3	2		n/a	16.29	n/a	191.09	n/a	16.13	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	24	3	2		n/a	11.55	n/a	178.03	n/a	11.40	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	25	4	7		n/a	43.60	n/a	70.09	n/a	43.36	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	26	4	7		n/a	50.20	n/a	69.55	n/a	50.06	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	27	4	7		n/a	44.19	n/a	66.79	n/a	44.04	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	28	4	7		n/a	52.29	n/a	70.66	n/a	52.14	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	29	4	7		n/a	41.98	n/a	59.49	n/a	41.78	
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	30	4	7		n/a	52.98	n/a	71.39	n/a	52.81	

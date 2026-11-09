@@ -28,3 +28,20 @@ date	system	version	doc	engine	pages	first_page_ms	done_ms	peak_mb	procs	load
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	xelatex	102					2.9
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	xelatex	102	649.39	649.39	17.94		2.9
 2026-11-09	taudot-universal	tau-live 735481cd32	synth-100	xelatex	102	400.29	401.52	487.48	37	2.4
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	101					3.7
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	101	1399.63	1399.63	17.88		3.7
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	101	1612.12	1615.82	1084.95	62	3.8
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	300					5.5
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	300	1238.23	1238.23	17.75		5.5
+2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	300	213.03	1145.07	485.02	52	4.9
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	300	1197.80	1204.59	557.03	78	11.7
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	303					15.5
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	303	2023.55	2023.55	17.94		15.5
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	303	876.56	880.09	675.67	41	11.4
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	301					3.8
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	301	6967.98	6967.98	18.03		3.8
+2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	301	3851.01	3861.45	2783.88	158	4.2
+2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	10	2724.22	2724.22	489.22	4	5.0
+2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	11	294.49	294.49	168.69	1	5.0
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	10	1854.09	1854.09	145.09	6	5.6
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	10	631.15	631.15	456.22	35	4.6

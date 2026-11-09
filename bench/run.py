@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import queue
+import re
 import shutil
 import subprocess
 import sys
@@ -17,7 +18,7 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import (BUILD, REPO, TAU_BIN, DOCS, LATEXMK, PDFTEX_BUILD, RESULTS, SRC, UBIN, USTOCK, WORK, TreeRSS, copy, git_rev, log,  # noqa
+from common import (TL_ROOT, BUILD, REPO, TAU_BIN, DOCS, LATEXMK, PDFTEX_BUILD, RESULTS, SRC, UBIN, USTOCK, WORK, TreeRSS, copy, git_rev, log,  # noqa
                     page_count, run_stock, same_file, same_pages, stem, tex_env)
 
 TIMEOUT = 300  # s, per edit
@@ -183,8 +184,7 @@ class TaudotDriver(System):
         self.send("change", file, pos, 0, key)
         self.applied += 1
         n = self.applied
-        r = {"para_ms": None, "para_state": "", "page_ms": None, "early": None, "early_pages": None,
-             "early_from": None, "final_ms": None, "final": None}
+        r = blank()
         seq = None
         while True:
             t, ev = self.next()
@@ -193,7 +193,7 @@ class TaudotDriver(System):
             if k == "para" and ev.get("applied", 0) >= n and r["para_state"] == "":
                 r["para_state"] = ev.get("state", "") + (f"/{ev['why']}" if ev.get("why") else "")
                 if ev.get("state") in ("exact", "provisional") and ev.get("path"):
-                    r["para_ms"] = ms
+                    r["para_ms"], r["self_ms"] = ms, ev.get("us", 0) / 1000 or None
             elif k == "run" and ev.get("applied", 0) >= n and seq is None:
                 seq = ev["seq"]
             elif k == "pdf" and ev.get("applied", 0) >= n and r["page_ms"] is None:
@@ -258,7 +258,298 @@ class TauLive(TaudotDriver):
                 main, out]
 
 
-SYSTEMS = {s.name: s for s in (Latexmk, PdftexLive, TauLive)}
+
+# ---------------------------------------------------------------------------------------------- the others
+TL_BIN = f"{BUILD}/tl/bin/aarch64-darwin"  # stock engines, kpsewhich, synctex, xdvipdfmx in TeX Live's layout
+RTEX = f"{BUILD}/bin/rtex"  # built from SRC/realtime-tex, target/ removed after
+TYPST = f"{BUILD}/bin/typst"  # built from SRC/typst at v0.15.1
+TXP = f"{BUILD}/txp/txp-headless"
+ROSINA = f"{SRC}/liveTeX-Rosina/build/livetex-rosina"
+
+
+def tl_env():
+    e = tex_env()
+    e["PATH"] = f"{TL_BIN}:{e['PATH']}"
+    return e
+
+
+class External(System):
+    """A process whose lines (stdout, or stderr) are read with a timestamp on a thread."""
+    read_stderr = False
+
+    def start(self, proj, engine, main, out):
+        self.proj, self.engine, self.main, self.out = proj, engine, main, out
+        self.keep = f"{out}-keep"
+        shutil.rmtree(self.keep, ignore_errors=True)
+        os.makedirs(self.keep)
+        err = subprocess.STDOUT if self.read_stderr else open(f"{out}.stderr", "w")
+        self.p = subprocess.Popen(self.argv(), cwd=proj, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err,
+                                  env=self.env(), bufsize=0)
+        self.q = queue.Queue()
+        self.t0 = time.monotonic()
+        threading.Thread(target=self.reader, daemon=True).start()
+
+    def env(self):
+        return tl_env()
+
+    def reader(self):
+        for line in iter(self.p.stdout.readline, b""):
+            t = time.monotonic()
+            ev = self.parse(line.decode(errors="replace"))
+            if ev is not None:
+                self.on_event(ev)
+                self.q.put((t, ev))
+        self.q.put((time.monotonic(), None))
+
+    def on_event(self, ev):
+        pass
+
+    def parse(self, line):
+        try:
+            return json.loads(line)
+        except ValueError:
+            return None
+
+    def next(self, timeout=TIMEOUT):
+        t, ev = self.q.get(timeout=timeout)
+        if ev is None:
+            raise RuntimeError(f"{self.name} exited")
+        return t, ev
+
+    def send(self, obj):
+        self.p.stdin.write((json.dumps(obj) + "\n").encode())
+        self.p.stdin.flush()
+
+    def close(self):
+        try:
+            self.p.stdin.close()
+        except OSError:
+            pass
+        try:
+            self.p.terminate()
+            self.p.wait(20)
+        except Exception:
+            self.p.kill()
+
+
+def blank(**kw):
+    r = {"para_ms": None, "para_state": "", "page_ms": None, "early": None, "early_pages": None, "early_from": None,
+         "final_ms": None, "final": None, "self_ms": None}
+    r.update(kw)
+    return r
+
+
+class Rtex(External):
+    """rtex serve (LuaLaTeX only). Each edit is followed by request_layout (no 300 ms debounce) and export_pdf
+    (a clean LuaLaTeX build, the stock-identical PDF)."""
+    name = "rtex"
+    engines = ("lualatex",)
+
+    def version(self):
+        return subprocess.run([RTEX, "--version"], capture_output=True, text=True).stdout.strip() + " " + \
+            git_rev(f"{SRC}/realtime-tex")
+
+    def env(self):
+        e = tl_env()
+        e["RTEX_TEXLIVE_BIN"] = TL_BIN
+        return e
+
+    def argv(self):
+        return [RTEX, "serve", "--project", self.proj, "--main", self.main]
+
+    def first(self):
+        while True:
+            t, ev = self.next()
+            if ev.get("event") == "LayoutUpdate":
+                self.rev = ev["versions"]["source_revision"]
+                self.n = 0
+                ms = (t - self.t0) * 1000
+                return {"first_page_ms": ms, "done_ms": ms, "pages": ev.get("pages_total")}
+
+    def edit(self, file, pos, key, page):
+        self.n += 1
+        want = self.rev + self.n
+        pdf = f"{self.keep}/export-{self.n}.pdf"
+        t0 = time.monotonic()
+        self.send({"cmd": "edit", "path": file, "start": pos, "end": pos, "text": key})
+        self.send({"cmd": "request_layout"})
+        self.send({"cmd": "export_pdf", "out": pdf})
+        r = blank(page_exact="claim")
+        while r["page_ms"] is None or r["final_ms"] is None:
+            t, ev = self.next()
+            ms, k = (t - t0) * 1000, ev.get("event") or ev.get("reply")
+            if k == "ParagraphUpdate" and r["para_state"] == "":
+                st = ev.get("status")
+                if st in ("ok", "ok_degraded"):
+                    exact = st == "ok" and not ev.get("pagination_stale") and not ev.get("context_stale")
+                    r["para_ms"], r["para_state"] = ms, "exact" if exact else "provisional"
+                    r["self_ms"] = (ev.get("timing") or {}).get("total_us", 0) / 1000 or None
+                else:
+                    r["para_state"] = f"none/{st}"
+            elif k == "BackgroundScheduled" and r["para_state"] == "":
+                r["para_state"] = "none/background"
+            elif k == "LayoutUpdate" and ev["versions"]["source_revision"] >= want and r["page_ms"] is None:
+                r["page_ms"] = ms
+            elif k == "PdfExported":
+                r["final_ms"], r["final"] = ms, ev.get("path") or pdf
+                if not ev.get("converged", True):
+                    r["final_exact"] = "unconverged"
+            elif k == "error":
+                log(f"  rtex: {ev}")
+        r["para_state"] = r["para_state"] or "no event"
+        return r
+
+
+class Typst(External):
+    """typst watch on the Typst variant: a whole PDF after every saved edit. Not LaTeX, so nothing is checked
+    against a stock run."""
+    name = "typst"
+    engines = ("typst",)
+    read_stderr = True
+
+    def version(self):
+        return subprocess.run([TYPST, "--version"], capture_output=True, text=True).stdout.strip()
+
+    def env(self):
+        return dict(os.environ)
+
+    def argv(self):
+        return [TYPST, "watch", self.main, "out.pdf"]
+
+    def parse(self, line):
+        m = re.search(r"compiled (successfully|with warnings|with errors)(?: in ([\d.]+) ?(ms|s|µs))?", line)
+        if not m:
+            return None
+        v = float(m.group(2)) * {"ms": 1, "s": 1000, "µs": 0.001}[m.group(3)] if m.group(2) else None
+        return {"ok": m.group(1) != "with errors", "ms": v}
+
+    def first(self):
+        t, ev = self.next()
+        ms = (t - self.t0) * 1000
+        return {"first_page_ms": ms, "done_ms": ms, "pages": page_count(f"{self.proj}/out.pdf")}
+
+    def edit(self, file, pos, key, page):
+        t0 = time.monotonic()
+        apply(f"{self.proj}/{file}", pos, key)
+        t, ev = self.next()
+        ms = (t - t0) * 1000
+        return blank(para_state="n/a", page_ms=ms, final_ms=ms, self_ms=ev["ms"], page_exact="n/a",
+                     final_exact="n/a")
+
+
+class Texpresso(External):
+    """TeXpresso's engine and incremental machinery (its frontend objects, unmodified, at the default 500 ms
+    snapshots) without its SDL window: clients/preview/texpresso/txp-headless. XeLaTeX only; its pages are XDV
+    in memory, drawn by its own interpreter: no file to check."""
+    name = "texpresso"
+    engines = ("xelatex",)
+
+    def version(self):
+        return "texpresso " + git_rev(f"{SRC}/texpresso") + " via txp-headless " + git_rev(REPO)
+
+    def env(self):
+        e = tl_env()
+        # Overleaf's TeX Live image has no kanjix.map/ckx.map, which TeXpresso's DVI reader insists on: empty ones
+        e["TEXMFDBS"] = f"{BUILD}/txp/texmf:{TL_ROOT}/texmf-var:{TL_ROOT}/texmf-dist"
+        return e
+
+    def argv(self):
+        return [TXP, "-texlive", f"{self.proj}/{self.main}"]
+
+    def first(self):
+        r = {"first_page_ms": None}
+        self.opened = set()
+        while True:
+            t, ev = self.next()
+            if ev.get("ev") == "pages":
+                if r["first_page_ms"] is None and ev.get("n", 0) > 0:
+                    r["first_page_ms"] = (t - self.t0) * 1000
+                if ev.get("done"):
+                    r["done_ms"], r["pages"] = (t - self.t0) * 1000, ev.get("n")
+                    self.applied = ev.get("applied", 0)
+                    return r
+
+    def edit(self, file, pos, key, page):
+        if file not in self.opened:  # TeXpresso takes changes only to files the editor opened
+            self.opened.add(file)
+            self.send(["open", file, open(f"{self.proj}/{file}", encoding="utf-8").read()])
+            self.applied += 1
+        if page is not None:
+            self.send(["goal", page])
+        apply(f"{self.proj}/{file}", pos, key)  # our copy of the text, for the next open
+        t0 = time.monotonic()
+        self.send(["change", file, pos, 0, key])
+        self.applied += 1
+        r = blank(para_state="n/a", page_exact="n/a", final_exact="n/a")
+        while True:
+            t, ev = self.next()
+            if ev.get("ev") != "pages" or ev.get("applied", 0) < self.applied:
+                continue
+            ms = (t - t0) * 1000
+            if r["page_ms"] is None and (page is None or ev.get("n", 0) > page or ev.get("done")):
+                r["page_ms"], r["self_ms"] = ms, ev.get("edit_us", 0) / 1000
+            if ev.get("done"):
+                r["final_ms"] = ms
+                return r
+
+
+class Rosina(External):
+    """liveTeX-Rosina, PDF-output mode, watching the saved file (1 ms polling), full correction with no debounce.
+    Its previews are provisional by design; its full builds are compared with stock."""
+    name = "rosina"
+    engines = ("pdflatex", "xelatex", "lualatex")
+
+    def version(self):
+        return "liveTeX-Rosina " + git_rev(f"{SRC}/liveTeX-Rosina")
+
+    def argv(self):
+        return [ROSINA, "--engine", self.engine, "--source", f"{self.proj}/{self.main}", "--out", self.out,
+                "--debounce-ms", "0", "--editor"]
+
+    def on_event(self, ev):  # the published PDF is replaced by later builds: keep this one
+        if ev.get("event") in ("full", "preview") and ev.get("pdf") and os.path.exists(ev["pdf"]):
+            dst = f"{self.keep}/{ev['event']}-{ev.get('revision')}.pdf"
+            try:
+                shutil.copyfile(ev["pdf"], dst)
+                ev["kept"] = dst
+            except OSError:
+                pass
+
+    def first(self):
+        while True:
+            t, ev = self.next()
+            if ev.get("event") == "full":
+                self.rev = ev.get("revision", 1)
+                ms = (t - self.t0) * 1000
+                return {"first_page_ms": ms, "done_ms": ms, "pages": page_count(ev["pdf"]) if ev.get("pdf") else None}
+
+    def edit(self, file, pos, key, page):
+        self.rev += 1
+        t0 = time.monotonic()
+        apply(f"{self.proj}/{file}", pos, key)
+        r = blank()
+        while True:
+            t, ev = self.next()
+            if ev.get("revision", 0) < self.rev:
+                continue
+            ms, k = (t - t0) * 1000, ev.get("event")
+            if k == "preview" and r["para_state"] == "":
+                if ev.get("ok"):
+                    r["para_ms"], r["para_state"] = ms, "provisional"
+                    r["self_ms"] = ev.get("elapsed_ms")
+                else:
+                    r["para_state"] = "none/failed"
+            elif k == "background_scheduled" and r["para_state"] == "":
+                r["para_state"] = "none/" + re.sub(r"[^a-z]+", "-", ev.get("reason", "").split(";")[0])[:40]
+            elif k == "full":
+                self.rev = ev.get("revision", self.rev)
+                r["page_ms"] = r["final_ms"] = ms
+                r["final"], r["page_is_final"] = ev.get("kept"), True  # the whole PDF at once
+                r["para_state"] = r["para_state"] or "no event"
+                return r
+
+
+SYSTEMS = {s.name: s for s in (Latexmk, PdftexLive, TauLive, Rtex, Typst, Texpresso, Rosina)}
 
 
 # ---------------------------------------------------------------------------------------------- one run
@@ -311,6 +602,8 @@ def run_latexmk(doc, engine, meta):
         ms, _ = run_stock(engine, s2, main)
         stock.append(dict(n=n, spot=spot, para_ms=None, para_state="", page_ms=ms, page_exact="", final_ms=ms,
                           final_exact="", page=rows[n - 1]["page"]))
+    shutil.rmtree(proj, ignore_errors=True)
+    shutil.rmtree(s2, ignore_errors=True)
     return sysm, dict(first_page_ms=first, done_ms=first, pages=pages, peak_mb=peak / 2**20, procs=""), rows, stock
 
 
@@ -327,7 +620,7 @@ def run_driver(cls, doc, engine, meta):
     sysm = cls()
     v = meta["variants"][engine]
     refs = ref_dir(doc, engine)
-    if not os.path.exists(f"{refs}/0.{ext(engine)}"):
+    if engine != "typst" and not os.path.exists(f"{refs}/0.{ext(engine)}"):
         sys.exit(f"no references for {doc}/{engine}: run latexmk first")
     proj = f"{WORK}/run/{sysm.name}-{doc}-{engine}"
     out = f"{proj}-out"
@@ -339,7 +632,7 @@ def run_driver(cls, doc, engine, meta):
     first = sysm.first()
     rows = []
     for n, spot, file, pos, key in script(meta, engine):
-        pg = open(f"{refs}/{n}.page").read().strip()
+        pg = open(f"{refs}/{n}.page").read().strip() if os.path.exists(f"{refs}/{n}.page") else ""
         page = int(pg) if pg else None
         r = sysm.edit(file, pos, key, page)
         r.update(n=n, spot=spot, page=page)
@@ -353,21 +646,27 @@ def run_driver(cls, doc, engine, meta):
     # exactness, after the timed part: the early PDF's new pages and the final output against latexmk's
     for r in rows:
         ref = f"{refs}/{r['n']}.{ext(engine)}"
-        if r["final"]:
-            r["final_exact"] = "yes" if same_file(r["final"], ref) or all(e for _, e in same_pages(r["final"], ref)) \
-                else "NO"
-        else:
-            r["final_exact"] = "none"
-        if r["early"] and engine == "xelatex":
+        if "final_exact" not in r:
+            if r["final"] and os.path.exists(r["final"]):
+                r["final_exact"] = "yes" if same_file(r["final"], ref) or \
+                    all(e for _, e in same_pages(r["final"], ref)) else "NO"
+            else:
+                r["final_exact"] = "none"
+        if r.get("page_is_final"):
+            r["page_exact"] = r["final_exact"]
+        if r["early"] and engine == "xelatex" and isinstance(sysm, TaudotDriver):
             t = time.monotonic()
             subprocess.run([f"{UBIN}/xdvipdfmx", "-q", "-o", f"{r['early']}.pdf", r["early"]], env=tex_env(),
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             r["xdvipdfmx_ms"] = (time.monotonic() - t) * 1000
-        if r["early"]:
-            new = range(r["early_from"] or 0, r["early_pages"] or 0)
-            r["page_exact"] = "yes" if all(e for _, e in same_pages(r["early"], ref, new)) else "NO"
-        else:
-            r["page_exact"] = "none"
+        if "page_exact" not in r:
+            if r["early"]:
+                new = range(r["early_from"] or 0, r["early_pages"] or 0)
+                r["page_exact"] = "yes" if all(e for _, e in same_pages(r["early"], ref, new)) else "NO"
+            else:
+                r["page_exact"] = "none"
+    for d in (proj, out, f"{out}-keep"):
+        shutil.rmtree(d, ignore_errors=True)
     return sysm, first, rows
 
 
@@ -376,7 +675,7 @@ def fmt(x):
 
 
 COLS = ["date", "system", "version", "doc", "engine", "n", "spot", "page", "para_ms", "para_state", "page_ms",
-        "page_exact", "final_ms", "final_exact", "xdvipdfmx_ms"]
+        "page_exact", "final_ms", "final_exact", "self_ms", "xdvipdfmx_ms"]
 FCOLS = ["date", "system", "version", "doc", "engine", "pages", "first_page_ms", "done_ms", "peak_mb", "procs", "load"]
 
 
@@ -427,7 +726,7 @@ def main():
     if a.system == "all":
         docs = a.docs or sorted(d for d in os.listdir(DOCS) if os.path.exists(f"{DOCS}/{d}/edits.json"))
         for doc in docs:
-            for engine in ("pdflatex", "xelatex", "lualatex"):
+            for engine in ("pdflatex", "xelatex", "lualatex", "typst"):
                 for s in SYSTEMS.values():
                     if engine in s.engines and engine in load(doc)["variants"]:
                         run(s.name, doc, engine)
