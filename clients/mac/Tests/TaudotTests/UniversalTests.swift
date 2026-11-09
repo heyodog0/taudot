@@ -61,7 +61,7 @@ private let bib = "@book{knuth, author={Donald Knuth}, title={The {\\TeX}book}, 
   defer { t.stop() }
   try await waitFor(120) { events.contains { $0.done } }
   let first = try #require(events.last, "no pages; notes: \(notes.suffix(5))")
-  #expect(first.n == 2)
+  #expect(first.n == 2, "notes: \(notes.suffix(5))")
   #expect(t.pageText(1)?.contains("Knuth") == true)  // BibTeX ran and the rerun picked it up
   #expect(t.pageText(1)?.contains("[1]") == true)
   let img = try #require(await t.render(page: 0, scale: 2, x: 100, y: 100, w: 400, h: 300))

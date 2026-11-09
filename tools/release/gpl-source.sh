@@ -1,6 +1,6 @@
 #!/bin/sh
 # The complete source of the GPL programs in Taudot.app (the live pdfTeX: pdftex, pdftex-live; BibTeX; universal's
-# stock pdftex, xetex, luahbtex, xdvipdfmx, bibtex), for a release:
+# stock pdftex, xetex, luahbtex, bibtex and tau-pdfmx), for a release:
 #   tools/release/gpl-source.sh VERSION OUTDIR [COMMIT]     → OUTDIR/taudot-gpl-source-VERSION.tar.gz
 # It holds clients/pdftex at COMMIT (default HEAD: the release commit) — our patches for each TeX Live year, apply.sh
 # (which names each TeX Live source release with its URL and SHA-512), build.sh and the driver — plus SOURCES.txt,
@@ -18,7 +18,8 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/$name" "$out"
 git -C "$repo" archive --format=tar "$rev" clients/pdftex clients/render/bibtex \
-  clients/universal/build-engines.sh clients/universal/build-formats.sh clients/universal/env.sh | tar -x -C "$tmp/$name"
+  clients/universal/build-engines.sh clients/universal/build-formats.sh clients/universal/env.sh \
+  clients/universal/build.sh clients/universal/pdfmx clients/universal/LICENSE | tar -x -C "$tmp/$name"
 cp "$repo/tools/release/COPYING-GPL-2" "$tmp/$name/COPYING"
 {
   echo "Taudot $version: source of the GPL programs it ships"
@@ -40,11 +41,16 @@ cp "$repo/tools/release/COPYING-GPL-2" "$tmp/$name/COPYING"
   echo "clients/pdftex/DESIGN.md describes the patches and the build.)"
   echo
   echo "Taudot.app/Contents/Resources/universal/bin/ holds pdftex, xetex, luahbtex (run as pdflatex, xelatex,"
-  echo "lualatex), xdvipdfmx and bibtex built WITHOUT changes from the TeX Live 2026 source release above"
+  echo "lualatex) and bibtex built WITHOUT changes from the TeX Live 2026 source release above"
   echo "(texlive-20260301-source.tar.xz, the same SHA-512), with TeX Live's own libraries; universal/fmt/ holds the"
   echo "formats those engines built. To rebuild: unpack that release, then"
   echo "  sh clients/universal/build-engines.sh     (configure flags and the zlib-as-a-dylib relink are in it)"
   echo "  sh clients/universal/build-formats.sh"
+  echo
+  echo "universal/bin/tau-pdfmx is xdvipdfmx kept resident: the dvipdfm-x objects of that same unchanged build, with"
+  echo "dvipdfmx.c compiled again with its main renamed, linked with clients/universal/pdfmx/tau-pdfmx.c (MIT; the"
+  echo "program as a whole is under the GPL) and TeX Live's kpathsea, libpng, zlib and libpaper. To rebuild, after"
+  echo "build-engines.sh, run the tau-pdfmx lines at the end of clients/universal/build.sh (four commands)."
 } > "$tmp/$name/SOURCES.txt"
 tar -C "$tmp" -czf "$out/$name.tar.gz" "$name"
 echo "$out/$name.tar.gz"

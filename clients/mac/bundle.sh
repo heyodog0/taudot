@@ -8,7 +8,7 @@
 #   Contents/Resources/texpresso/        texpresso-xetex and taudot-pdfinfo
 #   Contents/Resources/bin/tectonic      the stand-in TeXpresso's file provider calls (tools/release/tectonic)
 #   Contents/Resources/bibtex/, pdftex/  TeX Live's BibTeX; the live pdfTeX per TeX Live year (GPL, separate programs)
-#   Contents/Resources/universal/        tau-live, libtau, tau-tdl; stock pdfTeX, XeTeX, LuaTeX, xdvipdfmx (GPL) and formats
+#   Contents/Resources/universal/        tau-live, libtau, tau-tdl; stock pdfTeX, XeTeX, LuaTeX, tau-pdfmx (GPL) and formats
 #   Contents/Frameworks/                 the vendored dylibs (tools/release/vendor.py) and Sparkle.framework
 #   Contents/Resources/Acknowledgements.txt, COPYING-GPL-2
 # Environment: TAUDOT_VERSION (CFBundleShortVersionString and CFBundleVersion; default 0.1 and the git description),
@@ -87,16 +87,18 @@ for year in 2026 2025 2024; do
   [ -f "$t/texmf-dist/web2c/cp227.tcx" ] && cp "$t/texmf-dist/web2c/cp227.tcx" "$d/tree/texmf-dist/web2c/"
 done
 # Universal (clients/universal, MIT): tau-live, libtau.dylib (beside it: tau-live loads it into the engines) and
-# tau-tdl, with TeX Live 2026's stock pdfTeX, XeTeX and LuaHBTeX, xdvipdfmx and BibTeX (GPL, separate programs, not
+# tau-tdl, with TeX Live 2026's stock pdfTeX, XeTeX, LuaHBTeX and BibTeX, and tau-pdfmx (xdvipdfmx kept resident: the stock
+# dvipdfm-x objects; tau-live converts XeTeX's pages with it) (GPL, separate programs, the TeX Live code not
 # modified) and the formats those engines built. The engines' zlib dylib (TeX Live's own) is vendored below with the
 # rest. They share the live pdfTeX's 2026 tree. Built by clients/universal/{build-engines,build,build-formats}.sh.
 ub="$ref/universal/bin" uf="$ref/universal/fmt-2026" d="$app/Contents/Resources/universal"
 if [ -x "$ub/tau-live" ] && [ -f "$ub/libtau.dylib" ] && [ -f "$uf/xelatex.fmt" ] && [ -d "$app/Contents/Resources/pdftex/2026/tree" ]; then
   mkdir -p "$d/bin" "$d/fmt"
-  for f in tau-live libtau.dylib tau-tdl pdftex xetex luahbtex xdvipdfmx bibtex; do
+  for f in tau-live libtau.dylib tau-tdl tau-pdfmx pdftex xetex luahbtex bibtex; do
     if [ -e "$ub/$f" ]; then cp -L "$ub/$f" "$d/bin/$f"; else note "universal: no $f in $ub"; fi
   done
   ln -sf pdftex "$d/bin/pdflatex"; ln -sf xetex "$d/bin/xelatex"; ln -sf luahbtex "$d/bin/lualatex"
+  ln -sf tau-pdfmx "$d/bin/xdvipdfmx"  # (tau-pdfmx names itself xdvipdfmx beside it; kpathsea needs the name to exist)
   install_name_tool -id @loader_path/libtau.dylib "$d/bin/libtau.dylib" 2>/dev/null
   for f in pdflatex xelatex lualatex; do
     if [ -f "$uf/$f.fmt" ]; then cp "$uf/$f.fmt" "$d/fmt/"; else note "universal: no $f.fmt; those projects fall back"; fi

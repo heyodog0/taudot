@@ -89,13 +89,14 @@ def crate_texts(p: dict) -> list[str]:
 
 
 # The libraries TeX Live builds into universal's stock programs (TeX Live's own copies, linked statically, except
-# zlib: its dylib is vendored into Contents/Frameworks). Found in the binaries by their symbols (2026-11-08). Each:
+# zlib: its dylib is vendored into Contents/Frameworks, but tau-pdfmx links it statically). Found in the binaries by
+# their symbols (2026-11-08; tau-pdfmx 2026-11-09). Each:
 # (name, programs, licence, [(path in the TeX Live source, how)]) with how "file" (whole), "header" (first comment
-# block) or "from:TEXT" (from the line containing TEXT to the end).
+# block), "block" (the first /* */ comment, whole) or "from:TEXT" (from the line containing TEXT to the end).
 TEXLIVE_LIBS = [
     ("kpathsea", "all", "LGPL-2.1-or-later", [("texk/kpathsea/COPYING.LESSERv2", "file")]),
-    ("zlib", "all (libz.dylib)", "zlib", [("libs/zlib/zlib-src/LICENSE", "file")]),
-    ("libpng", "pdftex, xetex, luahbtex, xdvipdfmx", "libpng", [("libs/libpng/libpng-src/LICENSE", "file")]),
+    ("zlib", "all (libz.dylib; tau-pdfmx statically)", "zlib", [("libs/zlib/zlib-src/LICENSE", "file")]),
+    ("libpng", "pdftex, xetex, luahbtex, tau-pdfmx", "libpng", [("libs/libpng/libpng-src/LICENSE", "file")]),
     ("xpdf", "pdftex (PDF inclusion)", "GPL-2.0 or GPL-3.0", [("libs/xpdf/xpdf-src/COPYING", "file")]),
     ("FreeType", "xetex", "FTL or GPL-2.0", [("libs/freetype2/freetype-src/LICENSE.TXT", "file")]),
     ("HarfBuzz", "xetex, luahbtex", "MIT (Old MIT)", [("libs/harfbuzz/harfbuzz-src/COPYING", "file")]),
@@ -107,7 +108,8 @@ TEXLIVE_LIBS = [
     ("pplib", "xetex, luahbtex", "part of LuaTeX (no separate licence file in its source)", []),
     ("Lua 5.3", "luahbtex", "MIT", [("libs/lua53/lua53-src/src/lua.h", "from:* Copyright (C) 1994")]),
     ("zziplib", "luahbtex", "LGPL-2.0-or-later or MPL-1.1", [("libs/zziplib/zziplib-src/COPYING.LIB", "file")]),
-    ("libpaper", "xdvipdfmx", "GPL-2.0-or-later", [("libs/libpaper/libpaper-src/COPYING", "file")]),
+    ("dvipdfm-x (xdvipdfmx)", "tau-pdfmx", "GPL-2.0-or-later", [("texk/dvipdfm-x/dvipdfmx.c", "block")]),
+    ("libpaper", "tau-pdfmx", "GPL-2.0-or-later", [("libs/libpaper/libpaper-src/COPYING", "file")]),
     ("LuaFileSystem, LuaSocket, luaffi, luaharfbuzz (in LuaTeX)", "luahbtex", "MIT",
      [("texk/web2c/luatexdir/luafilesystem/LICENSE", "file"), ("texk/web2c/luatexdir/luasocket/LICENSE", "file"),
       ("texk/web2c/luatexdir/luaffi/LICENSE", "file"), ("texk/web2c/luatexdir/luaharfbuzz/LICENSE", "file")]),
@@ -120,10 +122,15 @@ TEXLIVE_LIBS = [
 
 
 def texlive_notes(src: Path) -> str:
-    out = ["""pdftex, xetex, luahbtex (run as pdflatex, xelatex, lualatex), xdvipdfmx and bibtex, built without changes
+    out = ["""pdftex, xetex, luahbtex (run as pdflatex, xelatex, lualatex) and bibtex, built without changes
 from TeX Live 2026's source release (texlive-20260301-source.tar.xz) by clients/universal/build-engines.sh, are
 free software under the GNU General Public License, version 2 or later (see "Programs under the GNU GPL"). Taudot
-runs them as separate processes. The libraries TeX Live builds into them, with their licences:"""]
+runs them as separate processes.
+
+tau-pdfmx is xdvipdfmx kept resident: the dvipdfm-x objects of that same unchanged build (its notice is below),
+linked with clients/universal/pdfmx/tau-pdfmx.c (MIT). As a whole it is under the GNU GPL, version 2 or later, and runs as a separate process too.
+
+The libraries TeX Live builds into these programs, with their licences:"""]
     for name, progs, lic, files in TEXLIVE_LIBS:
         texts = []
         for rel, how in files:
@@ -135,6 +142,10 @@ runs them as separate processes. The libraries TeX Live builds into them, with t
                 t = f.read_text(errors="replace").strip()
             elif how == "header":
                 t = header(f)
+            elif how == "block":  # the first /* ... */ whole, its lines unprefixed
+                b = f.read_text(errors="replace")
+                t = b[b.index("/*") + 2:b.index("*/")].strip("\n")
+                t = "\n".join(l.rstrip().removeprefix("    ") for l in t.splitlines()).strip()
             else:
                 lines = f.read_text(errors="replace").splitlines()
                 k = next((i for i, l in enumerate(lines) if how[5:] in l), 0)
@@ -173,7 +184,8 @@ Taudot is made with the software below. Thank you to everyone who wrote it.
 Portions of this software are copyright (c) The FreeType Project (www.freetype.org). All rights reserved.
 """)
 
-    stock_gpl = ("\nTeX Live 2026's own pdftex, xetex, luahbtex, xdvipdfmx and bibtex, unmodified, ship in Resources/universal/bin\n"
+    stock_gpl = ("\nTeX Live 2026's own pdftex, xetex, luahbtex and bibtex, unmodified, and tau-pdfmx (xdvipdfmx's unmodified code\n"
+                 "kept resident) ship in Resources/universal/bin\n"
                  "on the same terms (universal's live typesetting runs them, also as separate processes).\n") if a.texlive_src else ""
     parts.append(section("Programs under the GNU GPL, and where their source is", f"""
 The live pdfTeX engine (pdftex, pdftex-live: a modified pdfTeX from TeX Live) and BibTeX ship inside Taudot.app as
@@ -188,7 +200,7 @@ The GNU GPL version 2 is in the file COPYING-GPL-2 next to these acknowledgement
 """))
 
     if a.texlive_src:
-        parts.append(section("Universal (clients/universal: tau-live, libtau, tau-tdl), MIT",
+        parts.append(section("Universal (clients/universal: tau-live, libtau, tau-tdl, tau-pdfmx.c), MIT",
                              (ROOT / "clients/universal/LICENSE").read_text()))
         parts.append(section("Stock TeX Live programs in Taudot.app/Contents/Resources/universal", texlive_notes(a.texlive_src)))
 
