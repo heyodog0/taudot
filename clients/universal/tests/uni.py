@@ -572,6 +572,13 @@ DERIVED = (".aux", ".bbl", ".blg", ".out", ".toc", ".lof", ".lot", ".log", ".pdf
 _bib_last = {}
 
 
+def bib_files_exist(d, aux):
+    """latexmk's -bibtex-cond: BibTeX only when every database \\bibdata names is in the project."""
+    names = [n for m in re.finditer(rb"\\bibdata\{([^}]*)\}", aux) for n in m.group(1).decode().split(",")]
+    return bool(names) and all(os.path.exists(f"{d}/{n}.bib") or (n.endswith(".bib") and os.path.exists(f"{d}/{n}"))
+                               for n in names)
+
+
 def stock_rule(engine, d, main):
     """Stock runs as latexmk would: BibTeX when the bib lines change, reruns until the .aux stops changing."""
     st = stem(main)
@@ -580,7 +587,7 @@ def stock_rule(engine, d, main):
         run_stock(engine, d, main)
         a = open(f"{d}/{st}.aux", "rb").read() if os.path.exists(f"{d}/{st}.aux") else b""
         bl = b"\n".join(l for l in a.split(b"\n") if l.startswith((b"\\citation", b"\\bibdata", b"\\bibstyle")))
-        bib = b"\\bibdata" in a and bl != _bib_last.get(d)
+        bib = b"\\bibdata" in a and bl != _bib_last.get(d) and bib_files_exist(d, a)
         if bib:
             bbl = f"{d}/{st}.bbl"
             before = open(bbl, "rb").read() if os.path.exists(bbl) else None
@@ -602,8 +609,9 @@ def rule(engine, src, main):
     name = os.path.basename(os.path.abspath(src))
     clean = f"{WORK}/rule-{name}-src"
     copy(src, clean)
+    shipped_bbl = not any(f.endswith(".bib") for f in os.listdir(clean))  # (arXiv sources: the .bbl is the source)
     for f in os.listdir(clean):
-        if f.endswith(DERIVED):
+        if f.endswith(DERIVED) and not (shipped_bbl and f.endswith(".bbl")):
             os.remove(f"{clean}/{f}")
     # the reference
     ref = f"{WORK}/rule-{name}-ref"
@@ -648,8 +656,9 @@ def serve(engine, src, main):
     name = os.path.basename(os.path.abspath(src))
     clean = f"{WORK}/serve-{name}-src"
     copy(src, clean)
+    shipped_bbl = not any(f.endswith(".bib") for f in os.listdir(clean))  # (arXiv sources: the .bbl is the source)
     for f in os.listdir(clean):
-        if f.endswith(DERIVED):
+        if f.endswith(DERIVED) and not (shipped_bbl and f.endswith(".bbl")):
             os.remove(f"{clean}/{f}")
     state = f"{WORK}/serve-state"
     shutil.rmtree(state, ignore_errors=True)
@@ -861,6 +870,47 @@ def bigopen(engine, src, main):
     return ok
 
 
+def bblonly(engine, src, main):
+    """A project that ships its .bbl and no .bib (arXiv sources): opened with no .aux, tau-live must not run BibTeX
+    (it would replace the .bbl with an empty one), every citation resolves, and the output equals stock runs."""
+    name = os.path.basename(os.path.abspath(src))
+    clean = f"{WORK}/bbl-{name}-src"
+    copy(src, clean)
+    if any(f.endswith(".bib") for f in os.listdir(clean)):
+        sys.exit(f"{src} has a .bib: this check needs a project with only its .bbl")
+    st = stem(main)
+    for f in os.listdir(clean):
+        if f.endswith(DERIVED) and not f.endswith(".bbl"):
+            os.remove(f"{clean}/{f}")
+    bbl = open(f"{clean}/{st}.bbl", "rb").read()
+    out = f"{WORK}/bbl-out"
+    shutil.rmtree(out, ignore_errors=True)
+    env = dict(os.environ)
+    env.pop("TAU_FETCH", None)
+    lv = Live.__new__(Live)
+    lv.events = []
+    lv.p = subprocess.Popen([f"{UBIN}/tau-live", "--serve", "--engine", f"{UBIN}/{ENGINES[engine][0][0]}", clean, main,
+                             out], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
+    done = lv.until(lambda e: e["ev"] == "done", timeout=300)
+    lv.p.stdin.close()
+    lv.p.wait(20)
+    tools = [e.get("tool") for e in lv.events if e["ev"] == "bibtex"]
+    ran = any("bibtex" in (t or "") for t in tools)
+    kept = open(f"{out}/work/{st}.bbl", "rb").read() == bbl
+    log = open(done["log"], "rb").read() if done.get("log") else b""
+    undefined = len(re.findall(rb"Citation `[^']*' (?:on page \d+ )?undefined", log))
+    ref = f"{WORK}/bbl-ref"
+    copy(clean, ref)
+    stock_rule(engine, ref, main)
+    ext = ENGINES[engine][1]
+    same = same_output(engine, open(done["path"], "rb").read(), open(f"{ref}/{st}.{ext}", "rb").read())
+    ok = not ran and kept and undefined == 0 and same
+    print(f"bblonly {engine} {name}: BibTeX {'RAN' if ran else 'not run'}, .bbl {'kept' if kept else 'CHANGED'}, "
+          f"undefined citations {undefined}, output {'identical' if same else 'DIFFERENT'} to stock "
+          f"({done['runs']} runs): {'ok' if ok else 'FAILED'}")
+    return ok
+
+
 if __name__ == "__main__":
     if sys.argv[1:2] == ["serve"]:
         serve(*sys.argv[2:5])
@@ -872,6 +922,8 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["paragraph"]:
         paragraph(*sys.argv[2:5], *(int(x) for x in sys.argv[5:6]))
         sys.exit(0)
+    if sys.argv[1:2] == ["bblonly"]:
+        sys.exit(0 if bblonly(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["bigopen"]:
         sys.exit(0 if bigopen(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["xpdf"]:

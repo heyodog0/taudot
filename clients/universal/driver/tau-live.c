@@ -22,6 +22,8 @@
 #include <string.h>
 #include <sys/resource.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -151,6 +153,12 @@ static char **eng_argv;
 static int msg_r = -1, msg_w = -1, life_r = -1, life_w = -1;
 static long snapshot_ms = 20;  // as pdftex-live --serve
 static long first_sparse_ms = 200;  // a first run with no .aux (spawn_engine)
+static char **park_argv;              // the engine's command line in the parked form (--park, --parked)
+static char park_sig[32], park_sock[1024], parked_sock[1024];
+static uint64_t fnv1a(uint64_t h, const void *p, size_t n) {
+  for (size_t i = 0; i < n; i++) h = (h ^ ((const unsigned char *)p)[i]) * 1099511628211ULL;
+  return h;
+}
 static const char *job_stem(void);
 static int exists(const char *p);
 static int finish_every = 0, max_snaps = 256, hook = 0;
@@ -484,6 +492,49 @@ static void kill_all(void) {
   runner = -1;
 }
 
+// A session's engine forked from a parked one (tau-live --park): the session's environment (its TAU_ variables), the
+// work directory and the main file's name go over the socket with the message pipe, the lifeline and the log. -1: no
+// parked engine there, or one started differently (its signature): the caller spawns as usual.
+static pid_t from_parked(char **env, const char *logp) {
+  int s = socket(AF_UNIX, SOCK_STREAM, 0);
+  struct sockaddr_un a = {0};
+  a.sun_family = AF_UNIX;
+  snprintf(a.sun_path, sizeof a.sun_path, "%s", parked_sock);
+  if (s < 0 || connect(s, (struct sockaddr *)&a, sizeof a)) { if (s >= 0) close(s); return -1; }
+  char mn[4300];
+  snprintf(mn, sizeof mn, "%s/main-name", tdir);
+  char line[1100];
+  int ll = snprintf(line, sizeof line, "%s\n", mainf);
+  write_file(mn, line, ll);
+  static char req[1 << 15];
+  size_t n = (size_t)snprintf(req, sizeof req, "sig %s\ncwd %s\nTAU_MAIN_NAME=%s\n", park_sig, work, mn);
+  for (int i = 0; env[i]; i++)
+    if (!strncmp(env[i], "TAU_", 4) && strncmp(env[i], "TAU_FD=", 7) && strncmp(env[i], "TAU_LIFE=", 9) && n < sizeof req)
+      n += (size_t)snprintf(req + n, sizeof req - n, "%s\n", env[i]);
+  if (n >= sizeof req - 1) { close(s); return -1; }
+  req[n++] = 0;
+  int lg = open(logp, O_WRONLY | O_CREAT | O_APPEND, 0644);
+  int fdv[3] = {msg_w, life_r, lg};
+  struct msghdr m = {0};
+  struct iovec io = {req, n};
+  char cbuf[CMSG_SPACE(sizeof fdv)];
+  memset(cbuf, 0, sizeof cbuf);
+  m.msg_iov = &io, m.msg_iovlen = 1, m.msg_control = cbuf, m.msg_controllen = sizeof cbuf;
+  struct cmsghdr *h = CMSG_FIRSTHDR(&m);
+  h->cmsg_level = SOL_SOCKET, h->cmsg_type = SCM_RIGHTS, h->cmsg_len = CMSG_LEN(sizeof fdv);
+  memcpy(CMSG_DATA(h), fdv, sizeof fdv);
+  ssize_t w = sendmsg(s, &m, 0);
+  close(lg);
+  pid_t pid = -1;
+  if (w == (ssize_t)n) {
+    char b[32] = {0};
+    ssize_t r = read(s, b, sizeof b - 1);
+    if (r > 0) pid = atoi(b);
+  }
+  close(s);
+  return pid > 0 ? pid : -1;
+}
+
 static void spawn_engine(void) {
   kill_all();
   char e1[4200], e2[4200], e3[64], e4[64], e5[64], e6[4200], e7[4200];
@@ -524,16 +575,22 @@ static void spawn_engine(void) {
   if (finish_every) env[k++] = "TAU_FINISH=every";
   if (e8[0]) env[k++] = e8;
   env[k] = NULL;
-  posix_spawn_file_actions_t fa;
-  posix_spawn_file_actions_init(&fa);
   char logp[4096];
   snprintf(logp, sizeof logp, "%s/engine.out", tdir);
-  posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
-  posix_spawn_file_actions_addopen(&fa, 1, logp, O_WRONLY | O_CREAT | O_APPEND, 0644);
-  posix_spawn_file_actions_adddup2(&fa, 1, 2);
-  posix_spawn_file_actions_addchdir(&fa, work);
-  if (posix_spawn(&root, eng_argv[0], &fa, NULL, eng_argv, env)) die("spawn engine");
-  posix_spawn_file_actions_destroy(&fa);
+  pid_t pk = parked_sock[0] ? from_parked(env, logp) : -1;
+  if (pk > 0) {
+    root = pk;
+  } else {
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
+    posix_spawn_file_actions_addopen(&fa, 1, logp, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    posix_spawn_file_actions_addchdir(&fa, work);
+    if (posix_spawn(&root, eng_argv[0], &fa, NULL, eng_argv, env)) die("spawn engine");
+    posix_spawn_file_actions_destroy(&fa);
+  }
+  if (dbg) fprintf(dbg, "%lld engine %d %s\n", (long long)now_us(), root, pk > 0 ? "from the parked engine" : "spawned"), fflush(dbg);
   free(env);
   runner = root;
   run_open = 1;
@@ -894,6 +951,29 @@ static char *bib_lines(void) {
   return outb;
 }
 
+// latexmk's -bibtex-cond: BibTeX only when every database \bibdata names is there (a project may ship only its .bbl,
+// as arXiv sources do: BibTeX would replace it with an empty one)
+static int bib_files_exist(const char *lines) {
+  int any = 0;
+  for (const char *l = strstr(lines, "\\bibdata{"); l; l = strstr(l + 1, "\\bibdata{")) {
+    const char *s = l + 9, *e = strchr(s, '}');
+    if (!e) return 0;
+    while (s < e) {
+      const char *c = memchr(s, ',', e - s);
+      if (!c) c = e;
+      char name[1024], p[4300], p2[4400];
+      snprintf(name, sizeof name, "%.*s", (int)(c - s), s);
+      snprintf(p, sizeof p, "%s/%s", work, name);
+      snprintf(p2, sizeof p2, "%s.bib", p);
+      if (!*name || (!exists(p2) && !(strlen(name) > 4 && !strcmp(name + strlen(name) - 4, ".bib") && exists(p))))
+        return 0;
+      any = 1;
+      s = c + 1;
+    }
+  }
+  return any;
+}
+
 static unsigned long bib_hash(void) {  // every .bib in the project (FNV-1a over names and contents)
   unsigned long h = 1469598103934665603UL;
   DIR *dd = opendir(work);
@@ -1045,7 +1125,7 @@ static int run_tools(rchange *ch, int max, int n) {
   } else if (bibtex_bin[0]) {
     char *lines = bib_lines();
     unsigned long h = bib_hash();
-    int has_bibdata = strstr(lines, "\\bibdata{") != NULL;
+    int has_bibdata = bib_files_exist(lines);
     if (has_bibdata && (!bib_state || strcmp(lines, bib_state) || h != bib_hash_last)) {
       code = run_tool(bibtex_bin, stem), ran_bib = 1, strcat(tools, "bibtex");
       free(bib_state), bib_state = lines, bib_hash_last = h;
@@ -1536,6 +1616,101 @@ static void on_cmd(char *line) {
   for (int i = 0; i < n; i++) free(v[i].s);
 }
 
+// tau-live --park SOCKET --engine PATH [options]: an engine kept just past its format load, listening on SOCKET (see
+// libtau's park_engine) until stdin closes; a new one every TAU_PARK_RENEW seconds (300), so that TeX's \time and
+// \today, set when an engine starts, stay current. Events: {"ev":"parked","pid","socket","us"} each time one is ready.
+static pid_t spawn_parked(void) {
+  int n = 0;
+  while (environ[n]) n++;
+  char **env = calloc(n + 16, sizeof *env);
+  int k = 0;
+  for (int i = 0; i < n; i++)
+    if (strncmp(environ[i], "TAU_", 4) && strncmp(environ[i], "DYLD_INSERT_LIBRARIES=", 22)) env[k++] = environ[i];
+  static char e[8][4300];
+  snprintf(e[0], sizeof e[0], "TAU_PROJECT=%s", work);
+  snprintf(e[1], sizeof e[1], "TAU_OUT=%s", tdir);
+  snprintf(e[2], sizeof e[2], "TAU_FD=%d", msg_w);
+  snprintf(e[3], sizeof e[3], "TAU_LIFE=%d", life_r);
+  snprintf(e[4], sizeof e[4], "DYLD_INSERT_LIBRARIES=%s", lib);
+  snprintf(e[5], sizeof e[5], "TAU_PARK=%s", park_sock);
+  snprintf(e[6], sizeof e[6], "TAU_PARK_SIG=%s", park_sig);
+  for (int i = 0; i < 7; i++) env[k++] = e[i];
+  for (int i = 0; i < n; i++)  // (variables the engine reads itself, as a session's would have them)
+    if (!strncmp(environ[i], "TAU_WARM_", 9) || !strncmp(environ[i], "TAU_PHASES=", 11) ||
+        !strncmp(environ[i], "TAU_TLROOT=", 11) || !strncmp(environ[i], "TAU_FETCH=", 10))
+      env[k++] = environ[i];
+  env[k] = NULL;
+  posix_spawn_file_actions_t fa;
+  posix_spawn_file_actions_init(&fa);
+  char logp[4300];
+  snprintf(logp, sizeof logp, "%s/engine.out", tdir);
+  posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
+  posix_spawn_file_actions_addopen(&fa, 1, logp, O_WRONLY | O_CREAT | O_APPEND, 0644);
+  posix_spawn_file_actions_adddup2(&fa, 1, 2);
+  posix_spawn_file_actions_addchdir(&fa, work);
+  pid_t z = -1;
+  if (posix_spawn(&z, park_argv[0], &fa, NULL, park_argv, env)) z = -1;
+  posix_spawn_file_actions_destroy(&fa);
+  free(env);
+  return z;
+}
+static int park_loop(void) {
+  const char *rs = getenv("TAU_PARK_RENEW");
+  int64_t renew = (rs ? atol(rs) : 300) * 1000000LL, started = 0;
+  pid_t z = -1;
+  char mb[4096];
+  size_t ml = 0;
+  for (;;) {
+    if (z <= 0) {
+      static int quick;  // (one that dies at once, again and again: give up)
+      if (started && now_us() - started < 2000000 && ++quick > 5) {
+        emit("{\"ev\":\"error\",\"what\":\"park\",\"message\":\"the parked engine keeps exiting (see %s/engine.out)\"}", tdir);
+        break;
+      }
+      z = spawn_parked();
+      started = now_us();
+      if (z <= 0) die("spawn the parked engine");
+    }
+    struct pollfd pf[2] = {{0, POLLIN, 0}, {msg_r, POLLIN, 0}};
+    if (poll(pf, 2, 1000) < 0 && errno != EINTR) die("poll");
+    if (pf[0].revents & (POLLIN | POLLHUP)) {
+      char b[256];
+      if (read(0, b, sizeof b) <= 0) break;
+    }
+    if (pf[1].revents & POLLIN) {
+      ssize_t r = read(msg_r, mb + ml, sizeof mb - ml - 1);
+      if (r > 0) {
+        ml += r;
+        char *s = mb, *nl;
+        while ((nl = memchr(s, '\n', mb + ml - s))) {
+          *nl = 0;
+          int zp;
+          long long t;
+          if (sscanf(s, "Z %d %lld", &zp, &t) == 2) {
+            fprintf(stdout, "{\"ev\":\"parked\",\"pid\":%d,\"socket\":", zp);
+            jstr(stdout, park_sock, strlen(park_sock));
+            fprintf(stdout, ",\"us\":%lld}\n", (long long)(t - started));
+            fflush(stdout);
+          }
+          s = nl + 1;
+        }
+        ml = mb + ml - s;
+        memmove(mb, s, ml);
+      }
+    }
+    if (waitpid(z, NULL, WNOHANG) == z) z = -1;  // (it died: another)
+    else if (now_us() - started > renew) { kill(z, SIGKILL); waitpid(z, NULL, 0); z = -1; }
+  }
+  if (z > 0) { kill(z, SIGKILL); waitpid(z, NULL, 0); }
+  unlink(park_sock);
+  if (strstr(outdir, "/tau-park-")) {  // (the scratch directory --park made)
+    char cmd[2200];
+    snprintf(cmd, sizeof cmd, "rm -rf '%s'", outdir);
+    if (system(cmd)) {}
+  }
+  return 0;
+}
+
 // ---------------------------------------------------------------------------------------------------- main
 
 int main(int argc, char **argv) {
@@ -1564,8 +1739,30 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--no-pdfmx")) use_pdfmx = 0;
     else if (!strcmp(argv[i], "--no-presize")) lua_presize = 0;
     else if (!strcmp(argv[i], "--first-snapshot-ms") && i + 1 < argc) first_sparse_ms = atol(argv[++i]);
+    else if (!strcmp(argv[i], "--park") && i + 1 < argc) snprintf(park_sock, sizeof park_sock, "%s", argv[++i]);
+    else if (!strcmp(argv[i], "--parked") && i + 1 < argc) snprintf(parked_sock, sizeof parked_sock, "%s", argv[++i]);
     else if (!strcmp(argv[i], "--dense") && i + 1 < argc) dense = atol(argv[++i]);
     else { fprintf(stderr, "tau-live: unknown option %s\n", argv[i]); return 2; }
+  }
+  static char *pk_args[4];
+  if ((park_sock[0] && strlen(park_sock) >= sizeof(((struct sockaddr_un *)0)->sun_path)) ||
+      (parked_sock[0] && strlen(parked_sock) >= sizeof(((struct sockaddr_un *)0)->sun_path))) {
+    fprintf(stderr, "tau-live: socket path too long (a Unix socket's is at most 103 bytes)\n");
+    return 2;
+  }
+  if (park_sock[0] && argc - i == 0 && engine_path) {  // --park needs no project: an empty one in a scratch directory
+    static char tmpl[1100];
+    const char *td = getenv("TMPDIR");
+    snprintf(tmpl, sizeof tmpl, "%s/tau-park-XXXXXX", td && *td ? td : "/tmp");
+    if (!mkdtemp(tmpl)) die("mkdtemp");
+    static char emp[1200];
+    snprintf(emp, sizeof emp, "%s/empty", tmpl);
+    mkdir(emp, 0755);
+    pk_args[0] = emp, pk_args[1] = "main.tex", pk_args[2] = tmpl;
+    char **nv = calloc(argc + 4, sizeof *nv);
+    memcpy(nv, argv, argc * sizeof *nv);
+    nv[argc] = pk_args[0], nv[argc + 1] = pk_args[1], nv[argc + 2] = pk_args[2];
+    argv = nv, argc += 3;
   }
   if (argc - i == 3 && engine_path) {  // pdftex-live's form: --engine PATH DIR MAIN OUT (the app's live driver)
     static char *a[8];
@@ -1652,8 +1849,30 @@ int main(int argc, char **argv) {
              "%s\\def\\taudotsig#1{%s}\\AddToHook{shipout/after}{\\taudotsig{ship/\\the\\ReadonlyShipoutCounter}}"
              "%s%s%s\\csname @@input\\endcsname %s", presize, sig, pass_macros, pad,
              getenv("TAU_PHASES") ? "\\def\\taudotmark#1{\\taudotsig{t/#1}}" : "\\def\\taudotmark#1{}", a[n - 1]);
+    // the parked form (tau-live --park, and sessions that fork from it): the main file's name read at run time
+    static char injp[24576];
+    snprintf(injp, sizeof injp,
+             "%s\\def\\taudotsig#1{%s}\\AddToHook{shipout/after}{\\taudotsig{ship/\\the\\ReadonlyShipoutCounter}}"
+             "%s%s%s{\\endlinechar=-1 \\openin15=/.taudot/main.tex \\global\\readline15 to\\taudotmain"
+             "\\closein15}\\csname @@input\\endcsname\\taudotmain", presize, sig, pass_macros, pad,
+             getenv("TAU_PHASES") ? "\\def\\taudotmark#1{\\taudotsig{t/#1}}" : "\\def\\taudotmark#1{}");
     a[n - 1] = inj;
     eng_argv = a;
+    park_argv = calloc(n + 1, sizeof *park_argv);
+    memcpy(park_argv, a, n * sizeof *a);
+    park_argv[n - 1] = injp;
+    // what a parked engine was started with: a session forks from it only if all of it is the same
+    uint64_t h = 14695981039346656037ULL;
+    for (int k = 0; k < n; k++) h = fnv1a(fnv1a(h, park_argv[k], strlen(park_argv[k])), "\x01", 1);
+    h = fnv1a(h, lib, strlen(lib));
+    static const char *keys[] = {"TEXMFCNF", "TEXFORMATS", "TEXINPUTS", "TAU_TLROOT", "TEXSTORE_ROOT", "TEXSTORE_URL",
+                                 "TEXSTORE_IMAGE", "TAU_FETCH", "SOURCE_DATE_EPOCH", "FORCE_SOURCE_DATE", "TAU_WARM_QOS",
+                                 "TAU_WARM_TOUCH", "TAU_WARM_PIPE", "TAU_PHASES", NULL};
+    for (int k = 0; keys[k]; k++) {
+      const char *v = getenv(keys[k]);
+      h = fnv1a(fnv1a(h, keys[k], strlen(keys[k])), v ? v : "\x02", v ? strlen(v) + 1 : 1);
+    }
+    snprintf(park_sig, sizeof park_sig, "%016llx", (unsigned long long)h);
   }
   snprintf(work, sizeof work, "%s/work", outdir);
   snprintf(tdir, sizeof tdir, "%s/t", outdir);
@@ -1678,6 +1897,7 @@ int main(int argc, char **argv) {
   fcntl(life_w, F_SETFD, FD_CLOEXEC);
   signal(SIGPIPE, SIG_IGN);
   if (getenv("TAU_LIVE_LOG")) dbg = fopen(getenv("TAU_LIVE_LOG"), "w");
+  if (park_sock[0]) return park_loop();
   restore_state();
   if (hook && para) reader_start();  // (the paragraph preview's reader, ready before the first pass)
   if (use_pdfmx && !strcmp(out_ext(), "xdv")) pdfmx_start();  // (warms kpathsea while the engine starts)
