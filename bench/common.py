@@ -95,7 +95,7 @@ def xdv_pages(b):
     return [p[:41] + p[45:] for p in _xdv.pages(b)]
 
 
-def same_pages(a, b, pages=None):
+def same_pages(a, b, pages=None, offset=0):
     """Pages of two outputs that are equal (PDF: content stream and resources of the page; XDV: the page's
     bytes). Returns the list of (page, equal) for the given pages (default: all of a's)."""
     if a.endswith(".xdv"):
@@ -106,11 +106,11 @@ def same_pages(a, b, pages=None):
     ra, rb = PdfReader(a), PdfReader(b)
     idx = range(len(ra.pages)) if pages is None else pages
     out = []
-    for k in idx:
-        if k >= len(ra.pages) or k >= len(rb.pages):
+    for k in idx:  # page k of a against page k + offset of b (a holds pages offset.. of the document)
+        if k >= len(ra.pages) or k + offset >= len(rb.pages):
             out.append((k, False))
             continue
-        out.append((k, _page_sig(ra.pages[k]) == _page_sig(rb.pages[k])))
+        out.append((k, _page_sig(ra.pages[k]) == _page_sig(rb.pages[k + offset])))
     return out
 
 

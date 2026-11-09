@@ -140,7 +140,7 @@ class TaudotDriver(System):
                 ev = json.loads(line)
             except ValueError:
                 continue
-            for k in ("path", "overlay"):  # driver files are reused after a few newer ones: keep a link
+            for k in ("path", "overlay", "pdf_path"):  # driver files are reused after a few newer ones: keep a link
                 if ev.get(k) and ev["ev"] in ("pdf", "para") and os.path.exists(ev[k]):
                     self.nkeep += 1
                     dst = f"{self.keep}/{self.nkeep}-{os.path.basename(ev[k])}"
@@ -200,6 +200,11 @@ class TaudotDriver(System):
                 if page is None or ev.get("final") or ev.get("pages", 0) > page:
                     r["page_ms"], r["early"] = ms, ev.get("kept_path")
                     r["early_pages"], r["early_from"] = ev.get("pages"), ev.get("from_page", 0)
+                    if "pdf_first" in ev:  # XeTeX through tau-pdfmx: the changed pages as a PDF
+                        r["early_pdf"], r["pdf_first"], r["pdf_last"] = ev.get("kept_pdf_path"), ev["pdf_first"], \
+                            ev["pdf_last"]
+                        r["pdf_path"], r["xdv_path"] = ev.get("pdf_path"), ev.get("path")
+                        r["xdvipdfmx_ms"] = ev.get("pdfmx_us", 0) / 1000
             elif k == "done" and (seq is None or ev.get("seq", -1) >= seq) and ev.get("seq", -1) > self.last_seq:
                 self.last_seq = ev["seq"]
                 r["final_ms"] = ms
@@ -673,11 +678,20 @@ def run_driver(cls, doc, engine, meta):
                 r["final_exact"] = "none"
         if r.get("page_is_final"):
             r["page_exact"] = r["final_exact"]
-        if r["early"] and engine == "xelatex" and isinstance(sysm, TaudotDriver):
-            t = time.monotonic()
-            subprocess.run([f"{UBIN}/xdvipdfmx", "-q", "-o", f"{r['early']}.pdf", r["early"]], env=tex_env(),
+        if r.get("early_pdf") and r.get("pdf_path"):  # tau-pdfmx's pages: what stock xdvipdfmx makes of the same
+            # pages of latexmk's XDV, written to the same path (the font subset tags hash the output's name)
+            p = r["pdf_path"]
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            if os.path.exists(p):
+                os.remove(p)  # our hard link keeps tau-pdfmx's bytes
+            x = r["xdv_path"]  # latexmk's XDV under the event's own name, as tau-pdfmx read it
+            if os.path.exists(x):
+                os.remove(x)
+            shutil.copy(ref, x)
+            subprocess.run([f"{UBIN}/xdvipdfmx", "-q", "-z", "1", "-s", f"{r['pdf_first'] + 1}-{r['pdf_last'] + 1}",
+                            "-o", p, x], cwd=f"{out}/work" if os.path.isdir(f"{out}/work") else out, env=tex_env(),
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            r["xdvipdfmx_ms"] = (time.monotonic() - t) * 1000
+            r["page_exact"] = "yes" if os.path.exists(p) and same_file(r["early_pdf"], p) else "NO"
         if "page_exact" not in r:
             if r["early"]:
                 new = range(r["early_from"] or 0, r["early_pages"] or 0)
