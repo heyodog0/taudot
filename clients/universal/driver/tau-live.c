@@ -651,7 +651,7 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
       int ff = open(fifo, O_WRONLY | O_NONBLOCK);
       if (ff >= 0) { write(ff, "g", 1); close(ff); }  // (TAU_WARM_PIPE)
       else kill(warm, SIGUSR1);
-      if (dbg) fprintf(dbg, "%lld signalled warm %d\n", (long long)now_us(), warm), fflush(dbg);
+      if (dbg) fprintf(dbg, "%lld signalled warm %d, %lld us after the edit\n", (long long)now_us(), warm, (long long)(now_us() - t_apply)), fflush(dbg);
       s->warm = 0;
     }
   }
@@ -1193,6 +1193,8 @@ static void para_lines(const char *line, int s, int lines, int pieces, const cha
     int x_, y_, z_, w_;
     if (sscanf(line, "Q %d %d %d %d %lld %2047s %lld", &x_, &y_, &z_, &w_, &a_, path_, &b_) == 7) tstart = b_;
   }
+  if (dbg) fprintf(dbg, "para timing: Q read %lld us after the stop, %lld after the edit\n", (long long)(now_us() - t_q),
+                   (long long)(now_us() - t_apply));
   if (!own) return para_none(s, "insert", lines, pieces, bin);  // in a box: a float, a caption, a minipage
   if (pieces > 1) return para_none(s, "split", lines, pieces, bin);  // the new lines cross a page or column
   if (!geo || lines <= 0) return para_none(s, lines <= 0 ? "end" : "insert", lines, pieces, bin);  // (insert, mark)
@@ -1282,6 +1284,8 @@ static void para_lines(const char *line, int s, int lines, int pieces, const cha
   fprintf(h, ",\"engine_us\":%lld", tstart ? (long long)(t_q - tstart) : 0LL);
   fclose(h);
   jobs[njobs++] = (reader_job){head, s, now_us(), is_pdf};
+  if (dbg) fprintf(dbg, "para timing: request sent %lld us after the edit, %lld after the stop\n",
+                   (long long)(now_us() - t_apply), (long long)(now_us() - t_q)), fflush(dbg);
 }
 
 // An answer from the reader: the oldest request's event goes out
