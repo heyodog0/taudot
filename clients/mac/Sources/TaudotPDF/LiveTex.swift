@@ -930,6 +930,7 @@ final class Trash: @unchecked Sendable {
     if let e = PagesEvent(ev) { onPages?(e) }
   }
   private var lastEditUs = -1, lastApplied = -1
+  var lastAppliedForTest: Int { lastApplied }
 
   /// The compile settled: pages past the last run's end go, the log goes to the issues list, and the pane hears
   /// "done" (SyncTeX, comments, the page cache). When the last run wrote no PDF (a fatal error before its first page:

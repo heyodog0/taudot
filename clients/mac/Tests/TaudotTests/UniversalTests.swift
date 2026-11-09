@@ -202,7 +202,7 @@ private let bib = "@book{knuth, author={Donald Knuth}, title={The {\\TeX}book}, 
   #expect(!shown.isEmpty, "no preview reached the pane")
   #expect(shown.allSatisfy { $0.exact })
   try await waitFor(5) { pane.pane.paraShown == nil }
-  #expect(pane.pane.paraShown == nil, "the exact page didn't retire the preview")
+  #expect(pane.pane.paraShown == nil, "the exact page didn't retire the preview; applied \((t as? LiveTex)?.lastAppliedForTest ?? -9) shown \(shown.map { "\($0.go)/\($0.applied)" })")
 }
 
 /// Debugging aid (UNI_DUMP=dir): a tile as PNG.
