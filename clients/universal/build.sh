@@ -32,3 +32,16 @@ FT="$BREW/opt/freetype/lib/libfreetype.a $BREW/opt/libpng/lib/libpng16.a $BREW/o
 cc -o "$BIN/tau-tdl" "$O/tau-tdl.o" "$@" "$K/kpathsea/.libs/libkpathsea.a" $FT -lz -lbz2 -lhvf \
   -framework CoreGraphics -framework ImageIO -framework CoreFoundation -framework CoreText
 ls -l "$BIN/tau-tdl"
+
+# tau-pdfmx (pdfmx/): xdvipdfmx kept resident. Links the stock build's dvipdfm-x objects, unmodified, with
+# dvipdfmx.c compiled again with main renamed; the program is GPL as a whole (a separate program, like the engines).
+D=$TAUDOT_REF/universal/build-2026/texk/dvipdfm-x
+DS=$TAUDOT_REF/universal/src-2026/texk/dvipdfm-x
+L=$TAUDOT_REF/universal/build-2026
+DI="-DHAVE_CONFIG_H -I$D -I$DS -I$L/texk -I$TAUDOT_REF/universal/src-2026/texk -I$L/libs/libpng/include -I$L/libs/zlib/include -I$L/libs/libpaper/include"
+mkdir -p "$O/pdfmx"
+cc -g -O2 -w $DI -Dmain=dvipdfmx_stock_main -c -o "$O/pdfmx/dvipdfmx.o" "$DS/dvipdfmx.c"
+cc -O2 -Wall $DI -c -o "$O/pdfmx/tau-pdfmx.o" "$here/pdfmx/tau-pdfmx.c"
+cc -o "$BIN/tau-pdfmx" "$O/pdfmx/tau-pdfmx.o" "$O/pdfmx/dvipdfmx.o" $(ls "$D"/*.o | grep -v '/dvipdfmx\.o$') \
+  "$L/texk/kpathsea/.libs/libkpathsea.a" "$L/libs/libpng/libpng.a" "$L/libs/zlib/libz.a" "$L/libs/libpaper/libpaper.a"
+ls -l "$BIN/tau-pdfmx"

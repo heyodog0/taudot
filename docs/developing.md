@@ -38,7 +38,7 @@ Large inputs live outside the repository, in one folder that the scripts call th
 |---|---|---|---|
 | `TAUDOT_REF` | `TaudotPDF/LiveTex.swift`, `ParaOverlayTests.swift`, `clients/pdftex/tests/conftest.py` | `~/code/lab/taudot-ref` | the folder itself |
 | `PDFTEX_REF` | `clients/mac/bundle.sh` | `~/code/lab/taudot-ref` | `pdftex-build-<year>/`, `texlive-<year>/store-root/` |
-| `SRC`, `BUILD`, `SERIES` | `clients/pdftex/build.sh` | `$REF/texlive-<year>/src`, `$REF/pdftex-build-<year>` | TeX Live's source and the live pdfTeX build (`clients/pdftex/README.md`) |
+| `SRC`, `BUILD`, `SERIES` | `clients/pdftex/build.sh` | `$REF/texlive-<year>/src`, `$REF/pdftex-build-<year>` | TeX Live's source and the live pdfTeX build (`clients/pdftex/DESIGN.md`) |
 | `BUILD`, `TEXLIVE`, `TAUDOT_TEXMF`, `WORK` | `clients/pdftex/bench.py` | `$REF/pdftex-build[-<year>]`, `$REF/pdftex-texmf` | bench inputs |
 | `BIBTEX_BIN` | `clients/mac/bundle.sh` | `$REF/pdftex-build-2025/stock/texk/web2c/bibtex` | TeX Live's BibTeX |
 | `TEXPRESSO_DIR` | `install.sh`, `bundle.sh`, `clients/render/build.sh`, `clients/preview/texpresso/build.sh`, render harness | `vendor/texpresso` (made by `install.sh`), else `$REF/texpresso` | upstream TeXpresso with our patches |

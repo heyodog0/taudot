@@ -703,6 +703,120 @@ def serve(engine, src, main):
     print(f"serve {engine} {name}: hello {hello}\n  " + "\n  ".join(res))
 
 
+def xpdf(engine, src, main, n=40, seed=5):
+    """XeTeX's pages as PDF in tau-live (tau-pdfmx): typing as in `typing`; every pdf event's pdf_path must be the
+    bytes stock xdvipdfmx makes of that event's XDV with the same arguments; times: edit -> PDF pages ready."""
+    name = os.path.basename(os.path.abspath(src))
+    base = settle(engine, src, main, name)
+    out = f"{WORK}/x-out"
+    shutil.rmtree(out, ignore_errors=True)
+    rng = random.Random(seed)
+    text = open(f"{base}/{main}", "rb").read()
+    lo = text.find(b"\\begin{document}")
+    live = Live(engine, base, main, out, "--hook")
+    live.send("goal", 0)
+    live.until(lambda e: e["ev"] == "done")
+    pos = [m.end() for m in re.finditer(rb"[a-z]{4,}\. ", text[lo:])]
+    sentence = "Typing goes here, one key at a time, as a user would. "
+    checked = same = 0
+    first_ms, conv_ms, ready_ms, final_conv = [], [], [], []
+    shown = []  # the client's pages, as the protocol says to keep them: (PDF, its page)
+    seen = 0
+    pix = []
+
+    def apply(e):
+        if "pdf_first" not in e:
+            return
+        f, l = e["pdf_first"], e["pdf_last"]
+        for k in range(f, l + 1):
+            if k < len(shown):
+                shown[k] = (e["pdf_path"], k - f)
+            else:
+                shown.append((e["pdf_path"], k - f))
+        if e.get("final"):
+            del shown[e["pages"]:]
+
+    def compare(final_xdv):
+        """Every page the client shows against a whole-document xdvipdfmx of the final XDV, drawn (pixels.py)."""
+        import pixels
+        ref = f"{out}/ref-all.pdf"
+        subprocess.run([f"{UBIN}/xdvipdfmx", "-q", "-z", "1", "-o", ref, final_xdv], cwd=f"{out}/work", check=True)
+        rb = open(ref, "rb").read()
+        import pikepdf
+        boxes = [tuple(float(v) for v in pg.mediabox) for pg in pikepdf.open(ref).pages]
+        bad = 0
+        for k, (path, i) in enumerate(shown):
+            a = pixels.render(open(path, "rb").read(), i, boxes[k])[0]
+            b = pixels.render(rb, k, boxes[k])[0]
+            bad += a != b
+        pix.append((len(shown) - bad, len(boxes), len(shown)))
+
+    def check(e):
+        nonlocal checked, same
+        if "pdf_path" not in e:
+            return
+        mine = open(e["pdf_path"], "rb").read()
+        os.remove(e["pdf_path"])  # the stock run writes the same name (the subset tags hash it)
+        r = subprocess.run([f"{UBIN}/xdvipdfmx", "-q", "-z", "1", "-s", f"{e['pdf_first'] + 1}-{e['pdf_last'] + 1}", "-o",
+                            e["pdf_path"], e["path"]], cwd=f"{out}/work", stdin=subprocess.DEVNULL)
+        checked += 1
+        same += r.returncode == 0 and open(e["pdf_path"], "rb").read() == mine
+
+    for spot in range(n // 20):
+        p = lo + rng.choice(pos)
+        for i in range(20):
+            time.sleep(0.12)
+            live.send("change", main, p + i, 0, sentence[i])
+            run = newer_run(live)
+            e = live.until(lambda e: e["ev"] in ("pdf", "done") and e.get("seq") == run["seq"])
+            if e["ev"] == "pdf" and "pdf_first" in e and "pdf_path" in e:
+                first_ms.append(e["edit_us"] / 1000)
+                conv_ms.append(e["pdfmx_us"] / 1000)
+                ready_ms.append((e["edit_us"] + e["pdfmx_us"]) / 1000)
+                check(e)
+        done = live.until(lambda e: e["ev"] == "done" and e["seq"] == run["seq"])
+        for e in live.events[seen:]:
+            if e["ev"] == "pdf" and e.get("final") and "pdf_path" in e and e["seq"] != 0:
+                final_conv.append((e["pdfmx_us"] / 1000, e["pdf_last"] + 1 - e["pdf_first"]))
+                check(e)
+            if e["ev"] == "pdf":
+                apply(e)
+        seen = len(live.events)
+        compare(done["path"])
+    # jumps: whole chunks at random spots that bring fonts not used before (XeTeX numbers fonts as it defines them,
+    # so every later number shifts) and move page breaks
+    chunks = [" \\textsc{Small Capitals Here} ", " \\texttt{monospaced words} \\textbf{\\textit{bold italic}} ",
+              "\n\n\\begin{center}\\Huge A big line\\end{center}\n\n", " \\textsf{\\textbf{sans bold}} ",
+              " \\fbox{\\scriptsize tiny boxed words} ", "\n\n" + "More text to push pages. " * 30 + "\n\n"]
+    for j, c in enumerate(chunks):
+        p = lo + rng.choice(pos)
+        live.send("change", main, p, 0, c)
+        run = newer_run(live)
+        done = live.until(lambda e: e["ev"] == "done" and e["seq"] == run["seq"])
+        for e in live.events[seen:]:
+            if e["ev"] == "pdf" and "pdf_path" in e:
+                check(e)
+            if e["ev"] == "pdf":
+                apply(e)
+        seen = len(live.events)
+        compare(done["path"])
+    live.close()
+
+    def pq(v):
+        v = sorted(v)
+        return f"p50 {statistics.median(v):.1f} p90 {v[min(len(v) - 1, int(.9 * len(v)))]:.1f} ms"
+
+    print(f"xpdf {engine} {name}: {same}/{checked} PDFs identical to stock xdvipdfmx")
+    for ok, n_ref, n_shown in pix:
+        print(f"  after an edit: {ok}/{n_ref} pages the client shows draw identically to a whole-document xdvipdfmx"
+              f"{'' if n_shown == n_ref else f' (client has {n_shown})'}")
+    print(f"  per key: edit -> first exact XDV {pq(first_ms)}; its pages -> PDF {pq(conv_ms)}; edit -> PDF {pq(ready_ms)}")
+    if final_conv:
+        print(f"  final outputs: {len(final_conv)}, pages -> PDF {pq([c for c, _ in final_conv])} "
+              f"({statistics.median([k for _, k in final_conv]):.0f} pages p50)")
+    return same == checked and checked > 0 and all(ok == n == m for ok, n, m in pix)
+
+
 if __name__ == "__main__":
     if sys.argv[1:2] == ["serve"]:
         serve(*sys.argv[2:5])
@@ -714,6 +828,8 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["paragraph"]:
         paragraph(*sys.argv[2:5], *(int(x) for x in sys.argv[5:6]))
         sys.exit(0)
+    if sys.argv[1:2] == ["xpdf"]:
+        sys.exit(0 if xpdf(*sys.argv[2:5], *(int(x) for x in sys.argv[5:6])) else 1)
     if sys.argv[1:2] == ["typing"]:
         typing(*sys.argv[2:5], *(int(x) for x in sys.argv[5:6]))
         sys.exit(0)

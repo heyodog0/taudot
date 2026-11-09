@@ -17,7 +17,7 @@
    "No file <it>.", the engine reruns, rolled back to the latest snapshot before the first changed byte. At most
    --max-runs runs (5, latexmk's max_repeat) per compile. An edit to a file the engine never read (a .bib) is
    written to DIR and goes straight to the rule above: BibTeX, then a rerun only if the .bbl changed.
-   Results go to stdout as TSV. See clients/pdftex/README.md for the engine's messages. */
+   Results go to stdout as TSV. See clients/pdftex/DESIGN.md for the engine's messages. */
 
 #include <dirent.h>
 #include <errno.h>

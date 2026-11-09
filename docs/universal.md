@@ -343,6 +343,53 @@ paper-b's first compile on a complete tree: 162 fetches (XeLaTeX) and 112 (LuaLa
   `{"ev":"error","what":"format",...}` with TeX's own line when a run made nothing and the engine said it couldn't
   find or read its format.
 
+## XeTeX's pages as PDF: tau-pdfmx (2026-11-09)
+
+XeTeX's exact output is XDV; the app showed it by running `xdvipdfmx -s FIRST-LAST` per `pdf` event: 40–50 ms for
+one page of paper-b, 100–200 ms for the pages from an edit to the end. Time Profiler over 40 one-page runs: **~80% is
+kpathsea building its `ls-R` hash** (`db_build`) at start; the page itself (fonts, subsetting, figures) is ~4 ms.
+
+- **`tau-pdfmx`** (`pdfmx/`): xdvipdfmx kept resident. It links the stock build's dvipdfm-x objects unmodified
+  (`dvipdfmx.c` compiled again with `main` renamed), so as a program it is GPL, separate like the engines; the file
+  itself is MIT. `tau-pdfmx serve` reads texmf.cnf and every `ls-R` once, initializes the search paths of the formats
+  xdvipdfmx uses, then forks a child per request (`DIR<TAB>ARG...`, answer `done CODE US`) that runs xdvipdfmx's own
+  `main`; the next child is forked and parked while the client reads the PDF. Every request starts from the same
+  state, so the output is a fresh `xdvipdfmx`'s, byte for byte (the font subset tags hash the output's name: compare
+  under the same name). Two cuts that change no output:
+  - `fgetc`/`getc`/`fputc`/`putc` linked ahead of libc's without the stream lock (xdvipdfmx reads byte by byte;
+    the lock was ~20% of a page; a conversion is single-threaded).
+  - kpathsea's case-insensitive retry of every miss (it lists the directory: xdvipdfmx probes `.dfont`, CMaps, glyph
+    lists) is turned off when the working directory, `/` and every `ls-R` tree are on case-insensitive volumes: there
+    an exact miss is also a case-folded miss.
+- **tau-live converts** (XeTeX, `tau-pdfmx` beside it; `--no-pdfmx` turns it off): a `pdf` event of an XDV goes out once
+  its pages are converted, with `pdf_path`, `pdf_first`, `pdf_last` (0-based, inclusive: the pages in `pdf_path`;
+  every other page below `pages` is as the client already has it; `pdf_last < pdf_first`: none changed, no
+  `pdf_path`) and `pdfmx_us`; `pdf_error` if the conversion failed (convert the XDV yourself). Events after it wait
+  behind it, so the order is kept; `para` events don't wait.
+- **Only changed pages.** tau-live keeps, per page the client has, a hash of the page's XDV bytes (bop up to the next
+  bop, without bop's back pointer), and the font definitions of what it delivered. A page is converted again when its
+  bytes differ, or page 1 or the units differ (xdvipdfmx reads page 1's specials, e.g. the paper size, for every
+  page), or a font number is defined differently (xdvipdfmx takes fonts from the postamble by number; XeTeX numbers
+  them as it defines them, so a new font early shifts every later number). An early output lists only the fonts
+  defined so far: definitions are compared per number, and the client keeps the pages after an early output.
+
+Checked (`uni.py xpdf`, paper-b, XeLaTeX: 40 typing keys at two spots, then six chunks at random spots bringing new
+fonts and moving page breaks): **every converted PDF byte-identical** to stock `xdvipdfmx` with the same arguments
+(50/50), and after every edit **every page the client would show** (applying the events as above) **draws
+identically** (Core Graphics, 288 dpi, all pixels) to a whole-document `xdvipdfmx` of the final XDV (41/41 × 8).
+`tests/pdfmx.py`: random page ranges, server vs a fresh `xdvipdfmx`, 30/30 identical on paper-b, 20/20 on a fontspec
+document with PDF and PNG figures.
+
+| paper-b, XeLaTeX | before (xdvipdfmx per event) | now |
+|---|---|---|
+| one page → PDF | p50 41, p90 45 ms | **p50 5.2, p90 5.9 ms** (in tau-live) |
+| pages from the edit to the end | p50 99, p90 196 ms | not converted unless changed (p50 0 pages per final) |
+| typing: edit → PDF of the edited page | ≥ 65 ms (18 + 45, behind the previous key's tail) | **p50 24.5, p90 26.1 ms** |
+
+Still per conversion (profile of the server's children): font subsetting and ToUnicode at close (~30%), PDF figures
+re-parsed (~15%), deflate at `-z 1` (~10%), kpathsea lookups (~20%; `dpx_foolsearch` resets the program name and
+re-initializes formats each time).
+
 ## Results (TeX Live 2026, M-series Mac, 2026-11-07)
 
 Papers: paper-a (32 pages, one column, review-mode line numbers) and paper-b (the corpus's arXiv 2103.00020, 48 pages, two columns). "Stock" is TeX Live's
@@ -391,7 +438,7 @@ byte-identical only when the paths match: step 1 runs both in the same directory
 are compared with `/ID` masked. To match Overleaf byte for byte, a LuaLaTeX project must run at CLSI's path
 (`/compile/...`), e.g. by making the clone's path the same; unverified.
 
-XeTeX's exact page is an XDV page: the pane needs an XDV reader (TeXpresso's path) or xdvipdfmx per update.
+XeTeX's exact page is an XDV page: tau-live converts the changed pages with tau-pdfmx (above).
 LuaTeX's time is LuaTeX's own: a stock LuaLaTeX run of the paper-b paper takes 1.8 s against pdfTeX's 0.9 s, and its
 finish (OpenType subsetting, PDF objects in Lua) is heavier. Snapshot footprint: XeTeX up to 158 MiB, LuaTeX 76 MiB,
 pdfTeX 25 MiB (max single snapshot).

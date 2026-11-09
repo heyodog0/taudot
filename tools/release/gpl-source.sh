@@ -37,7 +37,7 @@ cp "$repo/tools/release/COPYING-GPL-2" "$tmp/$name/COPYING"
   echo "To rebuild, for each YEAR in 2024 2025 2026:"
   echo "  SERIES=YEAR sh clients/pdftex/build.sh all"
   echo "(apply.sh fetches the TeX Live release, checks its SHA-512 and applies clients/pdftex/patches/YEAR/;"
-  echo "clients/pdftex/README.md describes the patches and the build.)"
+  echo "clients/pdftex/DESIGN.md describes the patches and the build.)"
   echo
   echo "Taudot.app/Contents/Resources/universal/bin/ holds pdftex, xetex, luahbtex (run as pdflatex, xelatex,"
   echo "lualatex), xdvipdfmx and bibtex built WITHOUT changes from the TeX Live 2026 source release above"

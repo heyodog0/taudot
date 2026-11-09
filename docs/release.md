@@ -84,7 +84,7 @@ xcrun notarytool store-credentials taudot-notary --apple-id … --team-id …
 
 (The Sparkle tools are downloaded by the first `clients/mac/bundle.sh` or `make.sh` run.) The build machine needs
 what `bundle.sh` builds from: Xcode's Swift, cargo, a built TeXpresso checkout (`clients/render/texpresso/README.md`),
-the live pdfTeX per year (`clients/pdftex/README.md`), and Homebrew's libraries for the TeXpresso builds.
+the live pdfTeX per year (`clients/pdftex/DESIGN.md`), and Homebrew's libraries for the TeXpresso builds.
 
 Each release:
 

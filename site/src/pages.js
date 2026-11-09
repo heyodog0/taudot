@@ -85,11 +85,10 @@ p { margin: 0; }
 h1 { margin: 0; font-size: 21px; line-height: 1.3; font-weight: 500; letter-spacing: -.015em; }
 h1 span { display: block; color: var(--muted); font-weight: 400; }
 
-.work { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.work li { display: grid; gap: 1px; }
-.work a { font-weight: 500; color: var(--accent); text-decoration: none; }
-.work a:hover { text-decoration: underline; }
-.work span { font-size: 14px; color: var(--muted); }
+.gh { display: block; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: inherit; font-size: 13px; line-height: 1.35; transition: border-color .3s ease, background-color .3s ease; }
+.gh:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--hover); }
+.gh b { display: block; font-weight: 500; color: var(--accent); }
+.gh span { color: var(--muted); }
 .note { font-size: 13px; color: var(--muted); }
 @keyframes fade { from { opacity: 0; transform: translateY(3px); } }
 
@@ -123,7 +122,7 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
 @keyframes turn { from { transform: rotate(-120deg) scale(.5); opacity: 0; } to { transform: none; opacity: 1; } }
 .turning #theme-toggle svg { animation: turn .7s cubic-bezier(.65, 0, .35, 1); }
 @media (max-width: 560px) { #theme-toggle { position: absolute; } .panel { margin-top: 32px; } }
-@media (prefers-reduced-motion: reduce) { .icon .tau path, .icon .dot, .icon .hopper.hopping, .done, .turning #theme-toggle svg { animation: none; stroke-dashoffset: 0; } .screen > * { transition: none; } }`;
+@media (prefers-reduced-motion: reduce) { .gh { transition: none; } .icon .tau path, .icon .dot, .icon .hopper.hopping, .done, .turning #theme-toggle svg { animation: none; stroke-dashoffset: 0; } .screen > * { transition: none; } }`;
 
 /* Theme: the system's, unless the switch was used (remembered in this browser only). */
 const THEME = `<script>try { const v = localStorage.getItem('taudot-theme'); if (v) document.documentElement.dataset.theme = v; } catch {}</script>`;
@@ -177,17 +176,8 @@ function html(body, status = 200) {
 
 const foot = `<footer><a href="/">Taudot</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/heyodog0/taudot">GitHub</a></footer>`;
 
-/* What's being built now, each a folder of the repo. */
 const GH = 'https://github.com/heyodog0/taudot';
-const WORK = [
-  ['clients/pdftex', 'Live pdfTeX', 'Retypesets only what changed, so the exact PDF follows each keystroke in milliseconds.'],
-  ['clients/universal', 'XeLaTeX and LuaLaTeX, live', 'The same, on stock engines: no patches, just a small library loaded beside them.'],
-  ['clients/mac', 'The Mac app', 'The editor (Overleaf-style or Neovim), the PDF pane and the review margin.'],
-  ['crates/overleaf', 'Overleaf sync', 'Your edits reach coauthors live, under your name; their comments come back.'],
-  ['clients/pdfsource', 'PDF to LaTeX', "Recovers a paper's source from its PDF, each paragraph proven by typesetting it again."],
-];
-const WORKLIST = `<ul class="work">${WORK.map(([dir, name, what]) =>
-  `<li><a href="${GH}/tree/main/${dir}">${esc(name)}</a><span>${esc(what)}</span></li>`).join('')}</ul>`;
+const SOURCE = `<a class="gh" href="${GH}"><b>Open source, in progress</b><span>github.com/heyodog0/taudot</span></a>`;
 
 function panel() {
   const shown = CLIPS.filter(c => !c.hidden);
@@ -206,8 +196,7 @@ export function landing(status = 200) {
 <body>${TOGGLE}<main class="col">${ICON}
 <h1>Taudot<span>Write LaTeX on your Mac, live with your coauthors.</span></h1>
 <p>A Mac app for writing LaTeX. The editor works the way Overleaf's does, or you can write in Neovim, and the PDF beside it updates as you type. It works with your Overleaf projects: coauthors in the browser see your edits as you make them, under your name, and their comments show up next to your text.</p>
-<p class="note">In progress, in the open. Build it, fork it, send pull requests: <a href="${GH}">github.com/heyodog0/taudot</a>.</p>
-${WORKLIST}
+${SOURCE}
 </main>
 ${panel()}
 ${foot}</body></html>`, status);
