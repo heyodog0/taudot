@@ -1,0 +1,439 @@
+# AGPL-3.0-or-later. Run the fixed edit script against one live-typesetting system and write raw TSV rows.
+#
+#   uv run bench/run.py SYSTEM DOC ENGINE        e.g.  latexmk synth-100 pdflatex
+#   uv run bench/run.py all [--docs ...]          every system on every document it supports
+#
+# Measures (defined in docs/bench.md): first compile, edit -> paragraph preview, edit -> exact page,
+# edit -> whole exact PDF, peak memory. latexmk runs first on each document: its output after every edit is the
+# stock reference the other systems' pages and PDFs are checked against.
+import argparse
+import json
+import os
+import queue
+import shutil
+import subprocess
+import sys
+import threading
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import (BUILD, REPO, TAU_BIN, DOCS, LATEXMK, PDFTEX_BUILD, RESULTS, SRC, UBIN, USTOCK, WORK, TreeRSS, copy, git_rev, log,  # noqa
+                    page_count, run_stock, same_file, same_pages, stem, tex_env)
+
+TIMEOUT = 300  # s, per edit
+REST = 0.3  # s between edits, after the previous one settled
+
+
+def load(doc):
+    return json.load(open(f"{DOCS}/{doc}/edits.json"))
+
+
+def script(meta, variant):
+    """The edit script: (n, spot, file, byte offset, key). Offsets already account for earlier keys."""
+    v = meta["variants"][variant]
+    keys = meta["keys"]
+    out, typed = [], []  # typed: (offset, length) of text inserted so far, in the file's current coordinates
+    n = 0
+    for s, pos in enumerate(v["spots"]):
+        p = pos + sum(l for o, l in typed if o <= pos)
+        for j, c in enumerate(keys):
+            n += 1
+            out.append((n, s, v["file"], p + j, c))
+        typed.append((pos, len(keys)))
+    return out
+
+
+def apply(path, pos, ins):
+    b = open(path, "rb").read()
+    open(path, "wb").write(b[:pos] + ins.encode() + b[pos:])
+
+
+def line_of(path, pos):
+    return open(path, "rb").read()[:pos].count(b"\n") + 1
+
+
+def synctex_page(path, file, line):
+    """The last page (0-based) holding a record of FILE:LINE in a plain SyncTeX file, or None."""
+    if not os.path.exists(path):
+        return None
+    tags, page, pages = set(), -1, set()
+    with open(path, "rb") as f:
+        for raw in f:
+            if raw.startswith(b"Input:"):
+                _, tag, p = raw.decode(errors="replace").rstrip("\n").split(":", 2)
+                if os.path.normpath(p).endswith(os.path.normpath(file)):
+                    tags.add(tag.encode())
+            elif raw.startswith(b"{"):
+                page = int(raw[1:]) - 1
+            elif raw[:1] in b"[(hvxkg$" and b"," in raw:
+                t, _, rest = raw[1:].partition(b",")
+                if t in tags and rest.split(b":", 1)[0] == str(line).encode():
+                    pages.add(page)
+    return max(pages) if pages else None
+
+
+# ---------------------------------------------------------------------------------------------- systems
+class System:
+    name = "?"
+    engines = ()
+    exact_kind = "pdf"
+
+    def version(self):
+        return ""
+
+
+class Latexmk(System):
+    """Stock latexmk with TeX Live's own engines: every edit saved, then one latexmk run (its -pvc polling delay
+    left out). Its outputs are the references."""
+    name = "latexmk"
+    engines = ("pdflatex", "xelatex", "lualatex")
+
+    def version(self):
+        v = subprocess.run(["perl", LATEXMK, "-v"], capture_output=True, text=True).stdout
+        return " ".join(v.split()[:8]).strip()
+
+    def argv(self, engine, main):
+        sync = "-synctex=-1"
+        if engine == "pdflatex":
+            e = [f"-pdflatex={USTOCK}/pdflatex -interaction=batchmode {sync} %O %S", "-pdf"]
+        elif engine == "xelatex":
+            e = [f"-xelatex={USTOCK}/xelatex -no-pdf -interaction=batchmode {sync} %O %S",
+                 "-e", f"$xdvipdfmx = '{UBIN}/xdvipdfmx -q -E -o %D %O %S'", "-xelatex"]
+        else:
+            e = [f"-lualatex={USTOCK}/lualatex -interaction=batchmode {sync} %O %S", "-lualatex"]
+        return ["perl", LATEXMK, *e, f"-bibtex-cond", "-silent", main]
+
+    def compile(self, proj, engine, main):
+        e = tex_env()
+        e["PATH"] = f"{USTOCK}:{e['PATH']}"
+        t = time.monotonic()
+        r = subprocess.run(self.argv(engine, main), cwd=proj, env=e, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        if r.returncode:
+            log(f"  latexmk exit {r.returncode}: {r.stderr[-500:]}")
+        return (time.monotonic() - t) * 1000
+
+
+class TaudotDriver(System):
+    """A driver speaking docs/live-protocol.md: pdftex-live --serve (patched pdfTeX) or tau-live --serve."""
+
+    def __init__(self):
+        self.q = queue.Queue()
+
+    def start(self, proj, engine, main, out):
+        self.out = out
+        self.keep = f"{out}-keep"
+        shutil.rmtree(self.keep, ignore_errors=True)
+        os.makedirs(self.keep)
+        self.p = subprocess.Popen(self.argv(proj, engine, main, out), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=open(f"{out}.stderr", "w"), env=self.env(), text=True, bufsize=1)
+        self.t0 = time.monotonic()
+        threading.Thread(target=self.reader, daemon=True).start()
+        self.applied = 0
+        self.nkeep = 0
+
+    def reader(self):
+        for line in self.p.stdout:
+            t = time.monotonic()
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            for k in ("path", "overlay"):  # driver files are reused after a few newer ones: keep a link
+                if ev.get(k) and ev["ev"] in ("pdf", "para") and os.path.exists(ev[k]):
+                    self.nkeep += 1
+                    dst = f"{self.keep}/{self.nkeep}-{os.path.basename(ev[k])}"
+                    try:
+                        os.link(ev[k], dst)
+                        ev["kept_" + k] = dst
+                    except OSError:
+                        pass
+            self.q.put((t, ev))
+        self.q.put((time.monotonic(), {"ev": "eof"}))
+
+    def next(self, timeout=TIMEOUT):
+        t, ev = self.q.get(timeout=timeout)
+        if ev["ev"] == "eof":
+            raise RuntimeError(f"{self.name} exited")
+        return t, ev
+
+    def send(self, *c):
+        self.p.stdin.write(json.dumps(list(c)) + "\n")
+        self.p.stdin.flush()
+
+    def first(self):
+        """Open -> first PDF, open -> done (the settled first compile)."""
+        r = {"first_page_ms": None}
+        while True:
+            t, ev = self.next()
+            if ev["ev"] == "pdf" and r["first_page_ms"] is None:
+                r["first_page_ms"] = (t - self.t0) * 1000
+            if ev["ev"] == "error":
+                log(f"  {self.name}: error {ev}")
+            if ev["ev"] == "done":
+                r["done_ms"] = (t - self.t0) * 1000
+                r["pages"] = ev.get("pages")
+                self.last_seq = ev.get("seq", 0)
+                return r
+
+    def edit(self, file, pos, key, page):
+        if page is not None:
+            self.send("goal", page)
+        t0 = time.monotonic()
+        self.send("change", file, pos, 0, key)
+        self.applied += 1
+        n = self.applied
+        r = {"para_ms": None, "para_state": "", "page_ms": None, "early": None, "early_pages": None,
+             "early_from": None, "final_ms": None, "final": None}
+        seq = None
+        while True:
+            t, ev = self.next()
+            ms = (t - t0) * 1000
+            k = ev["ev"]
+            if k == "para" and ev.get("applied", 0) >= n and r["para_state"] == "":
+                r["para_state"] = ev.get("state", "") + (f"/{ev['why']}" if ev.get("why") else "")
+                if ev.get("state") in ("exact", "provisional") and ev.get("path"):
+                    r["para_ms"] = ms
+            elif k == "run" and ev.get("applied", 0) >= n and seq is None:
+                seq = ev["seq"]
+            elif k == "pdf" and ev.get("applied", 0) >= n and r["page_ms"] is None:
+                if page is None or ev.get("final") or ev.get("pages", 0) > page:
+                    r["page_ms"], r["early"] = ms, ev.get("kept_path")
+                    r["early_pages"], r["early_from"] = ev.get("pages"), ev.get("from_page", 0)
+            elif k == "done" and (seq is None or ev.get("seq", -1) >= seq) and ev.get("seq", -1) > self.last_seq:
+                self.last_seq = ev["seq"]
+                r["final_ms"] = ms
+                r["final"] = self.kept_final(ev)
+                r["para_state"] = r["para_state"] or "no event"
+                return r
+            elif k == "error":
+                log(f"  {self.name}: error {ev}")
+
+    def kept_final(self, ev):
+        p = ev.get("path")
+        if not p:
+            return None
+        for f in sorted(os.listdir(self.keep), key=lambda f: -int(f.split("-")[0])):
+            if f.split("-", 1)[1] == os.path.basename(p):
+                return f"{self.keep}/{f}"
+        return p if os.path.exists(p) else None
+
+    def close(self):
+        try:
+            self.p.stdin.close()
+            self.p.wait(20)
+        except Exception:
+            self.p.kill()
+
+
+class PdftexLive(TaudotDriver):
+    name = "taudot-pdftex"
+    engines = ("pdflatex",)
+
+    def version(self):
+        return "pdftex-live " + git_rev(REPO)
+
+    def env(self):
+        e = tex_env(fmt=f"{BUILD}/fmt-pdftex")
+        e["TEXSTORE_URL"] = "https://texlive.taudot.app"
+        return e
+
+    def argv(self, proj, engine, main, out):
+        return [f"{BUILD}/pdftex-live", "--serve", "--engine", f"{PDFTEX_BUILD}/texk/web2c/pdflatex",
+                "--bibtex", f"{USTOCK}/bibtex", proj, main, out]
+
+
+class TauLive(TaudotDriver):
+    name = "taudot-universal"
+    engines = ("pdflatex", "xelatex", "lualatex")
+
+    def version(self):
+        return "tau-live " + git_rev(REPO)
+
+    def env(self):
+        return tex_env()
+
+    def argv(self, proj, engine, main, out):
+        return [f"{TAU_BIN}/tau-live", "--serve", "--engine", f"{UBIN}/{engine}", "--bibtex", f"{UBIN}/bibtex", proj,
+                main, out]
+
+
+SYSTEMS = {s.name: s for s in (Latexmk, PdftexLive, TauLive)}
+
+
+# ---------------------------------------------------------------------------------------------- one run
+def ref_dir(doc, engine):
+    return f"{WORK}/refs/{doc}/{engine}"
+
+
+def ext(engine):
+    return "xdv" if engine == "xelatex" else "pdf"
+
+
+def run_latexmk(doc, engine, meta):
+    sysm = Latexmk()
+    v = meta["variants"][engine]
+    proj = f"{WORK}/run/latexmk-{doc}-{engine}"
+    copy(f"{DOCS}/{doc}/{engine}", proj)
+    refs = ref_dir(doc, engine)
+    shutil.rmtree(refs, ignore_errors=True)
+    os.makedirs(refs)
+    main = v["main"]
+    # first compile: a settled project (its .aux kept), no latexmk database yet
+    first = sysm.compile(proj, engine, main)
+    pages = page_count(f"{proj}/{stem(main)}.{ext(engine)}")
+    shutil.copy(f"{proj}/{stem(main)}.{ext(engine)}", f"{refs}/0.{ext(engine)}")
+    rows = []
+    for n, spot, file, pos, key in script(meta, engine):
+        apply(f"{proj}/{file}", pos, key)
+        ms = sysm.compile(proj, engine, main)
+        out = f"{proj}/{stem(main)}.{ext(engine)}"
+        shutil.copy(out, f"{refs}/{n}.{ext(engine)}")
+        page = synctex_page(f"{proj}/{stem(main)}.synctex", file, line_of(f"{proj}/{file}", pos))
+        open(f"{refs}/{n}.page", "w").write("" if page is None else str(page))
+        rows.append(dict(n=n, spot=spot, para_ms=None, para_state="", page_ms=ms, page_exact="ref", final_ms=ms,
+                         final_exact="ref", page=page))
+        log(f"  latexmk {doc} {engine} #{n}: {ms:.0f} ms (page {page})")
+        time.sleep(REST)
+    # memory: one more compile; the peak resident size of latexmk's processes (rusage of waited-for children)
+    e = tex_env()
+    code = ("import resource, subprocess, sys; subprocess.run(sys.argv[1:], stdin=subprocess.DEVNULL, "
+            "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
+            "print(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss)")
+    peak = int(subprocess.run([sys.executable, "-c", code, *sysm.argv(engine, main)], cwd=proj, capture_output=True,
+                              text=True, env=dict(e, PATH=f"{USTOCK}:{e['PATH']}")).stdout.strip())
+    # one plain stock run per state (no latexmk): the least any full recompile costs
+    stock = []
+    s2 = f"{proj}-stock"
+    copy(f"{DOCS}/{doc}/{engine}", s2)
+    for n, spot, file, pos, key in script(meta, engine):
+        apply(f"{s2}/{file}", pos, key)
+        ms, _ = run_stock(engine, s2, main)
+        stock.append(dict(n=n, spot=spot, para_ms=None, para_state="", page_ms=ms, page_exact="", final_ms=ms,
+                          final_exact="", page=rows[n - 1]["page"]))
+    return sysm, dict(first_page_ms=first, done_ms=first, pages=pages, peak_mb=peak / 2**20, procs=""), rows, stock
+
+
+class Stock(System):
+    """One run of the stock engine after each edit, .aux already settled: the floor of any full recompile."""
+    name = "stock-run"
+    engines = ("pdflatex", "xelatex", "lualatex")
+
+    def version(self):
+        return "TeX Live 2026 static engines"
+
+
+def run_driver(cls, doc, engine, meta):
+    sysm = cls()
+    v = meta["variants"][engine]
+    refs = ref_dir(doc, engine)
+    if not os.path.exists(f"{refs}/0.{ext(engine)}"):
+        sys.exit(f"no references for {doc}/{engine}: run latexmk first")
+    proj = f"{WORK}/run/{sysm.name}-{doc}-{engine}"
+    out = f"{proj}-out"
+    copy(f"{DOCS}/{doc}/{engine}", proj)
+    shutil.rmtree(out, ignore_errors=True)
+    os.makedirs(out)
+    sysm.start(proj, engine, v["main"], out)
+    mem = TreeRSS(sysm.p.pid)
+    first = sysm.first()
+    rows = []
+    for n, spot, file, pos, key in script(meta, engine):
+        pg = open(f"{refs}/{n}.page").read().strip()
+        page = int(pg) if pg else None
+        r = sysm.edit(file, pos, key, page)
+        r.update(n=n, spot=spot, page=page)
+        rows.append(r)
+        log(f"  {sysm.name} {doc} {engine} #{n}: para {fmt(r['para_ms'])} {r['para_state']}, page {fmt(r['page_ms'])}"
+            f", final {fmt(r['final_ms'])}")
+        time.sleep(REST)
+    peak, procs = mem.done()
+    sysm.close()
+    first.update(peak_mb=peak / 2**20, procs=procs)
+    # exactness, after the timed part: the early PDF's new pages and the final output against latexmk's
+    for r in rows:
+        ref = f"{refs}/{r['n']}.{ext(engine)}"
+        if r["final"]:
+            r["final_exact"] = "yes" if same_file(r["final"], ref) or all(e for _, e in same_pages(r["final"], ref)) \
+                else "NO"
+        else:
+            r["final_exact"] = "none"
+        if r["early"] and engine == "xelatex":
+            t = time.monotonic()
+            subprocess.run([f"{UBIN}/xdvipdfmx", "-q", "-o", f"{r['early']}.pdf", r["early"]], env=tex_env(),
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            r["xdvipdfmx_ms"] = (time.monotonic() - t) * 1000
+        if r["early"]:
+            new = range(r["early_from"] or 0, r["early_pages"] or 0)
+            r["page_exact"] = "yes" if all(e for _, e in same_pages(r["early"], ref, new)) else "NO"
+        else:
+            r["page_exact"] = "none"
+    return sysm, first, rows
+
+
+def fmt(x):
+    return "-" if x is None else f"{x:.1f}"
+
+
+COLS = ["date", "system", "version", "doc", "engine", "n", "spot", "page", "para_ms", "para_state", "page_ms",
+        "page_exact", "final_ms", "final_exact", "xdvipdfmx_ms"]
+FCOLS = ["date", "system", "version", "doc", "engine", "pages", "first_page_ms", "done_ms", "peak_mb", "procs", "load"]
+
+
+def write(sysm, doc, engine, first, rows):
+    os.makedirs(RESULTS, exist_ok=True)
+    date = time.strftime("%Y-%m-%d")
+    base = dict(date=date, system=sysm.name, version=sysm.version(), doc=doc, engine=engine,
+                load=f"{os.getloadavg()[0]:.1f}")
+    for name, cols, items in (("edits", COLS, rows), ("first", FCOLS, [first])):
+        path = f"{RESULTS}/{name}.tsv"
+        old = []
+        if os.path.exists(path):
+            old = [l for l in open(path).read().splitlines()[1:]
+                   if l.split("\t")[1:2] + l.split("\t")[3:5] != [sysm.name, doc, engine]]
+        new = ["\t".join(fmt_cell({**base, **it}.get(c)) for c in cols) for it in items]
+        open(path, "w").write("\t".join(cols) + "\n" + "".join(l + "\n" for l in old + new))
+
+
+def fmt_cell(x):
+    if x is None:
+        return ""
+    if isinstance(x, float):
+        return f"{x:.2f}"
+    return str(x)
+
+
+def run(system, doc, engine):
+    meta = load(doc)
+    if engine not in meta["variants"]:
+        log(f"skip {system} {doc} {engine}: no such variant")
+        return
+    log(f"{system} {doc} {engine}")
+    if system == "latexmk":
+        sysm, first, rows, stock = run_latexmk(doc, engine, meta)
+        write(Stock(), doc, engine, dict(pages=first["pages"]), stock)
+    else:
+        sysm, first, rows = run_driver(SYSTEMS[system], doc, engine, meta)
+    write(sysm, doc, engine, first, rows)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("system")
+    ap.add_argument("doc", nargs="?")
+    ap.add_argument("engine", nargs="?")
+    ap.add_argument("--docs", nargs="*")
+    a = ap.parse_args()
+    if a.system == "all":
+        docs = a.docs or sorted(d for d in os.listdir(DOCS) if os.path.exists(f"{DOCS}/{d}/edits.json"))
+        for doc in docs:
+            for engine in ("pdflatex", "xelatex", "lualatex"):
+                for s in SYSTEMS.values():
+                    if engine in s.engines and engine in load(doc)["variants"]:
+                        run(s.name, doc, engine)
+        return
+    run(a.system, a.doc, a.engine)
+
+
+if __name__ == "__main__":
+    main()
