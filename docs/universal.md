@@ -262,7 +262,7 @@ and the paragraph pass on; the older `DIR MAIN OUT -- ENGINE ARGS...` form stays
 - Checked by drawing the overlay page as the app would (Core Graphics, 288 dpi) against the exact page over the
   paragraph's band: **0 px differing in 27 of 28** placed overlays (pdfTeX paper-a 8/8, paper-b 7/7; LuaTeX paper-a 8/8,
   paper-b 4/5; the fifth: 2972 px, the ≤ 0.008 pt vertical rounding above). 6–11 ms, mostly walking every page for
-  font resources (next: only the fonts the pass uses).
+  font resources (now kept per output: below).
 - Left to the app: hiding the old paragraph under the overlay (its rect from SyncTeX or the previous list), and
   placement when no line of the pass is on the exact page (`dy` null: the edit is in every line).
 
@@ -318,7 +318,7 @@ offset now comes from SyncTeX's integer sp, not from printed PDF numbers. Two Xe
 - A pass forked before XeTeX had flushed anything writes a whole DVI (from its preamble, with its own font
   numbers); tau-tdl then renders the pass's own bytes, and otherwise appends everything the pass wrote (its font
   definitions since the snapshot) to the exact output, not just its last page.
-- The first XDV event of a session costs ~45 ms (the reader loads the fonts); later ones 1–1.7 ms.
+- The first XDV event of a session cost ~45 ms (the reader loaded the fonts); now warmed (below).
 
 **TeX Live on demand.** A lookup that misses under the tree used to run `TAU_FETCH` (uv + Python, ~100 ms) for
 every miss: kpathsea's probes of other directories and names TeX Live doesn't have included, every session.
@@ -390,6 +390,55 @@ Still per conversion (profile of the server's children): font subsetting and ToU
 re-parsed (~15%), deflate at `-z 1` (~10%), kpathsea lookups (~20%; `dpx_foolsearch` resets the program name and
 re-initializes formats each time).
 
+## Speed after tau-pdfmx (2026-11-09)
+
+Measured on paper-b, per placed `para` event (TeX time from the pass's start / the reader / edit → event, ms):
+
+- **The reader's first XDV request** loaded every font of the document: 49–61 ms. tau-live now sends tau-tdl
+  `warm DOC.xdv` (the document's own last page, drawn and dropped) with the session's first XDV output. First placed
+  event: reader **1.1–1.7 ms**, edit → event 4.6–5.8 ms (was 53–68). `uni.py paragraph xelatex`: 5/5 exact events on
+  the exact baselines, as before.
+- **The reader's PDF mode** read the exact PDF and walked every page's fonts on each pass: 3–11 ms, spikes of
+  18–43 ms. It now keeps the exact PDF (bytes, cross-references, the pages' fonts and XObjects) per output, and tau-live
+  sends `warmpdf PDF` with each new output while the reader is idle. Reader **0.7 ms** on pdfTeX and LuaTeX; edit →
+  event p50 pdfTeX 4.2–5.8 ms (was 8.8–10.6), LuaTeX 7–10 ms (was 14–34) in the same runs. `uni.py paragraph`:
+  11/11 (pdfTeX) and 4/4 (LuaTeX) placed with 0 px differing.
+- **Where a pdfTeX event's time goes** (driver log, `para timing`): edit → pass signalled 0.2 ms, wake 0.2, pass setup
+  ~0.7, TeX ~2.9, stop → reader request 0.06–0.1, reader 0.7.
+- **LuaTeX's TeX time** (≈1.4× pdfTeX in every phase: reading 1.5 vs 1.2 ms, line breaking 2.9 vs 2.0, ship 1.0 vs
+  0.6): Time Profiler over 28 passes: Lua callbacks are 28% of the pass's TeX work, nearly all luaotfload's
+  `node_processor` on `pre_linebreak_filter` (font shaping; the document registers it, `hpack_filter` and
+  `post_linebreak_filter`); freeing nodes (`flush_node`, with node properties) ~15%. The exact run does the same work,
+  so it stays.
+- **LuaTeX's node properties** (any LuaLaTeX run: luaotfload turns them on): freeing a node sets its entry of the
+  properties table to nil; for an absent key Lua inserts the key and, the table being nearly empty, rehashes it again
+  and again (`flush_node` → `lua_rawseti` → `luaH_setint` → `rehash`: **~18% of a stock LuaLaTeX run** of paper-b).
+  LuaTeX's source notes the fix ("maybe we should allocate a proper index 0..var_mem_max"). Without touching the
+  engine: tau-live's LuaTeX command line starts with
+  `\directlua{local t=node.direct.get_properties_table() for i=1,1048576 do t[i]=false end for i=1,1048576 do t[i]=nil end}`:
+  an array part over the node indices, emptied again, so every reader sees the same empty table and the writes are
+  stores. paper-b's node indices reach ~125k (`var_mem_max` 478k). Stock LuaLaTeX run: **1.42 → 1.15 s**, PDF
+  byte-identical (paper-b, and a fontspec document with OpenType features); through tau-live: `uni.py edits`
+  12/12 identical to stock, `prelude` identical, paragraph 4/4 placed with 0 px. Passes: no change beyond noise.
+  Snapshots grow ~8 MiB (84 MiB max). `--no-presize` turns it off.
+- **First compile** (open with no `.aux`/`.bbl`, no `--state`, complete tree; open → `done`):
+
+| paper-b | runs | stock (the same runs + BibTeX) | tau-live before | tau-live now |
+|---|---|---|---|---|
+| pdfLaTeX | 2 | | 1.73 s | 1.73 s |
+| XeLaTeX | 3 | 1.87 s | 1.72 s | 1.72 s |
+| LuaLaTeX | 3 | 4.37 s | 4.1–4.6 s | **3.3 s** |
+
+  The reruns are latexmk's (the first run writes the `.out` hyperref reads at `\begin{document}`, BibTeX's `.bbl`,
+  then the `\bibcite`s); tau-live resumes where it can. Snapshots cost ~10% of a first run (no snapshots: Xe 748 vs
+  826 ms, Lua 1517 vs 1685 ms); sparser ones would slow later jumps, so kept at 20 ms. Format loading is 0.07 s
+  (pdfTeX), 0.09 (XeTeX), 0.24 (LuaTeX) of a run. A reopened project settles in one run (`--state`).
+- **Bug: long command lines.** tau-live's JSON reader never ended the strings it decoded with a NUL; each string's
+  buffer is as long as the rest of the line, so on a long line (the app's `open` of a whole file) it could be reused
+  memory and the command read as e.g. `open24`: `unknown command`, the `applied` count one behind for the session.
+  Fixed; `uni.py bigopen` sends a 270 KB `open`, a 100 KB `change` and a non-ASCII `open`, with and without the pass:
+  each applied, output identical to stock (pdfTeX, XeTeX).
+
 ## Results (TeX Live 2026, M-series Mac, 2026-11-07)
 
 Papers: paper-a (32 pages, one column, review-mode line numbers) and paper-b (the corpus's arXiv 2103.00020, 48 pages, two columns). "Stock" is TeX Live's
@@ -456,7 +505,8 @@ pdfTeX 25 MiB (max single snapshot).
 
 ## Open
 
-- The reader's first XDV request loads the fonts (~45 ms): warm it on the first exact XDV.
+- A first compile could start from an engine already past its format (parked before its first project file).
+- Snapshots at 20 ms cost ~10% of a first run.
 - The native fetcher: prefetch a package's other files in parallel; an svn fallback for a store outage.
 - A provisional pass could stop at its first inside break; the reader could skip pages whose fonts it has.
 - A real memory measurement (free memory with N snapshots).
