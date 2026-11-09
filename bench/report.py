@@ -54,6 +54,7 @@ def f(x):
 
 
 NO_PREVIEW = ("latexmk", "stock-run", "typst", "texpresso")
+OWN = {"para_ms": ("taudot-pdftex", "taudot-universal", "rtex", "rosina"), "page_ms": ("typst", "texpresso")}
 
 
 def table(edits, docs, key, title, note=None, extra=None):
@@ -74,6 +75,10 @@ def table(edits, docs, key, title, note=None, extra=None):
             c = cell([num(r[key]) for r in rs])
             if extra:
                 c += extra(rs)
+            if s in OWN.get(key, ()):  # the system's own figure for the same thing, where it reports one
+                own = [num(r["self_ms"]) for r in rs if r.get("self_ms")]
+                if own:
+                    c += f"<br><sub>own p50 {f(pct(own, 50))}</sub>"
             cells.append(c)
         if any_:
             out.append(f"| {label} | " + " | ".join(cells) + " |")
@@ -141,7 +146,7 @@ PANELS = [
 
 
 def chart(edits):
-    W, H, PW, top, left, bottom = 960, 420, 420, 56, 64, 56
+    W, H, PW, top, left, bottom = 1080, 440, 450, 56, 64, 76
     ph = H - top - bottom
     lo, hi = 1, 10000
     import math
@@ -159,12 +164,12 @@ def chart(edits):
          f'aria-label="Edit to exact page, median ms, log scale, by document length"><style>{css}</style>',
          f'<rect width="{W}" height="{H}" fill="var(--s)"/>']
     for p, (title, key, series) in enumerate(PANELS):
-        x0 = left + p * (PW + 60)
-        xs = {d: x0 + 30 + i * (PW - 150) / 2 for i, d in enumerate(SIZES)}
+        x0 = left + p * (PW + 70)
+        xs = {d: x0 + 30 + i * (PW - 190) / 2 for i, d in enumerate(SIZES)}
         g.append(f'<text class="h" x="{x0}" y="24">{title}</text>')
         g.append(f'<text x="{x0}" y="42">median ms after a key, log scale</text>')
         for v in (1, 10, 100, 1000, 10000):
-            g.append(f'<line x1="{x0}" x2="{x0 + PW - 110}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="var(--g)"/>')
+            g.append(f'<line x1="{x0}" x2="{x0 + PW - 150}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="var(--g)"/>')
             g.append(f'<text x="{x0 - 6}" y="{y(v) + 4:.1f}" text-anchor="end">{v:,}</text>')
         for d in SIZES:
             g.append(f'<text x="{xs[d]:.1f}" y="{H - bottom + 20}" text-anchor="middle">'
@@ -190,8 +195,10 @@ def chart(edits):
             labels[j][0] = max(labels[j][0], labels[j - 1][0] + 14)
         for yy, name, c, xx in labels:
             g.append(f'<text class="l" x="{xx + 10:.1f}" y="{yy + 4:.1f}">{name}</text>')
-    g.append(f'<text x="{left}" y="{H - 12}">* TeXpresso: an XDV page in memory, not a PDF; not checkable against '
-             f'stock. rtex: a layout of display lists (exact by its own check). Typst: its own typesetter.</text>')
+    g.append(f'<text x="{left}" y="{H - 26}">* TeXpresso: an XDV page in memory, not a PDF, from an engine older '
+             f'than TeX Live 2025: not checkable against stock.</text>')
+    g.append(f'<text x="{left}" y="{H - 10}">rtex: a background layout of display lists (exact by its own check). '
+             f'Rosina, latexmk, Typst: the whole PDF. Typst is its own typesetter.</text>')
     g.append("</svg>")
     open(SVG, "w").write("\n".join(g) + "\n")
 

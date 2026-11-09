@@ -372,11 +372,20 @@ class Rtex(External):
         pdf = f"{self.keep}/export-{self.n}.pdf"
         t0 = time.monotonic()
         self.send({"cmd": "edit", "path": file, "start": pos, "end": pos, "text": key})
-        self.send({"cmd": "request_layout"})
-        self.send({"cmd": "export_pdf", "out": pdf})
         r = blank(page_exact="claim")
+        asked = False
         while r["page_ms"] is None or r["final_ms"] is None:
-            t, ev = self.next()
+            # the layout and the export are asked for once the paragraph is in (or won't come), so they don't
+            # compete with it; their times still count from the edit
+            if not asked and r["para_state"]:
+                self.send({"cmd": "request_layout"})
+                self.send({"cmd": "export_pdf", "out": pdf})
+                asked = True
+            try:
+                t, ev = self.next(timeout=2 if not asked else TIMEOUT)
+            except queue.Empty:
+                r["para_state"] = "no event"  # nothing for the paragraph in 2 s
+                continue
             ms, k = (t - t0) * 1000, ev.get("event") or ev.get("reply")
             if k == "ParagraphUpdate" and r["para_state"] == "":
                 st = ev.get("status")
@@ -396,6 +405,7 @@ class Rtex(External):
                     r["final_exact"] = "unconverged"
             elif k == "error":
                 log(f"  rtex: {ev}")
+
         r["para_state"] = r["para_state"] or "no event"
         return r
 
@@ -591,7 +601,7 @@ def run_latexmk(doc, engine, meta):
     code = ("import resource, subprocess, sys; subprocess.run(sys.argv[1:], stdin=subprocess.DEVNULL, "
             "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
             "print(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss)")
-    peak = int(subprocess.run([sys.executable, "-c", code, *sysm.argv(engine, main)], cwd=proj, capture_output=True,
+    peak = int(subprocess.run([sys.executable, "-c", code, *sysm.argv(engine, main)[:-1], "-g", main], cwd=proj, capture_output=True,
                               text=True, env=dict(e, PATH=f"{USTOCK}:{e['PATH']}")).stdout.strip())
     # one plain stock run per state (no latexmk): the least any full recompile costs
     stock = []
@@ -631,7 +641,7 @@ def run_driver(cls, doc, engine, meta):
     mem = TreeRSS(sysm.p.pid)
     first = sysm.first()
     rows = []
-    for n, spot, file, pos, key in script(meta, engine):
+    for n, spot, file, pos, key in script(meta, engine)[:int(os.environ.get("BENCH_EDITS", 999))]:
         pg = open(f"{refs}/{n}.page").read().strip() if os.path.exists(f"{refs}/{n}.page") else ""
         page = int(pg) if pg else None
         r = sysm.edit(file, pos, key, page)
@@ -678,8 +688,9 @@ def run_driver(cls, doc, engine, meta):
                     r["page_exact"] = "unreadable"
             else:
                 r["page_exact"] = "none"
-    for d in (proj, out, f"{out}-keep"):
-        shutil.rmtree(d, ignore_errors=True)
+    if not os.environ.get("BENCH_KEEP"):  # BENCH_KEEP=1: leave the run's files for a look
+        for d in (proj, out, f"{out}-keep"):
+            shutil.rmtree(d, ignore_errors=True)
     return sysm, first, rows
 
 

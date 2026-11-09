@@ -8,7 +8,38 @@ same edits, on one Mac. Everything here comes from one command (`bench/README.md
 
 ## Verdict
 
-VERDICT
+(2026-11-09, M4 Pro, other agents' work on the machine: load average 2–10.)
+
+- **Exact page after a key: Taudot is the only system under 100 ms, and it doesn't grow with the document.**
+  pdfLaTeX p50 31–36 ms at 10, 100 and 300 pages (patched and unpatched engines alike), LuaLaTeX 51–75 ms, XeLaTeX
+  7–13 ms (an XDV page; turning the whole XDV into a PDF with xdvipdfmx costs another 50–240 ms). Every page checked
+  equals stock. The other exact routes take 0.3–9 s and grow with length: latexmk 0.4–1.2 s (LuaLaTeX 0.7–3.4 s),
+  Rosina's full build 0.3–5.7 s, rtex's background layout 1.2–8.9 s.
+- **Whole exact PDF**: Taudot pdfLaTeX 46–50 ms at 10 pages, 150–170 ms at 100, 440–500 ms at 300: 2.3–8× faster
+  than latexmk, and faster than one bare stock run (274 ms / 468 ms / 1.04 s), because it resumes from a snapshot
+  before the edit. LuaLaTeX at 300 pages: Taudot 1.7 s, rtex's export 3.1 s, latexmk 3.4 s.
+- **Paragraph preview: rtex wins on LuaLaTeX, and previews more keys.** rtex's own figure is 1.2–1.5 ms, flat from
+  10 to 300 pages, and it previewed all 30 keys; through `rtex serve` (display lists as inline JSON) the harness
+  sees 8–10 ms. Taudot universal on LuaLaTeX: 5 ms at 10 pages but 25 ms at 300, and 20–25 of 30 keys. On pdfTeX the
+  patched engine gives 3–5 ms at every length (24–25 of 30); the unpatched route grows with length (3 → 14 ms on
+  pdfLaTeX, 4 → 10 ms on XeLaTeX). Taudot's misses are by design (the first key at a new spot has no warm pass; a
+  paragraph across a page or column, or in a box, gets none), but rtex covers them.
+- **Rosina** previews every key on pdfLaTeX and most on XeLaTeX, provisional by design. Its own figure is 22–77 ms,
+  but in PDF-output mode it writes the whole document with the region replaced, so a saved key shows after 140 ms
+  at 10 pages and 1.5 s at 300. (Its quick-viewer mode, used by its VS Code extension, skips that and wasn't
+  measured.) On these LuaLaTeX documents it gave no preview at all ("paragraph shares a captured row").
+- **TeXpresso** reaches the edited XDV page fast (p50 12–66 ms) but has long tails at 300 pages (p90 2.4 s), writes
+  no PDF, and its XeTeX predates TeX Live 2025 (LaTeX 2026 logs errors on every display equation here).
+- **Typst** `watch`: 125–260 ms from the save to the PDF, of which ~110 ms is its file watcher; its own compile is
+  8 / 50 / 145 ms. A different typesetter, so not comparable for exactness.
+- **First compile**: patched pdfTeX shows the first page in ~200–225 ms at any length (it finishes a PDF at the first
+  ship). Memory: Taudot universal on LuaLaTeX peaks at 2.4 GB summed RSS at 300 pages (an upper bound: forked
+  snapshots share pages).
+
+Bugs this found, not in the bench: **tau-live runs BibTeX when the project has no `.bib`** and replaces the shipped
+`.bbl` with an empty one, so citations disappear (arXiv sources ship only the `.bbl`); that is all 60 of its
+mismatches against stock (1512.03385 and 2103.00020). latexmk and the patched driver don't. Rosina's full build
+differed from stock once in 180 (2103.00020, edit 25).
 
 ## What is measured
 
@@ -88,6 +119,121 @@ builds them.
 ## Results
 
 <!-- bench:begin -->
+Machine: Apple M4 Pro, 24 GB, macOS 26.5; load average during runs 2.3–10.3 (other agents' work shared the machine). Dates: 2026-11-09. Cells: **p50 / p90 ms** over the 30 edits. Blank: the system doesn't support that engine.
+
+Versions: latexmk `Latexmk, John Collins, 15 June 2025. Version 4.87`; rosina `liveTeX-Rosina dff263fc21`; rtex `rtex 0.0.7 fcff7a5c7f`; stock-run `TeX Live 2026 static engines`; taudot-pdftex `pdftex-live 7f784f29c2`; taudot-pdftex `pdftex-live c4a8222e59`; taudot-universal `tau-live 7f784f29c2`; taudot-universal `tau-live c4a8222e59`; texpresso `texpresso e8df770907 via txp-headless 7f784f29c2`; texpresso `texpresso e8df770907 via txp-headless c4a8222e59`; typst `typst 0.15.1 (9dfd3a08)`.
+
+### Edit → paragraph preview
+
+|  | 10 pp | 100 pp | 300 pp |
+|---|---|---|---|
+| **Taudot**, patched pdfTeX | 3.2 / 4.0<br><sub>25 exact, 0 prov. of 30</sub><br><sub>own p50 3.1</sub> | 3.6 / 5.3<br><sub>24 exact, 0 prov. of 30</sub><br><sub>own p50 3.5</sub> | 4.6 / 7.4<br><sub>24 exact, 0 prov. of 30</sub><br><sub>own p50 4.6</sub> |
+| **Taudot** universal, pdfLaTeX | 3.1 / 3.5<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 2.5</sub> | 6.0 / 7.0<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 5.3</sub> | 13.9 / 15.2<br><sub>25 exact, 0 prov. of 30</sub><br><sub>own p50 12.9</sub> |
+| **Taudot** universal, XeLaTeX | 3.6 / 6.3<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 2.9</sub> | 5.0 / 5.6<br><sub>19 exact, 0 prov. of 30</sub><br><sub>own p50 4.4</sub> | 9.9 / 12.5<br><sub>14 exact, 0 prov. of 30</sub><br><sub>own p50 8.8</sub> |
+| **Taudot** universal, LuaLaTeX | 5.2 / 6.1<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 4.6</sub> | 9.4 / 12.3<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 8.8</sub> | 24.5 / 39.5<br><sub>25 exact, 0 prov. of 30</sub><br><sub>own p50 23.4</sub> |
+| rtex, LuaLaTeX | 7.7 / 14.5<br><sub>30 exact, 0 prov. of 30</sub><br><sub>own p50 1.2</sub> | 9.1 / 18.1<br><sub>30 exact, 0 prov. of 30</sub><br><sub>own p50 1.3</sub> | 9.7 / 13.8<br><sub>30 exact, 0 prov. of 30</sub><br><sub>own p50 1.5</sub> |
+| liveTeX-Rosina, pdfLaTeX | 140 / 151<br><sub>30 prov. of 30</sub><br><sub>own p50 22.0</sub> | 516 / 531<br><sub>30 prov. of 30</sub><br><sub>own p50 26.5</sub> | 1514 / 1601<br><sub>30 prov. of 30</sub><br><sub>own p50 41.0</sub> |
+| liveTeX-Rosina, XeLaTeX | 106 / 111<br><sub>24 prov. of 30</sub><br><sub>own p50 54.0</sub> | 426 / 443<br><sub>24 prov. of 30</sub><br><sub>own p50 56.0</sub> | 1521 / 1589<br><sub>24 prov. of 30</sub><br><sub>own p50 77.0</sub> |
+| liveTeX-Rosina, LuaLaTeX | – | – | – |
+
+### Edit → exact page
+
+|  | 10 pp | 100 pp | 300 pp |
+|---|---|---|---|
+| **Taudot**, patched pdfTeX | 31.5 / 64.5 | 33.0 / 44.3 | 36.2 / 45.3 |
+| **Taudot** universal, pdfLaTeX | 31.9 / 129 | 31.7 / 42.4 | 30.6 / 38.1 |
+| **Taudot** universal, XeLaTeX | 7.0 / 11.7 | 8.2 / 15.9 | 13.0 / 25.5 |
+| **Taudot** universal, LuaLaTeX | 51.0 / 78.6 | 59.6 / 74.6 | 74.8 / 97.6 |
+| rtex, LuaLaTeX | 1202 / 1303 | 3584 / 3764 | 9037 / 9283 |
+| liveTeX-Rosina, pdfLaTeX | 304 / 326 | 1494 / 1514 | 4772 / 5044 |
+| liveTeX-Rosina, XeLaTeX | 243 / 261 | 1218 / 1238 | 4358 / 4559 |
+| liveTeX-Rosina, LuaLaTeX | 270 / 286 | 1840 / 1900 | 5746 / 5947 |
+| TeXpresso, XeLaTeX | 12.5 / 29.3<br><sub>own p50 12.3</sub> | 35.9 / 123<br><sub>own p50 35.3</sub> | 65.6 / 2396<br><sub>own p50 63.9</sub> |
+| Typst `watch` (not LaTeX) | 125 / 128<br><sub>own p50 8.2</sub> | 164 / 169<br><sub>own p50 50.0</sub> | 260 / 298<br><sub>own p50 145</sub> |
+| latexmk, pdfLaTeX | 392 / 400 | 618 / 643 | 1175 / 1219 |
+| latexmk, XeLaTeX | 411 / 432 | 655 / 675 | 1280 / 1349 |
+| latexmk, LuaLaTeX | 656 / 672 | 1447 / 1513 | 3378 / 3497 |
+| one stock run, pdfLaTeX | 274 / 297 | 468 / 484 | 1039 / 1142 |
+| one stock run, XeLaTeX | 235 / 239 | 365 / 373 | 678 / 694 |
+| one stock run, LuaLaTeX | 504 / 518 | 1335 / 1377 | 3002 / 3080 |
+
+### Edit → whole exact PDF
+
+|  | 10 pp | 100 pp | 300 pp |
+|---|---|---|---|
+| **Taudot**, patched pdfTeX | 50.2 / 89.2 | 169 / 291 | 504 / 873 |
+| **Taudot** universal, pdfLaTeX | 45.6 / 151 | 154 / 257 | 444 / 763 |
+| **Taudot** universal, XeLaTeX | 21.5 / 29.0 | 95.4 / 167 | 304 / 512 |
+| **Taudot** universal, LuaLaTeX | 90.9 / 160 | 540 / 945 | 1727 / 2662 |
+| rtex, LuaLaTeX | 554 / 637 | 1358 / 1430 | 3170 / 3313 |
+| liveTeX-Rosina, pdfLaTeX | 304 / 326 | 1494 / 1514 | 4772 / 5044 |
+| liveTeX-Rosina, XeLaTeX | 243 / 261 | 1218 / 1238 | 4358 / 4559 |
+| liveTeX-Rosina, LuaLaTeX | 270 / 286 | 1840 / 1900 | 5746 / 5947 |
+| TeXpresso, XeLaTeX | 63.1 / 75.0 | 538 / 689 | 1385 / 2441 |
+| Typst `watch` (not LaTeX) | 125 / 128 | 164 / 169 | 260 / 298 |
+| latexmk, pdfLaTeX | 392 / 400 | 618 / 643 | 1175 / 1219 |
+| latexmk, XeLaTeX | 411 / 432 | 655 / 675 | 1280 / 1349 |
+| latexmk, LuaLaTeX | 656 / 672 | 1447 / 1513 | 3378 / 3497 |
+| one stock run, pdfLaTeX | 274 / 297 | 468 / 484 | 1039 / 1142 |
+| one stock run, XeLaTeX | 235 / 239 | 365 / 373 | 678 / 694 |
+| one stock run, LuaLaTeX | 504 / 518 | 1335 / 1377 | 3002 / 3080 |
+
+### Real papers (pdfLaTeX): edit → preview, exact page, whole PDF
+
+| preview | 1512.03385 | 1706.03762 | 2103.00020 |
+|---|---|---|---|
+| **Taudot**, patched pdfTeX | 3.1 / 4.2<br><sub>23 exact, 0 prov. of 30</sub><br><sub>own p50 3.0</sub> | 2.6 / 3.6<br><sub>15 exact, 0 prov. of 30</sub><br><sub>own p50 2.5</sub> | 5.0 / 6.2<br><sub>14 exact, 0 prov. of 30</sub><br><sub>own p50 5.0</sub> |
+| **Taudot** universal, pdfLaTeX | 3.0 / 4.1<br><sub>5 exact, 0 prov. of 30</sub><br><sub>own p50 2.4</sub> | 4.2 / 6.4<br><sub>17 exact, 0 prov. of 30</sub><br><sub>own p50 3.5</sub> | 6.7 / 7.7<br><sub>16 exact, 0 prov. of 30</sub><br><sub>own p50 6.1</sub> |
+| liveTeX-Rosina, pdfLaTeX | – | – | – |
+
+| exact page | 1512.03385 | 1706.03762 | 2103.00020 |
+|---|---|---|---|
+| **Taudot**, patched pdfTeX | 37.4 / 50.8 | 53.8 / 74.8 | 50.3 / 61.7 |
+| **Taudot** universal, pdfLaTeX | 35.9 / 46.2 | 61.1 / 78.6 | 57.9 / 107 |
+| liveTeX-Rosina, pdfLaTeX | 629 / 657 | 2903 / 2988 | 4722 / 4824 |
+| latexmk, pdfLaTeX | 694 / 1004 | 893 / 913 | 1093 / 1230 |
+| one stock run, pdfLaTeX | 480 / 522 | 726 / 750 | 847 / 913 |
+
+| whole PDF | 1512.03385 | 1706.03762 | 2103.00020 |
+|---|---|---|---|
+| **Taudot**, patched pdfTeX | 124 / 160 | 142 / 195 | 452 / 627 |
+| **Taudot** universal, pdfLaTeX | 105 / 150 | 138 / 185 | 308 / 475 |
+| liveTeX-Rosina, pdfLaTeX | 629 / 657 | 2903 / 2988 | 4722 / 4824 |
+| latexmk, pdfLaTeX | 694 / 1004 | 893 / 913 | 1093 / 1230 |
+| one stock run, pdfLaTeX | 480 / 522 | 726 / 750 | 847 / 913 |
+
+### Checked against stock (all documents)
+
+| | exact page = stock | whole PDF = stock |
+|---|---|---|
+| **Taudot**, patched pdfTeX | 180 / 180 | 180 / 180 |
+| **Taudot** universal, pdfLaTeX | 120 / 180 (60 differ) | 120 / 180 (60 differ) |
+| **Taudot** universal, XeLaTeX | 90 / 90 | 90 / 90 |
+| **Taudot** universal, LuaLaTeX | 90 / 90 | 90 / 90 |
+| rtex, LuaLaTeX | claimed (display lists) | 90 / 90 |
+| liveTeX-Rosina, pdfLaTeX | 179 / 180 (1 differ) | 179 / 180 (1 differ) |
+| liveTeX-Rosina, XeLaTeX | 90 / 90 | 90 / 90 |
+| liveTeX-Rosina, LuaLaTeX | 90 / 90 | 90 / 90 |
+| TeXpresso, XeLaTeX | not checkable | not checkable |
+| Typst `watch` (not LaTeX) | not checkable | not checkable |
+
+### First compile and memory
+
+| | 10 pp: first page / settled / peak RSS | 100 pp: first page / settled / peak RSS | 300 pp: first page / settled / peak RSS |
+|---|---|---|---|
+| **Taudot**, patched pdfTeX | 203 / 228 ms / 129 MB | 201 / 487 ms / 239 MB | 225 / 1168 ms / 501 MB |
+| **Taudot** universal, pdfLaTeX | 321 / 321 ms / 174 MB | 568 / 570 ms / 338 MB | 1232 / 1239 ms / 479 MB |
+| **Taudot** universal, XeLaTeX | 257 / 257 ms / 333 MB | 430 / 431 ms / 471 MB | 811 / 814 ms / 610 MB |
+| **Taudot** universal, LuaLaTeX | 558 / 558 ms / 464 MB | 1605 / 1609 ms / 1118 MB | 4193 / 4204 ms / 2364 MB |
+| rtex, LuaLaTeX | 1814 / 1814 ms / 456 MB | 8274 / 8274 ms / 763 MB | 24167 / 24167 ms / 1381 MB |
+| liveTeX-Rosina, pdfLaTeX | 1625 / 1625 ms / 137 MB | 2822 / 2822 ms / 202 MB | 6218 / 6218 ms / 300 MB |
+| liveTeX-Rosina, XeLaTeX | 2078 / 2078 ms / 444 MB | 3031 / 3031 ms / 479 MB | 5716 / 5716 ms / 497 MB |
+| liveTeX-Rosina, LuaLaTeX | 4824 / 4824 ms / 562 MB | 8873 / 8873 ms / 680 MB | 17629 / 17629 ms / 753 MB |
+| TeXpresso, XeLaTeX | 436 / 436 ms / 446 MB | 1047 / 1047 ms / 330 MB | 3144 / 3144 ms / 612 MB |
+| Typst `watch` (not LaTeX) | 947 / 947 ms / 168 MB | 489 / 489 ms / 1359 MB | 1073 / 1073 ms / 4004 MB |
+| latexmk, pdfLaTeX | 412 / 412 ms / 50 MB | 640 / 640 ms / 50 MB | 1206 / 1206 ms / 50 MB |
+| latexmk, XeLaTeX | 431 / 431 ms / 185 MB | 734 / 734 ms / 186 MB | 1303 / 1303 ms / 188 MB |
+| latexmk, LuaLaTeX | 658 / 658 ms / 152 MB | 1455 / 1455 ms / 170 MB | 3341 / 3341 ms / 188 MB |
 <!-- bench:end -->
 
 ## Reproduce
