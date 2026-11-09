@@ -94,6 +94,29 @@ this file (not a prefetch). Shown as progress in the pane's status line.
 - `log`: the run's `.log` so far (Overleaf's log; on a final PDF, the whole of it).
 - `edit_us`: from reading the first edit of `applied` to this PDF written; `finish_us`: the finish alone.
 
+**XeTeX on tau-live** (verified in `clients/universal/driver/tau-live.c`): `path` is the run's `.xdv`. With
+`tau-pdfmx` beside tau-live (and no `--no-pdfmx`), tau-live converts the pages that changed and the event carries:
+
+```json
+{"ev":"pdf", ..., "path":"OUT/t/run-7-1234/main.xdv", "pdf_path":"OUT/t/run-7-1234/main-3-3.pdf",
+ "pdf_first":3, "pdf_last":3, "pdfmx_us":5200}
+```
+
+- `pdf_path`: a PDF of pages `pdf_first`..`pdf_last` (0-based, inclusive), byte for byte what
+  `xdvipdfmx -q -z 1 -s FIRST+1-LAST+1 -o PDF_PATH XDV` makes in the project's working directory.
+- Every other page below `pages` is unchanged: keep the one shown. `pdf_last < pdf_first`: no page changed (no
+  `pdf_path`), only the page count may have.
+- On a `final` event the document has `pages` pages: drop shown pages past it. On an early one the client keeps the
+  pages after it, as for pdfTeX.
+- A page counts as changed when its XDV bytes, page 1 (its specials, e.g. the paper size, apply to every page), the
+  units or the definition of a font number it may use differ from what earlier events delivered; the pages the
+  client would show then draw identically to a whole-document `xdvipdfmx` of the final XDV (checked in
+  `uni.py xpdf`).
+- `pdf_error` (the converter's exit status) instead: the conversion failed; convert `path` yourself. The next event
+  converts every page.
+- `pdfmx_us`: from the request to the converter to its answer. Events after a pending conversion wait behind it, so
+  the order is kept; `para` events don't wait.
+
 ### `done` (the compile settled: latexmk's rule has nothing left to do)
 
 ```json

@@ -817,6 +817,50 @@ def xpdf(engine, src, main, n=40, seed=5):
     return same == checked and checked > 0 and all(ok == n == m for ok, n, m in pix)
 
 
+def bigopen(engine, src, main):
+    """Long command lines (the app's `open` of a whole file, a big paste): each is applied (no error, `applied`
+    counts it), and the settled output equals a stock run of the same text. Also with the paragraph pass off."""
+    name = os.path.basename(os.path.abspath(src))
+    base = settle(engine, src, main, name)
+    ok = True
+    for opts in (["--hook"], ["--hook", "--no-para"]):
+        out = f"{WORK}/bo-out"
+        shutil.rmtree(out, ignore_errors=True)
+        live = Live(engine, base, main, out, *opts)
+        live.until(lambda e: e["ev"] == "done")
+        text = open(f"{base}/{main}", encoding="utf-8").read()
+        lo = text.find("\\begin{document}") + 20
+        filler = "\n\n" + ("Plain words to fill the line. " * 3500) + "\n\n"  # ~100 KB
+        steps = [("open", text[:lo] + filler + text[lo:]), ("change", lo, len(filler), "x" * 100000),
+                 ("open", text[:lo] + " Caf\u00e9 na\u00efve \u2014 \U0001d4b3 " + text[lo:])]
+        applied = 0
+        for k, st in enumerate(steps):
+            if st[0] == "open":
+                live.send("open", main, st[1])
+                cur = st[1]
+            else:
+                live.send("change", main, st[1], st[2], st[3])
+                cur = cur[:st[1]] + st[3] + cur[st[1] + st[2]:]
+            applied += 1
+            run = newer_run(live)
+            done = live.until(lambda e: e["ev"] == "done" and e["seq"] == run["seq"])
+            errs = [e for e in live.events if e["ev"] == "error" and e.get("what") == "protocol"]
+            ref = f"{WORK}/bo-ref"
+            copy(base, ref)
+            open(f"{ref}/{main}", "w", encoding="utf-8").write(cur)
+            stock_rule(engine, ref, main)
+            ext = ENGINES[engine][1]
+            same = same_output(engine, open(done["path"], "rb").read(), open(f"{ref}/{stem(main)}.{ext}", "rb").read())
+            good = not errs and run["applied"] == applied and same
+            ok &= good
+            print(f"  {' '.join(opts)}: {st[0]} of {len(cur) if st[0] == 'open' else len(st[3])} chars: applied "
+                  f"{run['applied']} (want {applied}), protocol errors {len(errs)}, output "
+                  f"{'identical' if same else 'DIFFERENT'} to stock")
+        live.close()
+    print(f"bigopen {engine} {name}: {'ok' if ok else 'FAILED'}")
+    return ok
+
+
 if __name__ == "__main__":
     if sys.argv[1:2] == ["serve"]:
         serve(*sys.argv[2:5])
@@ -828,6 +872,8 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["paragraph"]:
         paragraph(*sys.argv[2:5], *(int(x) for x in sys.argv[5:6]))
         sys.exit(0)
+    if sys.argv[1:2] == ["bigopen"]:
+        sys.exit(0 if bigopen(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["xpdf"]:
         sys.exit(0 if xpdf(*sys.argv[2:5], *(int(x) for x in sys.argv[5:6])) else 1)
     if sys.argv[1:2] == ["typing"]:

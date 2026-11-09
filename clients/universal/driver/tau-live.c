@@ -109,6 +109,7 @@ static int jparse(const char *s, jval *v, int max) {
       }
       if (*s != '"') { free(buf); return -1; }
       s++;
+      *w = 0;  // (strcmp'd as commands and used as paths: a buffer as long as the rest of the line may be reused memory)
       v[n++] = (jval){1, buf, (size_t)(w - buf), 0};
     } else {
       char *e;
@@ -651,7 +652,7 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
       int ff = open(fifo, O_WRONLY | O_NONBLOCK);
       if (ff >= 0) { write(ff, "g", 1); close(ff); }  // (TAU_WARM_PIPE)
       else kill(warm, SIGUSR1);
-      if (dbg) fprintf(dbg, "%lld signalled warm %d\n", (long long)now_us(), warm), fflush(dbg);
+      if (dbg) fprintf(dbg, "%lld signalled warm %d, %lld us after the edit\n", (long long)now_us(), warm, (long long)(now_us() - t_apply)), fflush(dbg);
       s->warm = 0;
     }
   }
@@ -797,6 +798,19 @@ static void emit_pdf(const char *tag, int s, pid_t pid, int pages, int final, in
       int rn = snprintf(req, sizeof req, "%s\t-q\t-z\t1\t-s\t%d-%d\t-o\t%s\t%s\n", work, first + 1, last + 1, e->pdf, pdf);
       if (rn >= (int)sizeof req || write(pdfmx_in, req, rn) != rn) pdfmx_stop();
     }
+  }
+  static int warmed;  // XeTeX: the reader loads the document's fonts now, not at the first pass (~50 ms)
+  if (!warmed && hook && para && reader_in >= 0 && njobs < 16 && !strcmp(out_ext(), "xdv") && exists(pdf)) {
+    char req[4700];
+    int rn = snprintf(req, sizeof req, "warm\t%s\n", pdf);
+    if (rn < (int)sizeof req && write(reader_in, req, rn) == rn) jobs[njobs++] = (reader_job){NULL, -1, now_us(), 0};
+    warmed = 1;
+  }
+  // pdfTeX, LuaTeX: the reader reads this output now (the next pass is drawn against the newest output), when idle
+  if (hook && para && reader_in >= 0 && !njobs && strcmp(out_ext(), "xdv") && sx_slot >= 0 && exists(pdf)) {
+    char req[4700];
+    int rn = snprintf(req, sizeof req, "warmpdf\t%s\n", pdf);
+    if (rn < (int)sizeof req && write(reader_in, req, rn) == rn) jobs[njobs++] = (reader_job){NULL, -1, now_us(), 1};
   }
   if (sx_slot >= 0 && hook && para) {  // its SyncTeX, read now rather than when the next pass is waiting on it
     int64_t t0 = now_us();
@@ -1180,6 +1194,8 @@ static void para_lines(const char *line, int s, int lines, int pieces, const cha
     int x_, y_, z_, w_;
     if (sscanf(line, "Q %d %d %d %d %lld %2047s %lld", &x_, &y_, &z_, &w_, &a_, path_, &b_) == 7) tstart = b_;
   }
+  if (dbg) fprintf(dbg, "para timing: Q read %lld us after the stop, %lld after the edit\n", (long long)(now_us() - t_q),
+                   (long long)(now_us() - t_apply));
   if (!own) return para_none(s, "insert", lines, pieces, bin);  // in a box: a float, a caption, a minipage
   if (pieces > 1) return para_none(s, "split", lines, pieces, bin);  // the new lines cross a page or column
   if (!geo || lines <= 0) return para_none(s, lines <= 0 ? "end" : "insert", lines, pieces, bin);  // (insert, mark)
@@ -1269,6 +1285,8 @@ static void para_lines(const char *line, int s, int lines, int pieces, const cha
   fprintf(h, ",\"engine_us\":%lld", tstart ? (long long)(t_q - tstart) : 0LL);
   fclose(h);
   jobs[njobs++] = (reader_job){head, s, now_us(), is_pdf};
+  if (dbg) fprintf(dbg, "para timing: request sent %lld us after the edit, %lld after the stop\n",
+                   (long long)(now_us() - t_apply), (long long)(now_us() - t_q)), fflush(dbg);
 }
 
 // An answer from the reader: the oldest request's event goes out
@@ -1485,6 +1503,12 @@ static void on_cmd(char *line) {
     for (int i = 0; i < t && m < 256; i++) { snprintf(rels[m], 1024, "%s", tc[i].rel); chg[m].rel = rels[m], chg[m].k = tc[i].k, m++; }
     if (m) apply(chg, m, "rescan");
   } else {
+    if (dbg) {
+      fprintf(dbg, "unknown command: %d values, first %.40s", n, c);
+      for (int i = 1; i < n; i++) fprintf(dbg, " [%d str %d len %zu]", i, v[i].is_str, v[i].n);
+      fprintf(dbg, " line %zu bytes: %.80s\n", strlen(line), line);
+      fflush(dbg);
+    }
     emit("{\"ev\":\"error\",\"what\":\"protocol\",\"message\":\"unknown command\"}");
   }
   for (int i = 0; i < n; i++) free(v[i].s);
