@@ -69,6 +69,8 @@ pub async fn run(a: Args) -> anyhow::Result<()> {
             "socket": sock,
             "api_level": API_LEVEL,
             "version": env!("CARGO_PKG_VERSION"),
+            // what `service ensure` compares an installed binary against, to restart only when it differs
+            "exe_sha256": std::env::current_exe().ok().and_then(|e| crate::service::file_sha256(&e)),
         }))?,
     )?;
     eprintln!("taudot engine listening on {}", sock.display());
