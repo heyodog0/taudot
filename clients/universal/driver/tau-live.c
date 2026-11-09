@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -193,14 +194,198 @@ static char blg_this[4200];                    // BibTeX's log, if it ran in thi
 static int64_t t_fin_start[65536];             // a finisher's fork time (by pid & 0xffff), for finish_us
 static int nfetch;
 
+// XeTeX's pages as PDF (tau-pdfmx serve: xdvipdfmx kept resident, beside tau-live). A `pdf` event of an XDV goes out
+// when its pages are converted, with `pdf_path` (pages `pdf_first`..`pages`-1, as `xdvipdfmx -s` makes them). Events
+// after it wait behind it so the order is kept; `para` events don't (the preview is independent of the pages).
+static pid_t pdfmx = -1;
+static int pdfmx_in = -1, pdfmx_out = -1;
+static char pdfmx_bin[2048];
+typedef struct { char *s; size_t n; int pending, first, last; int64_t t_sent; char pdf[4600]; } oq_ent;
+static oq_ent oq[64];
+static int noq;
+static FILE *oq_tail;  // events written after the last pending one
+static char *oq_tail_s;
+static size_t oq_tail_n;
+static FILE *ev_out(void) {
+  if (!noq) return stdout;
+  if (!oq_tail) oq_tail = open_memstream(&oq_tail_s, &oq_tail_n);
+  return oq_tail;
+}
+#define EVO ev_out()
+static void oq_flush(void) {
+  while (noq && !oq[0].pending) {
+    fwrite(oq[0].s, 1, oq[0].n, stdout);
+    free(oq[0].s);
+    memmove(oq, oq + 1, --noq * sizeof *oq);
+  }
+  if (!noq && oq_tail) {
+    fclose(oq_tail);
+    fwrite(oq_tail_s, 1, oq_tail_n, stdout);
+    free(oq_tail_s);
+    oq_tail = NULL, oq_tail_s = NULL, oq_tail_n = 0;
+  }
+  fflush(stdout);
+}
+// What the client has of an XDV document's pages: per page, a hash of its bytes (bop up to the next bop or the
+// postamble, without bop's back pointer, which moves when an earlier page changes length); and what every page's
+// conversion depends on besides: page 1 (xdvipdfmx reads its specials, e.g. the paper size, for every page), the
+// units, and the font definitions, which xdvipdfmx takes from the postamble by number. A page whose bytes are the
+// same, in a document whose page 1 and units are the same and whose fonts have the same definitions under the same
+// numbers (an early output lists fewer: only those defined so far), converts to the same PDF page.
+typedef struct { int np, nf; uint64_t *hs, base; uint32_t *fid; uint64_t *fh; } xdv_info;
+static xdv_info dlvx;  // the font definitions the client's pages were made with (all outputs since a change)
+static uint64_t *dlv;
+static int ndlv, capdlv;
+static void xdv_free(xdv_info *x) { free(x->hs), free(x->fid), free(x->fh); memset(x, 0, sizeof *x); }
+// Every font number defined in both with the same definition
+static int fonts_agree(const xdv_info *a, const xdv_info *b) {
+  for (int i = 0; i < a->nf; i++)
+    for (int j = 0; j < b->nf; j++)
+      if (a->fid[i] == b->fid[j] && a->fh[i] != b->fh[j]) return 0;
+  return 1;
+}
+static uint64_t fnv(uint64_t h, const unsigned char *p, size_t n) {
+  for (size_t i = 0; i < n; i++) h = (h ^ p[i]) * 1099511628211ULL;
+  return h;
+}
+static uint32_t be32(const unsigned char *p) { return (uint32_t)p[0] << 24 | p[1] << 16 | p[2] << 8 | p[3]; }
+// An XDV's page hashes, document hash (page 1, units) and fonts; returns the page count, or -1
+static int xdv_hashes(const char *path, xdv_info *x) {
+  memset(x, 0, sizeof *x);
+  int fd = open(path, O_RDONLY);
+  if (fd < 0) return -1;
+  struct stat st;
+  if (fstat(fd, &st) || st.st_size < 64) { close(fd); return -1; }
+  size_t n = st.st_size;
+  const unsigned char *b = mmap(NULL, n, PROT_READ, MAP_PRIVATE, fd, 0);
+  close(fd);
+  if (b == MAP_FAILED) return -1;
+  int np = -1;
+  size_t i = n - 1;
+  while (i > 0 && b[i] == 223) i--;
+  if (i < 5 || b[i - 5] != 249) goto out;  // post_post q[4] id
+  size_t post = be32(b + i - 4), pp = i - 5;
+  if (post + 29 > pp || b[post] != 248) goto out;
+  size_t cap = 64, k = 0, *bop = malloc(cap * sizeof *bop);
+  for (uint32_t q = be32(b + post + 1); q != 0xffffffffu; q = be32(b + q + 41)) {
+    if (q + 45 > post || b[q] != 139 || k > 1000000) { free(bop); goto out; }
+    if (k == cap) bop = realloc(bop, (cap *= 2) * sizeof *bop);
+    bop[k++] = q;
+  }
+  x->hs = malloc((k ? k : 1) * sizeof *x->hs);
+  for (size_t j = 0; j < k; j++) {  // (bop[] is last page first)
+    size_t a = bop[k - 1 - j], z = j + 1 < k ? bop[k - 2 - j] : post;
+    uint64_t h = fnv(14695981039346656037ULL, b + a, 41);
+    x->hs[j] = fnv(h, b + a + 45, z - a - 45);
+  }
+  free(bop);
+  x->base = fnv(fnv(14695981039346656037ULL, b + post + 5, 12), (unsigned char *)x->hs, k ? 8 : 0);
+  // the postamble's font definitions: fnt_def1..4 (TFM) and XeTeX's native ones (dvi.c's layout)
+  int capf = 0;
+  for (size_t q = post + 29; q < pp;) {
+    unsigned op = b[q];
+    size_t z;
+    uint32_t id;
+    if (op >= 243 && op <= 246) {
+      unsigned w = op - 242;
+      if (q + 1 + w + 14 > pp) goto bad;
+      id = 0;
+      for (unsigned m = 0; m < w; m++) id = id << 8 | b[q + 1 + m];
+      z = q + 1 + w + 14 + b[q + 1 + w + 12] + b[q + 1 + w + 13];
+    } else if (op == 252) {
+      if (q + 12 > pp) goto bad;
+      id = be32(b + q + 1);
+      unsigned fl = b[q + 9] << 8 | b[q + 10];
+      z = q + 12 + b[q + 11] + 4;
+      z += 4 * (!!(fl & 0x200) + !!(fl & 0x1000) + !!(fl & 0x2000) + !!(fl & 0x4000));
+    } else {
+      goto bad;
+    }
+    if (z > pp) goto bad;
+    if (x->nf == capf) {
+      capf = capf ? capf * 2 : 64;
+      x->fid = realloc(x->fid, capf * sizeof *x->fid), x->fh = realloc(x->fh, capf * sizeof *x->fh);
+    }
+    x->fid[x->nf] = id, x->fh[x->nf++] = fnv(14695981039346656037ULL, b + q, z - q);
+    q = z;
+  }
+  np = x->np = (int)k;
+  goto out;
+bad:
+  xdv_free(x);
+out:
+  munmap((void *)b, n);
+  return np;
+}
+
+static void pdfmx_start(void) {
+  int a[2], b[2];
+  if (access(pdfmx_bin, X_OK) || pipe(a) || pipe(b)) return;
+  posix_spawn_file_actions_t fa;
+  posix_spawn_file_actions_init(&fa);
+  posix_spawn_file_actions_adddup2(&fa, a[0], 0);
+  posix_spawn_file_actions_adddup2(&fa, b[1], 1);
+  posix_spawn_file_actions_addclose(&fa, a[1]);
+  posix_spawn_file_actions_addclose(&fa, b[0]);
+  char lg[4200];
+  snprintf(lg, sizeof lg, "%s/pdfmx.log", tdir);
+  posix_spawn_file_actions_addopen(&fa, 2, lg, O_WRONLY | O_CREAT | O_APPEND, 0644);
+  char *av[] = {pdfmx_bin, "serve", NULL};
+  if (posix_spawn(&pdfmx, pdfmx_bin, &fa, NULL, av, environ)) pdfmx = -1;
+  posix_spawn_file_actions_destroy(&fa);
+  close(a[0]), close(b[1]);
+  if (pdfmx < 0) { close(a[1]), close(b[0]); return; }
+  pdfmx_in = a[1], pdfmx_out = b[0];
+  fcntl(pdfmx_in, F_SETFD, FD_CLOEXEC), fcntl(pdfmx_out, F_SETFD, FD_CLOEXEC);
+}
+static void pdfmx_answer(const char *l);
+static void pdfmx_stop(void) {
+  if (pdfmx > 0) { kill(pdfmx, SIGKILL); waitpid(pdfmx, NULL, 0); }
+  if (pdfmx_in >= 0) close(pdfmx_in);
+  if (pdfmx_out >= 0) close(pdfmx_out);
+  pdfmx = -1, pdfmx_in = pdfmx_out = -1;
+  for (int i = 0; i < noq; i++)
+    if (oq[i].pending) pdfmx_answer("done -1 0");  // their events go out without pdf_path
+}
+// The event completed: with pdf_path (pages pdf_first..pdf_last; every other page as the client has it) or, if the
+// conversion failed, pdf_error (the client converts the XDV itself; the next event converts everything again)
+static void pdfmx_answer_ent(oq_ent *e, int code) {
+  char *s = NULL;
+  size_t n = 0;
+  FILE *f = open_memstream(&s, &n);
+  fwrite(e->s, 1, e->n, f);
+  if (!code) {
+    if (e->last >= e->first) { fputs(",\"pdf_path\":", f); jstr(f, e->pdf, strlen(e->pdf)); }
+    fprintf(f, ",\"pdf_first\":%d,\"pdf_last\":%d", e->first, e->last);
+  } else {
+    fprintf(f, ",\"pdf_error\":%d", code);
+    ndlv = 0;
+  }
+  fprintf(f, ",\"pdfmx_us\":%lld}\n", (long long)(now_us() - e->t_sent));
+  fclose(f);
+  free(e->s);
+  e->s = s, e->n = n, e->pending = 0;
+  oq_flush();
+}
+// An answer from tau-pdfmx: for the oldest pending event
+static void pdfmx_answer(const char *l) {
+  int i = 0, code = -1;
+  long long us = 0;
+  while (i < noq && !oq[i].pending) i++;
+  if (i == noq) return;
+  sscanf(l, "done %d %lld", &code, &us);
+  if (dbg) fprintf(dbg, "pdfmx: pages %d-%d code %d, %lld us in the converter\n", oq[i].first, oq[i].last, code, us), fflush(dbg);
+  pdfmx_answer_ent(&oq[i], code);
+}
+
 
 static void emit(const char *fmt, ...) {
   va_list a;
   va_start(a, fmt);
-  vfprintf(stdout, fmt, a);
+  vfprintf(EVO, fmt, a);
   va_end(a);
-  fputc('\n', stdout);
-  fflush(stdout);
+  fputc('\n', EVO);
+  fflush(EVO);
 }
 
 static text *get_text(const char *rel) {
@@ -547,14 +732,72 @@ static void emit_pdf(const char *tag, int s, pid_t pid, int pages, int final, in
     snprintf(o->sx, sizeof o->sx, "%s", sx);
     o->applied = applied_at_run;
   }
-  fprintf(stdout, "{\"ev\":\"pdf\",\"seq\":%d,\"run\":%d,\"applied\":%d,\"pages\":%d,\"final\":%s,\"from_page\":%d,"
+  // XDV: the pages from the first one the client may not have (pages before it came in earlier events) to the end,
+  // converted by tau-pdfmx; the event waits for them (pdfmx_answer)
+  int conv = pdfmx_in >= 0 && pages > 0 && !strcmp(out_ext(), "xdv") && exists(pdf) && noq < 62;
+  char *evs = NULL;
+  size_t evn = 0;
+  FILE *o = conv ? open_memstream(&evs, &evn) : EVO;
+  fprintf(o, "{\"ev\":\"pdf\",\"seq\":%d,\"run\":%d,\"applied\":%d,\"pages\":%d,\"final\":%s,\"from_page\":%d,"
           "\"path\":", s, run_no, applied_at_run, pages, final ? "true" : "false", from_page);
-  jstr(stdout, pdf, strlen(pdf));
-  if (exists(sx)) { fputs(",\"synctex\":", stdout); jstr(stdout, sx, strlen(sx)); }
-  if (exists(lg)) { fputs(",\"log\":", stdout); jstr(stdout, lg, strlen(lg)); }
-  fprintf(stdout, ",\"edit_us\":%lld,\"finish_us\":%lld}\n", (long long)(t - t_apply),
-          (long long)(!final && fs ? t - fs : 0));
-  fflush(stdout);
+  jstr(o, pdf, strlen(pdf));
+  if (exists(sx)) { fputs(",\"synctex\":", o); jstr(o, sx, strlen(sx)); }
+  if (exists(lg)) { fputs(",\"log\":", o); jstr(o, lg, strlen(lg)); }
+  fprintf(o, ",\"edit_us\":%lld,\"finish_us\":%lld%s", (long long)(t - t_apply),
+          (long long)(!final && fs ? t - fs : 0), conv ? "" : "}\n");
+  if (!conv) {
+    fflush(o);
+  } else {
+    fclose(o);
+    // the pages to convert: from the first that changed (never past what the client has: no gap) to the last
+    xdv_info x;
+    int np = xdv_hashes(pdf, &x), first = pages, last = -1;
+    if (np != pages) {  // (unreadable: all of them from from_page, as before)
+      first = from_page < ndlv ? from_page : ndlv, last = pages - 1, ndlv = 0;
+      xdv_free(&x);
+    } else {
+      int same_doc = ndlv && x.base == dlvx.base && fonts_agree(&x, &dlvx);
+      if (same_doc) {  // the client's fonts: theirs, and this output's new ones
+        for (int i = 0; i < x.nf; i++) {
+          int j = 0;
+          while (j < dlvx.nf && dlvx.fid[j] != x.fid[i]) j++;
+          if (j < dlvx.nf) continue;
+          dlvx.fid = realloc(dlvx.fid, (dlvx.nf + 1) * sizeof *dlvx.fid);
+          dlvx.fh = realloc(dlvx.fh, (dlvx.nf + 1) * sizeof *dlvx.fh);
+          dlvx.fid[dlvx.nf] = x.fid[i], dlvx.fh[dlvx.nf++] = x.fh[i];
+        }
+      }
+      for (int k = 0; k < pages; k++)
+        if (k >= ndlv || !same_doc || x.hs[k] != dlv[k]) { if (k < first) first = k; last = k; }
+      if (first > ndlv) first = ndlv;
+      if (np > capdlv) dlv = realloc(dlv, (capdlv = np + 64) * sizeof *dlv);
+      memcpy(dlv, x.hs, np * sizeof *dlv);
+      if (final || np > ndlv) ndlv = np;  // (an early output ends sooner: the client keeps the pages after it)
+      if (!same_doc) {  // the pages after it were made under other definitions: they're converted again next time
+        if (ndlv > np) ndlv = np;
+        xdv_free(&dlvx);
+        dlvx = x;
+      } else {
+        xdv_free(&x);
+      }
+    }
+    if (first < 0) first = 0;
+    if (oq_tail) {  // events already held go out before this one
+      fclose(oq_tail);
+      oq[noq++] = (oq_ent){oq_tail_s, oq_tail_n, 0, 0, 0, 0, ""};
+      oq_tail = NULL, oq_tail_s = NULL, oq_tail_n = 0;
+    }
+    oq_ent *e = &oq[noq++];
+    *e = (oq_ent){evs, evn, 1, first, last, now_us(), ""};
+    snprintf(e->pdf, sizeof e->pdf, "%s/%s-%d-%d.pdf", d, job_stem(), first, last);
+    if (last < first) {  // no page changed: nothing to convert
+      pdfmx_answer_ent(e, 0);
+    } else {
+      char req[16384];
+      int rn = snprintf(req, sizeof req, "%s\t-q\t-z\t1\t-s\t%d-%d\t-o\t%s\t%s\n", work, first + 1, last + 1, e->pdf, pdf);
+      if (rn >= (int)sizeof req || write(pdfmx_in, req, rn) != rn) pdfmx_stop();
+    }
+  }
   if (sx_slot >= 0 && hook && para) {  // its SyncTeX, read now rather than when the next pass is waiting on it
     int64_t t0 = now_us();
     sx_load(&sxs[sx_slot], outs[sx_slot].sx);
@@ -810,10 +1053,10 @@ static int run_tools(rchange *ch, int max, int n) {
     snprintf(blg_this, sizeof blg_this, "%s/%s.blg", work, stem);
   }
   if (*tools) {
-    fprintf(stdout, "{\"ev\":\"bibtex\",\"seq\":%d,\"code\":%d,\"tool\":\"%s\"", seq, code, tools);
-    if (ran_bib) { fputs(",\"blg\":", stdout); jstr(stdout, blg_this, strlen(blg_this)); }
-    fprintf(stdout, ",\"bbl_changed\":%s}\n", bbl_changed ? "true" : "false");
-    fflush(stdout);
+    fprintf(EVO, "{\"ev\":\"bibtex\",\"seq\":%d,\"code\":%d,\"tool\":\"%s\"", seq, code, tools);
+    if (ran_bib) { fputs(",\"blg\":", EVO); jstr(EVO, blg_this, strlen(blg_this)); }
+    fprintf(EVO, ",\"bbl_changed\":%s}\n", bbl_changed ? "true" : "false");
+    fflush(EVO);
   }
   free(old);
   return n;
@@ -835,10 +1078,10 @@ static void check_format(int code, int pages) {
   if (m) {
     char msg[300];
     snprintf(msg, sizeof msg, "%.*s", (int)strcspn(m, "\n"), m);
-    fprintf(stdout, "{\"ev\":\"error\",\"what\":\"format\",\"message\":");
-    jstr(stdout, msg, strlen(msg));
-    fputs("}\n", stdout);
-    fflush(stdout);
+    fprintf(EVO, "{\"ev\":\"error\",\"what\":\"format\",\"message\":");
+    jstr(EVO, msg, strlen(msg));
+    fputs("}\n", EVO);
+    fflush(EVO);
   }
   free(b);
 }
@@ -873,12 +1116,12 @@ static void rule_step(pid_t pid, int pages, int64_t t, int code) {
   char pdf[4600], lg[4600];
   snprintf(pdf, sizeof pdf, "%s/%s.%s", d, job_stem(), out_ext());
   snprintf(lg, sizeof lg, "%s/%s.log", d, job_stem());
-  fprintf(stdout, "{\"ev\":\"done\",\"seq\":%d,\"runs\":%d,\"pages\":%d,\"code\":%d", seq, run_no, pages, code);
-  if (exists(pdf)) { fputs(",\"path\":", stdout); jstr(stdout, pdf, strlen(pdf)); }
-  if (exists(lg)) { fputs(",\"log\":", stdout); jstr(stdout, lg, strlen(lg)); }
-  if (blg_this[0]) { fputs(",\"blg\":", stdout); jstr(stdout, blg_this, strlen(blg_this)); }
-  fprintf(stdout, ",\"edit_us\":%lld,\"fresh_runs\":%d}\n", (long long)(t - t_apply), fresh_runs);
-  fflush(stdout);
+  fprintf(EVO, "{\"ev\":\"done\",\"seq\":%d,\"runs\":%d,\"pages\":%d,\"code\":%d", seq, run_no, pages, code);
+  if (exists(pdf)) { fputs(",\"path\":", EVO); jstr(EVO, pdf, strlen(pdf)); }
+  if (exists(lg)) { fputs(",\"log\":", EVO); jstr(EVO, lg, strlen(lg)); }
+  if (blg_this[0]) { fputs(",\"blg\":", EVO); jstr(EVO, blg_this, strlen(blg_this)); }
+  fprintf(EVO, ",\"edit_us\":%lld,\"fresh_runs\":%d}\n", (long long)(t - t_apply), fresh_runs);
+  fflush(EVO);
   keep_state();
 }
 
@@ -1064,20 +1307,20 @@ static void on_msg(char *line) {
     if (nsaid < 256) said[nsaid++] = strdup(line + 10);
     char m[2300];
     snprintf(m, sizeof m, "can't fetch %s: no network", line + 10);
-    fprintf(stdout, "{\"ev\":\"error\",\"what\":\"offline\",\"message\":");
-    jstr(stdout, m, strlen(m));
-    fputs(",\"file\":", stdout);
-    jstr(stdout, line + 10, strlen(line + 10));
-    fputs("}\n", stdout);
-    fflush(stdout);
+    fprintf(EVO, "{\"ev\":\"error\",\"what\":\"offline\",\"message\":");
+    jstr(EVO, m, strlen(m));
+    fputs(",\"file\":", EVO);
+    jstr(EVO, line + 10, strlen(line + 10));
+    fputs("}\n", EVO);
+    fflush(EVO);
     return;
   }
   if (line[0] == 'G' && line[1] == ' ') {
     nfetch++;
-    fprintf(stdout, "{\"ev\":\"fetch\",\"file\":");
-    jstr(stdout, line + 2, strlen(line + 2));
-    fprintf(stdout, ",\"files\":%d,\"bytes\":0,\"waiting\":true}\n", nfetch);
-    fflush(stdout);
+    fprintf(EVO, "{\"ev\":\"fetch\",\"file\":");
+    jstr(EVO, line + 2, strlen(line + 2));
+    fprintf(EVO, ",\"files\":%d,\"bytes\":0,\"waiting\":true}\n", nfetch);
+    fflush(EVO);
     return;
   }
   if (sscanf(line, "S %d %d %d %lld", &a, &b, &c, &t) == 4) {
@@ -1256,6 +1499,8 @@ int main(int argc, char **argv) {
   if (sl) snprintf(sl + 1, lib + sizeof lib - sl - 1, "libtau.dylib");
   else snprintf(lib, sizeof lib, "libtau.dylib");
   snprintf(tdl_bin, sizeof tdl_bin, "%.*stau-tdl", sl ? (int)(sl + 1 - lib) : 0, lib);  // (beside tau-live)
+  snprintf(pdfmx_bin, sizeof pdfmx_bin, "%.*stau-pdfmx", sl ? (int)(sl + 1 - lib) : 0, lib);
+  int use_pdfmx = 1;
   for (; i < argc && argv[i][0] == '-' && strcmp(argv[i], "--"); i++) {
     if (!strcmp(argv[i], "--lib") && i + 1 < argc) snprintf(lib, sizeof lib, "%s", argv[++i]);
     else if (!strcmp(argv[i], "--snapshot-ms") && i + 1 < argc) snapshot_ms = atol(argv[++i]);
@@ -1270,6 +1515,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--max-runs") && i + 1 < argc) max_runs = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--state") && i + 1 < argc) snprintf(state_dir, sizeof state_dir, "%s", argv[++i]);
     else if (!strcmp(argv[i], "--no-para")) para = 0;
+    else if (!strcmp(argv[i], "--no-pdfmx")) use_pdfmx = 0;
     else if (!strcmp(argv[i], "--dense") && i + 1 < argc) dense = atol(argv[++i]);
     else { fprintf(stderr, "tau-live: unknown option %s\n", argv[i]); return 2; }
   }
@@ -1378,6 +1624,7 @@ int main(int argc, char **argv) {
   if (getenv("TAU_LIVE_LOG")) dbg = fopen(getenv("TAU_LIVE_LOG"), "w");
   restore_state();
   if (hook && para) reader_start();  // (the paragraph preview's reader, ready before the first pass)
+  if (use_pdfmx && !strcmp(out_ext(), "xdv")) pdfmx_start();  // (warms kpathsea while the engine starts)
   {
     fprintf(stdout, "{\"ev\":\"hello\",\"protocol\":1,\"engine\":");
     jstr(stdout, eng_argv[0], strlen(eng_argv[0]));
@@ -1394,8 +1641,27 @@ int main(int argc, char **argv) {
   size_t ilen = 0, mlen = 0;
   for (;;) {
     while (waitpid(-1, NULL, WNOHANG) > 0) {}
-    struct pollfd pf[3] = {{0, POLLIN, 0}, {msg_r, POLLIN, 0}, {reader_out, POLLIN, 0}};
-    if (poll(pf, reader_out >= 0 ? 3 : 2, 200) < 0 && errno != EINTR) die("poll");
+    struct pollfd pf[4] = {{0, POLLIN, 0}, {msg_r, POLLIN, 0}, {reader_out, POLLIN, 0}, {pdfmx_out, POLLIN, 0}};
+    if (poll(pf, 4, 200) < 0 && errno != EINTR) die("poll");  // (negative fds are skipped)
+    if (pdfmx_out >= 0 && (pf[3].revents & (POLLIN | POLLHUP))) {
+      static char xbuf[4096];
+      static size_t xlen;
+      ssize_t r = read(pdfmx_out, xbuf + xlen, sizeof xbuf - xlen - 1);
+      if (r <= 0) {  // the converter died: pending events go out without pdf_path (the client converts)
+        pdfmx_stop();
+        xlen = 0;
+      } else {
+        xlen += r;
+        char *s = xbuf, *nl;
+        while ((nl = memchr(s, '\n', xbuf + xlen - s))) {
+          *nl = 0;
+          pdfmx_answer(s);
+          s = nl + 1;
+        }
+        xlen = xbuf + xlen - s;
+        memmove(xbuf, s, xlen);
+      }
+    }
     if (reader_out >= 0 && (pf[2].revents & (POLLIN | POLLHUP))) {
       static char rbuf[65536];
       static size_t rlen;
@@ -1447,6 +1713,7 @@ int main(int argc, char **argv) {
   }
   kill_all();
   reader_stop();
+  pdfmx_stop();
   keep_state();
   close(life_w);
   return 0;
