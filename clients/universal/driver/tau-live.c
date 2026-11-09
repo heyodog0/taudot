@@ -109,6 +109,7 @@ static int jparse(const char *s, jval *v, int max) {
       }
       if (*s != '"') { free(buf); return -1; }
       s++;
+      *w = 0;  // (strcmp'd as commands and used as paths: a buffer as long as the rest of the line may be reused memory)
       v[n++] = (jval){1, buf, (size_t)(w - buf), 0};
     } else {
       char *e;
@@ -1502,6 +1503,12 @@ static void on_cmd(char *line) {
     for (int i = 0; i < t && m < 256; i++) { snprintf(rels[m], 1024, "%s", tc[i].rel); chg[m].rel = rels[m], chg[m].k = tc[i].k, m++; }
     if (m) apply(chg, m, "rescan");
   } else {
+    if (dbg) {
+      fprintf(dbg, "unknown command: %d values, first %.40s", n, c);
+      for (int i = 1; i < n; i++) fprintf(dbg, " [%d str %d len %zu]", i, v[i].is_str, v[i].n);
+      fprintf(dbg, " line %zu bytes: %.80s\n", strlen(line), line);
+      fflush(dbg);
+    }
     emit("{\"ev\":\"error\",\"what\":\"protocol\",\"message\":\"unknown command\"}");
   }
   for (int i = 0; i < n; i++) free(v[i].s);
