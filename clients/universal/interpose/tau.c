@@ -125,6 +125,8 @@ static const char *tag = "run";
 static int is_runner = 1;
 static long dense_lo = -1, dense_hi = -1;  // snapshot at every line read of dense_rel in [lo, hi)
 static char dense_rel[1024];
+static long mark_lo = -1, mark_hi = -1;  // a snapshot (no warm pass) at line reads of mark_rel in [lo, hi): TAU_MARK
+static char mark_rel[1024];
 static int para_stop;       // paragraph pass: exit at the /.taudot/stop signal
 static int para_mode;       // paragraph pass: other project text files are at their end
 static mfile *para_file, *para_out;
@@ -370,7 +372,10 @@ static void read_ctl(int pid) {
     else if (!strcmp(line, "finish rule")) finish_rule = 1, finish_every = finish_next = 0, last_finish = 0;
     else if (!strcmp(line, "eof")) eof_all = 1;
     else if (!strcmp(line, "stop")) para_stop = 1;
-    else if (sscanf(line, "dense %1023s %ld %ld", a, &x, &y) == 3) {
+    else if (sscanf(line, "snapms %ld", &x) == 1) {  // the interval from here on (a first run's may be sparser)
+      snap_us = x * 1000;
+      mark_lo = mark_hi = -1;
+    } else if (sscanf(line, "dense %1023s %ld %ld", a, &x, &y) == 3) {
       snprintf(dense_rel, sizeof dense_rel, "%s", a);
       dense_lo = x, dense_hi = y;
     } else if (sscanf(line, "tag %63s", a) == 1) tag = strdup(a);
@@ -1059,6 +1064,8 @@ __attribute__((constructor)) static void tau_init(void) {
   if (s) life_fd = atoi(s);
   s = getenv("TAU_SNAPSHOT_MS");
   if (s) snap_us = (long)(atof(s) * 1000);
+  s = getenv("TAU_MARK");  // "REL LO HI"
+  if (s && sscanf(s, "%1023s %ld %ld", mark_rel, &mark_lo, &mark_hi) != 3) mark_lo = mark_hi = -1;
   s = getenv("TAU_FINISH_TEXT");
   if (s) finish_text = s;
   s = getenv("TAU_FINISH");
@@ -1192,7 +1199,8 @@ static ssize_t mem_read(mfd *d, void *buf, size_t n, int fd) {
   int text = !f->binary && !f->written;
   if (text && !d->wr) {
     int dense = dense_lo >= 0 && !strcmp(f->rel, dense_rel) && (long)d->pos >= dense_lo && (long)d->pos < dense_hi;
-    if (tau_fd >= 0 && is_runner && !eof_all && (dense || now_us() - last_snap >= snap_us)) {
+    int mark = mark_lo >= 0 && (long)d->pos >= mark_lo && (long)d->pos < mark_hi && !strcmp(f->rel, mark_rel);
+    if (tau_fd >= 0 && is_runner && !eof_all && (dense || mark || now_us() - last_snap >= snap_us)) {
       reading_fd = fd;
       snprintf(snap_rel, sizeof snap_rel, "%s", f->rel);
       snap_pos = (long)d->pos;

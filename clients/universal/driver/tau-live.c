@@ -150,6 +150,9 @@ static char dir[2048], work[2048], tdir[2048], outdir[2048], lib[2048], mainf[10
 static char **eng_argv;
 static int msg_r = -1, msg_w = -1, life_r = -1, life_w = -1;
 static long snapshot_ms = 20;  // as pdftex-live --serve
+static long first_sparse_ms = 200;  // a first run with no .aux (spawn_engine)
+static const char *job_stem(void);
+static int exists(const char *p);
 static int finish_every = 0, max_snaps = 256, hook = 0;
 static long dense = 300;
 static int para = 1;    // a paragraph pass beside the exact pass (with --hook)
@@ -488,7 +491,23 @@ static void spawn_engine(void) {
   snprintf(e2, sizeof e2, "TAU_OUT=%s", tdir);
   snprintf(e3, sizeof e3, "TAU_FD=%d", msg_w);
   snprintf(e4, sizeof e4, "TAU_LIFE=%d", life_r);
-  snprintf(e5, sizeof e5, "TAU_SNAPSHOT_MS=%ld", snapshot_ms);
+  // a first run with no .aux is always followed by reruns that typeset the body again (their snapshots replace its
+  // own): it snapshots sparsely, and at the \begin{document} line, where those reruns resume (the .aux, the .out)
+  char e8[1200] = "";
+  char auxp[4300];
+  snprintf(auxp, sizeof auxp, "%s/%s.aux", work, job_stem());
+  long sms = snapshot_ms;
+  if (first_sparse_ms > snapshot_ms && fresh_runs == 0 && !exists(auxp)) {
+    text *t = get_text(mainf);
+    const char *b = t->data ? memmem(t->data, t->len, "\\begin{document}", 16) : NULL;
+    if (b) {
+      long at = b - t->data, ls = at;
+      while (ls > 0 && t->data[ls - 1] != '\n') ls--;
+      snprintf(e8, sizeof e8, "TAU_MARK=%s %ld %ld", mainf, ls, at + 1);
+      sms = first_sparse_ms;
+    }
+  }
+  snprintf(e5, sizeof e5, "TAU_SNAPSHOT_MS=%ld", sms);
   snprintf(e6, sizeof e6, "DYLD_INSERT_LIBRARIES=%s", lib);
   snprintf(e7, sizeof e7, "TAU_ZCACHE=%s/zcache", outdir);
   int n = 0;
@@ -498,10 +517,12 @@ static void spawn_engine(void) {
   for (int i = 0; i < n; i++)
     if (strncmp(environ[i], "TAU_PROJECT=", 12) && strncmp(environ[i], "TAU_OUT=", 8) &&
         strncmp(environ[i], "TAU_FD=", 7) && strncmp(environ[i], "TAU_LIFE=", 9) &&
-        strncmp(environ[i], "TAU_SNAPSHOT_MS=", 16) && strncmp(environ[i], "TAU_ZCACHE=", 11))
+        strncmp(environ[i], "TAU_SNAPSHOT_MS=", 16) && strncmp(environ[i], "TAU_ZCACHE=", 11) &&
+        strncmp(environ[i], "TAU_MARK=", 9))
       env[k++] = environ[i];
   env[k++] = e1, env[k++] = e2, env[k++] = e3, env[k++] = e4, env[k++] = e5, env[k++] = e6, env[k++] = e7;
   if (finish_every) env[k++] = "TAU_FINISH=every";
+  if (e8[0]) env[k++] = e8;
   env[k] = NULL;
   posix_spawn_file_actions_t fa;
   posix_spawn_file_actions_init(&fa);
@@ -671,6 +692,7 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
     fprintf(f, "dense %s %ld %ld\n", ch[0].rel, lo, ch[0].k + 1);
   }
   fprintf(f, "finish %s\n", finish_every ? "every" : "rule");
+  fprintf(f, "snapms %ld\n", snapshot_ms);
   fclose(f);
   kill(s->pid, SIGUSR1);
   if (dbg) {
@@ -1541,6 +1563,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--no-para")) para = 0;
     else if (!strcmp(argv[i], "--no-pdfmx")) use_pdfmx = 0;
     else if (!strcmp(argv[i], "--no-presize")) lua_presize = 0;
+    else if (!strcmp(argv[i], "--first-snapshot-ms") && i + 1 < argc) first_sparse_ms = atol(argv[++i]);
     else if (!strcmp(argv[i], "--dense") && i + 1 < argc) dense = atol(argv[++i]);
     else { fprintf(stderr, "tau-live: unknown option %s\n", argv[i]); return 2; }
   }
