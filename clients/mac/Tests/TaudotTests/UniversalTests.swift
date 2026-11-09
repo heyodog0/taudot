@@ -194,7 +194,8 @@ private let bib = "@book{knuth, author={Donald Knuth}, title={The {\\TeX}book}, 
   var at = text.utf8.count - (text.components(separatedBy: "Paragraph 13. ").last ?? "").utf8.count + 4
   var shown: [ParaOverlay] = []
   pane.pane.para.onShown = { shown.append($0) }
-  for _ in 0..<4 {
+  // (under load the exact page can beat a preview's render, which is then dropped: type on until one shows)
+  for i in 0..<12 where i < 4 || shown.isEmpty {
     t.change("main.tex", at, 0, "x")
     at += 1
     try await Task.sleep(for: .milliseconds(400))
