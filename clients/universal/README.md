@@ -14,7 +14,7 @@ source. No engine patches. Instead, a small library sits below the engine and a 
   one running.
 
 Paragraph preview: under 1.5 ms of TeX time for pdfTeX and XeTeX, about 2 ms for LuaTeX. From edit to the placed
-`para` event: about 5 ms on pdfTeX and XeTeX, 10 ms on LuaTeX.
+`para` event: about 5 ms on pdfTeX and XeTeX, 7–10 ms on LuaTeX.
 
 ## Build
 
