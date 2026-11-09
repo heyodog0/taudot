@@ -655,3 +655,24 @@ final class HistoryShotView: NSView {
   #expect(c.range == HistoryRange(fromV: 9, toV: 18))
   #expect(c.anchor?.toV == 18)
 }
+
+// ---- the diff's bar ---------------------------------------------------------------------------------------------------
+
+/// A narrow pane: the +/− counts never draw over the file name; they hide first, and come back when there's room.
+@Test @MainActor func diffBarCountsNeverOverlapTheName() {
+  let d = HistoryDiff(path: "main.tex", fromV: 0, toV: 1, text: "new\n", chunks: [
+    .init(kind: .insert, range: NSRange(location: 0, length: 4), user: HistoryUser(id: "b", name: "Bob", initials: "B"), time: nil),
+  ], inserted: 121, deleted: 0)
+  for width in stride(from: CGFloat(300), through: 900, by: 50) {
+    let v = HistoryDiffView(frame: NSRect(x: 0, y: 0, width: width, height: 400))
+    v.show(d, subtitle: "Changes in 3:42 PM by Bob")
+    v.layoutSubtreeIfNeeded(); v.layout()
+    #expect(v.title.frame.width >= 0)
+    if !v.counts.isHidden {
+      #expect(v.title.frame.maxX <= v.counts.frame.minX, "width \(width): name \(v.title.frame) under counts \(v.counts.frame)")
+      #expect(v.title.frame.width >= HistoryDiffView.minTitleWidth)
+    }
+    #expect(v.title.frame.maxX <= v.prevButton.frame.minX)
+    if width >= 700 { #expect(!v.counts.isHidden, "width \(width): counts hidden with room") }
+  }
+}
