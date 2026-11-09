@@ -80,7 +80,10 @@ private let bib = "@book{knuth, author={Donald Knuth}, title={The {\\TeX}book}, 
   #expect(t.pageText(0)?.contains("Paragraph 1.") == true)
   let st = SyncTex(try #require(await t.synctex()))
   #expect(st.forward(file: "main.tex", line: 5)?.page == 0)
-  if e == .xelatex { print("xdv → pdf: \(t.xdvMs.value) ms") }
+  if e == .xelatex {  // tau-live converted only page 2: page 1 is still drawn from the first compile's PDF
+    #expect(t.pages.count == 2 && t.pages[0].pdf !== t.pages[1].pdf && t.pages[1].pdf.first == 1)
+    print("xdv → pdf in tau-live: \(t.xdvMs.value) ms")
+  }
 }
 
 @MainActor @Test func universalLuaLaTeX() async throws { try await universalEndToEnd(.lualatex) }
@@ -133,6 +136,7 @@ private let bib = "@book{knuth, author={Donald Knuth}, title={The {\\TeX}book}, 
     at += 1
     let applied = 2 + i
     try await waitFor(20) { events.contains { $0.done && $0.applied >= applied } }
+    try await waitFor(1) { previews.contains { $0.applied == applied } }  // (decoded on its own queue: may land after `done`)
     guard let o = previews.last(where: { $0.applied == applied }) else { continue }  // the first edit leaves the snapshot
     #expect(o.exact, "\(e) preview \(o.go): \(o.state) \(o.why ?? "")")
     #expect(t.pageText(o.page)?.contains("Paragraph 13.") == true)  // on the page that holds the paragraph

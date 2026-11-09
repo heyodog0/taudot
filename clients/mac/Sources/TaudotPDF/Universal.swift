@@ -1,6 +1,6 @@
 // Universal (clients/universal, docs/universal.md): stock pdfTeX, XeTeX and LuaTeX run live by `tau-live`, which
 // speaks the live pdfTeX's protocol (docs/live-protocol.md). LiveTex drives it; this file says where its pieces are,
-// which engine a project gets, and turns XeTeX's XDV pages into PDF pages for the pane.
+// and which engine a project gets. tau-live converts XeTeX's XDV pages to PDF itself, with tau-pdfmx.
 import Foundation
 
 /// The three LaTeX engines Overleaf offers (its project setting "Compiler").
@@ -16,7 +16,7 @@ public enum TexEngine: String, CaseIterable, Sendable {
   public var title: String { ["pdflatex": "pdfLaTeX", "xelatex": "XeLaTeX", "lualatex": "LuaLaTeX"][rawValue]! }
   /// The engine program in universal's bin folder (`pdflatex` → pdftex, as TeX Live's links).
   var program: String { rawValue }
-  /// XeTeX writes XDV (`-no-pdf`): its pages go through xdvipdfmx.
+  /// XeTeX writes XDV (`-no-pdf`): tau-live converts its changed pages with tau-pdfmx.
   var writesXDV: Bool { self == .xelatex }
 
   /// What the main file says it's for: a `% !TEX program` line, or fontspec/unicode-math/polyglossia (XeLaTeX).
@@ -100,7 +100,8 @@ public enum UniversalPaths {
     return FileManager.default.isExecutableFile(atPath: p) ? p : nil
   }
   public static func bibtex(_ env: [String: String] = ProcessInfo.processInfo.environment) -> String? { tool("bibtex", env) }
-  public static func xdvipdfmx(_ env: [String: String] = ProcessInfo.processInfo.environment) -> String? { tool("xdvipdfmx", env) }
+  /// xdvipdfmx kept resident; tau-live runs it beside itself to convert XeTeX's changed pages.
+  public static func tauPdfmx(_ env: [String: String] = ProcessInfo.processInfo.environment) -> String? { tool("tau-pdfmx", env) }
   public static func tauTdl(_ env: [String: String] = ProcessInfo.processInfo.environment) -> String? { tool("tau-tdl", env) }
   public static func formats(_ env: [String: String] = ProcessInfo.processInfo.environment) -> String {
     if let f = env["TAUDOT_UNIVERSAL_FMT"] { return f }
@@ -122,7 +123,7 @@ public enum UniversalPaths {
     if !fm.isExecutableFile(atPath: engine(e, env: env)) { return "no \(e.program) for universal" }
     let fmt = formats(env) + "/\(e.rawValue).fmt"
     if !fm.fileExists(atPath: fmt) { return "no \(e.rawValue).fmt (\(fmt))" }
-    if e.writesXDV, xdvipdfmx(env) == nil { return "no xdvipdfmx for universal" }
+    if e.writesXDV, tauPdfmx(env) == nil { return "no tau-pdfmx for universal" }
     if !fm.fileExists(atPath: LiveTexPaths.storeRoot(year) + "/texmf-dist/ls-R") { return "no TeX Live \(year) tree" }
     return nil
   }
@@ -135,24 +136,6 @@ public enum UniversalPaths {
     e["TAU_FETCH"] = fetcher(base)
     e["SOURCE_DATE_EPOCH"] = base["SOURCE_DATE_EPOCH"] ?? e["SOURCE_DATE_EPOCH"]
     return e
-  }
-}
-
-/// XeTeX's pages as PDF pages: xdvipdfmx over the pages a `pdf` event brought (`-s FIRST-LAST`), so an edit costs one
-/// page's conversion (~40 ms on a 48-page paper; the whole document is ~110 ms) rather than the document's.
-enum XDV {
-  /// Converts pages `first...last` (0-based) of `xdv` into `out`; nil if xdvipdfmx failed.
-  static func toPDF(_ xdv: String, first: Int, last: Int, out: String, tool: String, env: [String: String], cwd: URL?) -> String? {
-    let p = Process()
-    p.executableURL = URL(fileURLWithPath: tool)
-    p.arguments = ["-q", "-z", "1", "-s", "\(first + 1)-\(last + 1)", "-o", out, xdv]
-    p.environment = env
-    if let cwd { p.currentDirectoryURL = cwd }  // figures by relative path, as the engine found them
-    p.standardOutput = FileHandle.nullDevice
-    p.standardError = FileHandle.nullDevice
-    do { try p.run() } catch { return nil }
-    p.waitUntilExit()
-    return p.terminationStatus == 0 && FileManager.default.fileExists(atPath: out) ? out : nil
   }
 }
 

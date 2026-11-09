@@ -155,22 +155,25 @@ final class LivePDF: @unchecked Sendable {
   let synctex: String?
   let log: String?
   let seq: Int, run: Int
-  /// The document page of this PDF's first page: XeTeX's PDFs hold only the pages an event brought (XDV.toPDF).
+  /// The document page of this PDF's first page: XeTeX's PDFs hold only the pages tau-live converted (`pdf_first`).
   let first: Int
   /// One past the last document page it holds.
   var end: Int { first + sizes.count }
+  /// The document's pages when it was made (`pages`): pages outside `first..<end` are as shown before.
+  let count: Int
   private let lock = NSLock()
   private var figures: [Int: [CGRect]] = [:]
   private var kit: PDFDocument?
 
-  init?(path: String, synctex: String?, log: String?, seq: Int, run: Int, first: Int = 0) {
-    guard let d = try? Data(contentsOf: URL(fileURLWithPath: path)), let provider = CGDataProvider(data: d as CFData),
+  /// `path` nil: no page changed (XeTeX, `pdf_last < pdf_first`): no pages, only the event's SyncTeX and log.
+  init?(path: String?, synctex: String?, log: String?, seq: Int, run: Int, first: Int = 0, count: Int? = nil) {
+    guard let d = path.map({ try? Data(contentsOf: URL(fileURLWithPath: $0)) }) ?? LivePDF.empty, let provider = CGDataProvider(data: d as CFData),
       let doc = CGPDFDocument(provider)
     else { return nil }
     data = d
     self.doc = doc
     var sizes: [CGSize] = []
-    for i in 0..<doc.numberOfPages {
+    for i in 0..<(path == nil ? 0 : doc.numberOfPages) {  // (CG's empty PDF has a blank page)
       guard let p = doc.page(at: i + 1) else { sizes.append(.zero); continue }
       let b = p.getBoxRect(.cropBox)
       let r = p.rotationAngle % 180 != 0
@@ -183,7 +186,16 @@ final class LivePDF: @unchecked Sendable {
     self.seq = seq
     self.run = run
     self.first = first
+    self.count = count ?? first + sizes.count
   }
+
+  /// A PDF to stand for none (its one blank page is never shown).
+  static let empty: Data? = {
+    let d = NSMutableData()
+    guard let c = CGDataConsumer(data: d), let ctx = CGContext(consumer: c, mediaBox: nil, nil) else { return nil }
+    ctx.closePDF()
+    return d as Data
+  }()
 
   /// SyncTeX as text: `.synctex.gz` (pdfTeX's `-synctex=1`) or plain.
   static func readSynctex(_ path: String) -> String? {
@@ -641,11 +653,7 @@ final class Trash: @unchecked Sendable {
   public let universal: TexEngine?
   /// What the status line calls it.
   nonisolated var label: String { universal.map { "\($0.title) (universal)" } ?? "pdfTeX" }
-  /// Pages the shown list has, read when converting XeTeX's pages off the main actor.
-  private nonisolated let shownCount = LockedInt()
-  /// XeTeX on universal: xdvipdfmx and its environment.
-  private nonisolated let xdv: (tool: String, env: [String: String])?
-  /// The last XDV → PDF conversion's time (ms; tests and the latency notes).
+  /// The last XDV → PDF conversion's time in tau-live (`pdfmx_us`, ms; tests and the latency notes).
   nonisolated let xdvMs = LockedInt()
 
   public init(main: URL, year: String, state: URL? = nil, env: [String: String] = ProcessInfo.processInfo.environment,
@@ -656,7 +664,6 @@ final class Trash: @unchecked Sendable {
     self.state = state
     self.universal = universal
     if let universal { engineName = universal.title }
-    xdv = universal?.writesXDV == true ? UniversalPaths.xdvipdfmx(env).map { ($0, UniversalPaths.environment(base: env)) } : nil
     out = FileManager.default.temporaryDirectory.appendingPathComponent("taudot-live-\(getpid())-\(UUID().uuidString.prefix(6))")
     try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
   }
@@ -804,27 +811,27 @@ final class Trash: @unchecked Sendable {
       let box = JSONObject(m)
       let kept = ev == "done" && m["blg"] == nil ? keptBlg : nil
       loadQ.async { [weak self] in
+        let m = box.v
         var pdf: LivePDF?
-        if ev == "pdf", var path = m["path"] as? String {
-          var first = 0
-          let n = m["pages"] as? Int ?? 0
+        if ev == "pdf", let path = m["path"] as? String {
+          var first = 0, pdfPath: String? = path
           if path.hasSuffix(".xdv"), let self {
-            // XeTeX: only the pages this event brought (from `from_page`, never past what is shown: no gap)
-            first = max(0, min(m["from_page"] as? Int ?? 0, self.shownCount.value, n - 1))
-            let t0 = CFAbsoluteTimeGetCurrent()
-            guard let tool = self.xdv?.tool,
-              let made = XDV.toPDF(path, first: first, last: n - 1, out: self.out.appendingPathComponent("xdv-\(UUID().uuidString.prefix(8)).pdf").path,
-                                   tool: tool, env: self.xdv?.env ?? [:], cwd: self.main.deletingLastPathComponent())
-            else {
-              DispatchQueue.main.async { MainActor.assumeIsolated { self.onNote?("\(self.label): xdvipdfmx failed on \(path)") } }
+            // XeTeX: tau-live converted the changed pages, `pdf_first`...`pdf_last` in `pdf_path` (none changed: no
+            // path); every other page stays as shown. On `pdf_error` tau-live converts every page next time.
+            if let code = (m["pdf_error"] as? Int) ?? (m["pdf_error"] != nil ? -1 : nil) {
+              DispatchQueue.main.async { MainActor.assumeIsolated { self.onNote?("\(self.label): tau-pdfmx failed (\(code)); the next edit converts every page") } }
               return
             }
-            self.xdvMs.set(Int((CFAbsoluteTimeGetCurrent() - t0) * 1000))
-            path = made
+            guard let f = m["pdf_first"] as? Int else {
+              DispatchQueue.main.async { MainActor.assumeIsolated { self.onNote?("\(self.label): tau-live sent XDV pages unconverted (no tau-pdfmx?)") } }
+              return
+            }
+            first = f
+            pdfPath = m["pdf_path"] as? String
+            if pdfPath != nil { self.xdvMs.set((m["pdfmx_us"] as? Int ?? 0) / 1000) }
           }
-          pdf = LivePDF(path: path, synctex: m["synctex"] as? String, log: m["log"] as? String,
-                        seq: m["seq"] as? Int ?? 0, run: m["run"] as? Int ?? 0, first: first)
-          if path != m["path"] as? String { try? FileManager.default.removeItem(atPath: path) }  // read into memory
+          pdf = LivePDF(path: pdfPath, synctex: m["synctex"] as? String, log: m["log"] as? String,
+                        seq: m["seq"] as? Int ?? 0, run: m["run"] as? Int ?? 0, first: first, count: m["pages"] as? Int)
           if let pdf { for i in max(0, min((m["from_page"] as? Int ?? 0) - first, pdf.pageCount))..<pdf.pageCount { _ = pdf.digest(i) } }
         }
         var blg: String?
@@ -895,7 +902,8 @@ final class Trash: @unchecked Sendable {
     let fromPage = m["from_page"] as? Int ?? 0
     var next = pages
     for k in 0..<pdf.pageCount {
-      let i = pdf.first + k  // the document's page (XeTeX's PDFs start at their event's `from_page`)
+      let i = pdf.first + k  // the document's page (XeTeX's PDFs hold the pages tau-live converted)
+      if i > next.count { break }  // (tau-live converts from the first page the client lacks: no gap)
       if i < next.count {
         let old = next[i]
         // before `from_page` the page was shipped before the snapshot the run resumed from: the same page
@@ -906,7 +914,6 @@ final class Trash: @unchecked Sendable {
         next.append((pdf, k))
       }
     }
-    shownCount.set(next.count)
     let trash = Trash(pages.map(\.pdf) + (isFinal ? [final].compactMap { $0 } : []))
     pages = next
     if isFinal { final = pdf }
@@ -914,7 +921,7 @@ final class Trash: @unchecked Sendable {
     // "done" only once the compile settles (`done`): a run's end may be followed by latexmk's reruns, which move
     // pages; SyncTeX, comment anchors and the issues list wait for the settled document
     let ev: [String: Any] = [
-      "ev": "pages", "gen": gen, "n": pdf.end, "typeset": pdf.end, "done": false,
+      "ev": "pages", "gen": gen, "n": pdf.count, "typeset": pdf.count, "done": false,
       "sizes": pages.map { [Double($0.pdf.sizes[$0.index].width), Double($0.pdf.sizes[$0.index].height)] },
       "changed": changed, "edit_us": m["edit_us"] as? Int ?? -1, "applied": m["applied"] as? Int ?? -1,
     ]
@@ -929,10 +936,9 @@ final class Trash: @unchecked Sendable {
   /// `done` has a `log` and no `path`), the pages shown stay (none on a first run) and its log is shown (P1).
   private func settled(_ m: [String: Any], log: String?) {
     let madePDF = m["path"] != nil
-    if madePDF, let pdf = final, pages.count > pdf.end {
+    if madePDF, let pdf = final, pages.count > pdf.count {
       let trash = Trash(pages.map(\.pdf))
-      pages.removeLast(pages.count - pdf.end)
-      shownCount.set(pages.count)
+      pages.removeLast(pages.count - pdf.count)
       trash.empty(on: loadQ)
     }
     if let log {
