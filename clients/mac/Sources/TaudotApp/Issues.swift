@@ -29,8 +29,8 @@ import TaudotShared
   /// The last run's TeX issues (shown or waiting to), and BibTeX's last list.
   private var tex: [TeXIssue] = []
   private var bib: [TeXIssue] = []
-  /// Where a citation key is cited (file nil: the main file), for BibTeX's missing entries.
-  var citeLocation: (String) -> (file: String?, line: Int)? = { _ in nil }
+  /// Where each citation key is cited (file nil: the main file), for BibTeX's missing entries: one call per list.
+  var citeLocations: ([String]) -> [String: (file: String?, line: Int)] = { _ in [:] }
   private var log = TeXLogBuffer()
   private(set) var hasLog = false
   private var timer: Timer?
@@ -100,9 +100,10 @@ import TaudotShared
   /// BibTeX's warnings and errors (`TaudotPDFPane.onBibIssues`: the .blg after each BibTeX run, and at open from the
   /// cache), listed after TeX's as Overleaf does. A missing entry points at its \cite (`citeLocation`).
   func bibIssues(_ xs: [BibTeXIssue]) {
+    let cited = citeLocations(Array(Set(xs.compactMap { $0.line == nil ? $0.key : nil })))
     bib = xs.map { b in
       var file = b.file, line = b.line
-      if line == nil, let k = b.key, let at = citeLocation(k) { file = at.file; line = at.line }
+      if line == nil, let k = b.key, let at = cited[k] { file = at.file; line = at.line }
       if file == mainFile { file = nil }
       return TeXIssue(b.severity == .error ? .error : .warning, file: file, line: line, message: b.message)
     }
@@ -361,7 +362,7 @@ extension ProjectWindow {
       return self.sourceLine(x.file ?? self.mainFile ?? "main.tex", l)
     }
     issues.onChange = { [weak self] xs, pulse in self?.showIssues(xs, pulse: pulse) }
-    issues.citeLocation = { [weak self] k in self?.citeLocation(of: k) }
+    issues.citeLocations = { [weak self] ks in self?.citeLocations(of: ks) ?? [:] }
     let main = mainFile ?? "main.tex"
     let v = IssuesStrip(state: strip, mainFile: main,
                         source: { [weak self] x in x.line.flatMap { self?.sourceLine(x.file ?? self?.mainFile ?? "main.tex", $0) } },
@@ -417,25 +418,36 @@ extension ProjectWindow {
   /// The line `l` (1-based) of `file` as the typesetter has it (else from disk).
   func sourceLine(_ file: String, _ l: Int) -> String? { pdf.sourceLine(file, l) }
 
-  /// The first `\cite…{…key…}` of `key`: the main file first (as typeset), then the folder's other .tex files.
-  func citeLocation(of key: String) -> (file: String?, line: Int)? {
+  /// Each key's first `\cite…{…key…}`: the main file first (as typeset), then the folder's other .tex files (read
+  /// once for all the keys, in the folder's order). A line is matched only if it holds "cite" and the key at all.
+  func citeLocations(of keys: [String]) -> [String: (file: String?, line: Int)] {
     let main = mainFile ?? "main.tex"
-    let pattern = #"\\[A-Za-z]*cite[A-Za-z]*\*?(\[[^\]]*\])*\{[^}]*\b"# + NSRegularExpression.escapedPattern(for: key) + #"\b[^}]*\}"#
-    guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
-    func find(_ lines: [String]) -> Int? {
-      lines.firstIndex { re.firstMatch(in: $0, range: NSRange(location: 0, length: ($0 as NSString).length)) != nil }.map { $0 + 1 }
+    func pattern(_ key: String) -> NSRegularExpression? {
+      try? NSRegularExpression(pattern: #"\\[A-Za-z]*cite[A-Za-z]*\*?(\[[^\]]*\])*\{[^}]*\b"# + NSRegularExpression.escapedPattern(for: key) + #"\b[^}]*\}"#)
     }
-    if let l = find(pdf.sourceLines(main)) { return (nil, l) }
-    let fm = FileManager.default
-    guard let e = fm.enumerator(at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return nil }
+    func find(_ lines: [(Int, String)], _ key: String, _ re: NSRegularExpression) -> Int? {
+      lines.first { ($0.1 as NSString).range(of: key, options: .literal).location != NSNotFound && re.firstMatch(in: $0.1, range: NSRange(location: 0, length: ($0.1 as NSString).length)) != nil }.map { $0.0 + 1 }
+    }
+    func citing(_ lines: [String]) -> [(Int, String)] { lines.enumerated().filter { ($0.element as NSString).range(of: "cite", options: .literal).location != NSNotFound }.map { ($0.offset, $0.element) } }
+    var out: [String: (file: String?, line: Int)] = [:]
+    var rest: [(String, NSRegularExpression)] = []
+    let mainLines = citing(pdf.sourceLines(main))
+    for k in keys {
+      guard let re = pattern(k) else { continue }
+      if let l = find(mainLines, k, re) { out[k] = (nil, l) } else { rest.append((k, re)) }
+    }
+    guard !rest.isEmpty, let e = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return out }
+    var files: [(String, [(Int, String)])] = []
     for case let u as URL in e where u.pathExtension == "tex" {
       let rel = String(u.path.dropFirst(folder.path.count + 1))
       guard rel != main, let text = try? String(contentsOf: u, encoding: .utf8) else { continue }
-      if let l = find(text.components(separatedBy: "\n")) { return (rel, l) }
+      files.append((rel, citing(text.components(separatedBy: "\n"))))
     }
-    return nil
+    for (k, re) in rest {
+      for (rel, lines) in files { if let l = find(lines, k, re) { out[k] = (rel, l); break } }
+    }
+    return out
   }
-
   /// Neovim: `vim.diagnostic` in the `taudot_tex` namespace (the native editor: `showNativeIssues`).
   func publishDiagnostics(_ xs: [TeXIssue]) {
     guard native == nil, let nvim else { return }
