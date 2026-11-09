@@ -33,6 +33,9 @@
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
 #include <spawn.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 extern char **environ;
 
 #define INTERPOSE(rep, orig) \
@@ -723,6 +726,108 @@ static void fork_finisher(const char *why) {
 
 // ---------------------------------------------------------------------------------------------------- signals
 
+// ---------------------------------------------------------------------------------------------------- parking
+
+// A parked engine (TAU_PARK=SOCKET, started by `tau-live --park`): its command line reads the main file's name with
+// \openin from /.taudot/main.tex, which doesn't name the job as a first \input would. At that lookup (the format
+// loaded, kpathsea and the prelude done) it listens on SOCKET; each session that connects sends its environment,
+// working directory and pipes, and gets a forked child that carries on as its engine. The name comes from the file
+// TAU_MAIN_NAME (set by the session), which /.taudot/main.tex stands for.
+static int parked_engine;
+static void tau_config(void);
+static int recv_all(int c, char *buf, size_t cap, int *fdv, int nfd) {
+  struct msghdr m = {0};
+  struct iovec io = {buf, cap - 1};
+  char cbuf[CMSG_SPACE(sizeof(int) * 4)];
+  m.msg_iov = &io, m.msg_iovlen = 1, m.msg_control = cbuf, m.msg_controllen = sizeof cbuf;
+  ssize_t n = recvmsg(c, &m, 0);
+  if (n <= 0) return -1;
+  int got = 0;
+  for (struct cmsghdr *h = CMSG_FIRSTHDR(&m); h; h = CMSG_NXTHDR(&m, h))
+    if (h->cmsg_level == SOL_SOCKET && h->cmsg_type == SCM_RIGHTS) {
+      int k = (int)((h->cmsg_len - CMSG_LEN(0)) / sizeof(int));
+      for (int i = 0; i < k && got < nfd; i++) memcpy(&fdv[got++], CMSG_DATA(h) + i * sizeof(int), sizeof(int));
+    }
+  size_t len = (size_t)n;
+  while (len < cap - 1 && !memchr(buf, 0, len)) {  // the rest of the text, up to its NUL
+    ssize_t r = read_nc(c, buf + len, cap - 1 - len);
+    if (r <= 0) break;
+    len += (size_t)r;
+  }
+  buf[len] = 0;
+  return got;
+}
+static void park_engine(void) {
+  const char *sock = getenv("TAU_PARK"), *sig = getenv("TAU_PARK_SIG");
+  if (parked_engine || !sock) return;
+  parked_engine = 1;
+  int ls = socket(AF_UNIX, SOCK_STREAM, 0);
+  struct sockaddr_un a = {0};
+  a.sun_family = AF_UNIX;
+  snprintf(a.sun_path, sizeof a.sun_path, "%s", sock);
+  unlink(sock);
+  if (ls < 0 || bind(ls, (struct sockaddr *)&a, sizeof a) || listen(ls, 16)) _exit(3);
+  signal(SIGCHLD, SIG_IGN);  // (sessions' engines are reaped here; they restore it)
+  msg("Z %d %lld", getpid(), (long long)now_us());
+  static char req[1 << 16];
+  for (;;) {
+    struct pollfd pf[2] = {{ls, POLLIN, 0}, {life_fd, POLLIN, 0}};
+    if (poll(pf, life_fd >= 0 ? 2 : 1, -1) < 0) continue;
+    if (life_fd >= 0 && (pf[1].revents & (POLLIN | POLLHUP))) { unlink(sock); _exit(0); }  // tau-live --park left
+    if (!(pf[0].revents & POLLIN)) continue;
+    int c = accept(ls, NULL, NULL);
+    if (c < 0) continue;
+    int fdv[4] = {-1, -1, -1, -1};
+    int nf = recv_all(c, req, sizeof req, fdv, 4);
+    // the request: "sig SIG\ncwd DIR\nKEY=VALUE\n...", fds: the session's message pipe, lifeline, log
+    char *save, *line = strtok_r(req, "\n", &save);
+    int ok = nf == 3 && line && !strncmp(line, "sig ", 4) && sig && !strcmp(line + 4, sig);
+    pid_t pid = ok ? fork() : -1;
+    if (pid == 0) {
+      close_nc(ls);
+      signal(SIGCHLD, SIG_DFL);
+      for (line = strtok_r(NULL, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
+        char *eq = strchr(line, '=');
+        if (!strncmp(line, "cwd ", 4)) { if (chdir(line + 4)) _exit(4); }
+        else if (eq) { *eq = 0; setenv(line, eq + 1, 1); }
+      }
+      if (!getcwd(cwd0, sizeof cwd0)) _exit(4);
+      unsetenv("TAU_PARK"), unsetenv("TAU_PARK_SIG");
+      if (tau_fd >= 0) close_nc(tau_fd);  // (the parked engine's own: tau-live --park's pipes)
+      if (life_fd >= 0) close_nc(life_fd);
+      tau_fd = fdv[0], life_fd = fdv[1];
+      dup2(fdv[2], 1), dup2(fdv[2], 2);
+      close_nc(fdv[2]);
+      fcntl_nc(tau_fd, F_SETFD, FD_CLOEXEC), fcntl_nc(life_fd, F_SETFD, FD_CLOEXEC);
+      for (int i = 0; i < nfiles; i++) free(files[i]);  // (the zygote's own lookups: of its empty directory)
+      nfiles = 0;
+      tau_config();
+      unsetenv("TAU_FD");
+      char b[32];
+      int bl = snprintf(b, sizeof b, "%d\n", getpid());
+      write_nc(c, b, bl);
+      close_nc(c);
+      msg("H %d %lld", getpid(), (long long)t0);
+      return;  // on with the lookup, as the session's engine
+    }
+    if (pid < 0) write_nc(c, "0\n", 2);
+    close_nc(c);
+    for (int i = 0; i < 4; i++) if (fdv[i] >= 0) close_nc(fdv[i]);
+  }
+}
+// /.taudot/main.tex: the file naming the main file (and the park point)
+static const char *main_alias(const char *path) {
+  if (!path || strcmp(path, "/.taudot/main.tex")) return path;
+  park_engine();
+  const char *m = getenv("TAU_MAIN_NAME");
+  if (getenv("TAU_ALIAS_DEBUG")) {
+    char b[1200];
+    int n = snprintf(b, sizeof b, "tau: alias %s -> %s (pid %d)\n", path, m ? m : "(none)", getpid());
+    write_nc(2, b, n);
+  }
+  return m ? m : path;
+}
+
 static int magic(const char *path) {  // 1 if PATH is a TeX-side signal (handled here)
   if (!path || strncmp(path, "/.taudot/", 9)) return 0;
   const char *w = path + 9;
@@ -1050,8 +1155,8 @@ static int tl_fetch(const char *path) {
 
 // ---------------------------------------------------------------------------------------------------- init
 
-__attribute__((constructor)) static void tau_init(void) {
-  if (!getcwd(cwd0, sizeof cwd0)) return;
+// What a process takes from its environment (again in a parked engine's child: park())
+static void tau_config(void) {
   const char *p = getenv("TAU_PROJECT");
   if (!p) p = cwd0;
   if (!realpath(p, proj)) snprintf(proj, sizeof proj, "%s", p);
@@ -1077,6 +1182,11 @@ __attribute__((constructor)) static void tau_init(void) {
   if (s && *s) snprintf(tlroot, sizeof tlroot, "%s/", s);
   fetch_cmd = getenv("TAU_FETCH");
   t0 = last_snap = now_us();
+}
+
+__attribute__((constructor)) static void tau_init(void) {
+  if (!getcwd(cwd0, sizeof cwd0)) return;
+  tau_config();
   // children (xdvipdfmx, bibtex, kpsewhich) must not inherit us
   unsetenv("DYLD_INSERT_LIBRARIES");
   unsetenv("TAU_FD");
@@ -1094,7 +1204,22 @@ __attribute__((constructor)) static void tau_init(void) {
 
 static int reserve_fd(void) { return open_nc("/dev/null", O_RDONLY | O_CLOEXEC); }
 
+static int alias_fd = -1;
+static int do_open_(const char *path, int flags, int mode, int (*real)(const char *, int, ...));
 static int do_open(const char *path, int flags, int mode, int (*real)(const char *, int, ...)) {
+  const char *p2 = main_alias(path);
+  int fd = do_open_(p2, flags, mode, real);
+  if (p2 != path) {
+    alias_fd = fd;
+    if (getenv("TAU_ALIAS_DEBUG")) {
+      char b[1300];
+      int k = snprintf(b, sizeof b, "tau: open alias -> fd %d errno %d used %d rel %s\n", fd, errno, fd >= 0 && fd < MAXFD ? fds[fd].used : -1, fd >= 0 && fd < MAXFD && fds[fd].used ? fds[fd].f->rel : "-");
+      write_nc(2, b, k);
+    }
+  }
+  return fd;
+}
+static int do_open_(const char *path, int flags, int mode, int (*real)(const char *, int, ...)) {
   char buf[2048];
   if (magic(path)) { errno = ENOENT; return -1; }
   const char *rel = project_rel(path, buf, sizeof buf);
@@ -1252,6 +1377,11 @@ static ssize_t mem_read(mfd *d, void *buf, size_t n, int fd) {
 }
 
 static ssize_t my_read(int fd, void *buf, size_t n) {
+  if (fd == alias_fd && getenv("TAU_ALIAS_DEBUG")) {
+    char b[200];
+    int k = snprintf(b, sizeof b, "tau: read alias fd %d used %d\n", fd, fd < MAXFD ? fds[fd].used : -1);
+    write_nc(2, b, k);
+  }
   if (fd >= 0 && fd < MAXFD && fds[fd].used) return mem_read(&fds[fd], buf, n, fd);
   return read(fd, buf, n);
 }
@@ -1354,6 +1484,7 @@ INTERPOSE(my_fstat, fstat);
 // Lookups of project files: answered from memory (a written file exists; a file read before has its loaded size).
 static int path_stat(const char *path, struct stat *st, int (*real)(const char *, struct stat *)) {
   char buf[2048];
+  path = main_alias(path);
   if (magic(path)) { errno = ENOENT; return -1; }
   const char *rel = project_rel(path, buf, sizeof buf);
   if (rel) {
@@ -1383,6 +1514,7 @@ INTERPOSE(my_lstat, lstat);
 
 static int my_access(const char *path, int mode) {
   char buf[2048];
+  path = main_alias(path);
   if (magic(path)) { errno = ENOENT; return -1; }
   const char *rel = project_rel(path, buf, sizeof buf);
   if (rel) {
