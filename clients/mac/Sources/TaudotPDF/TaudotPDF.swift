@@ -40,7 +40,9 @@ import TaudotShared
   /// A jump asked for before SyncTeX was in: replayed as it was asked (deliberate or a cursor follow).
   private(set) var pendingJump: (path: String, line: Int, column: Int?, deliberate: Bool)?
   /// What TeXpresso was sent, per path relative to the folder, as UTF-8 (columns are byte offsets in a line).
-  private var sources: [String: [UInt8]] = [:]
+  private var sources: [String: [UInt8]] = [:] { didSet { sourceLinesCache.removeAll() } }
+  /// `sources` split into lines, made on first use after a change (the issues list asks for many lines per log).
+  private var sourceLinesCache: [String: [String]] = [:]
   private var syncGen = 0
   /// The report generation whose SyncTeX is installed: an older one's, slower to come, never replaces it.
   private var syncInstalled = 0
@@ -324,6 +326,7 @@ import TaudotShared
   func install(_ t: any Typesetter, choice: EngineChoice?) {
     engine = choice
     t.pageStyle = pageStyle.rawValue  // sent when it starts
+    resetParaCount()
     txp = t
     t.onPages = { [weak self] e in self?.pagesEvent(e) }
     if let lt = t as? LiveTex {
@@ -352,6 +355,7 @@ import TaudotShared
       guard let self else { return }
       self.check("txp restarted")
       self.inFlight = []  // the new process counts from 0; the reopen sends the docs whole
+      self.resetParaCount()
       Task { try? await self.feed?.reopen() }
     }
     if let g = pane.pagesInView.max() { t.goal(g) }
@@ -564,6 +568,11 @@ import TaudotShared
 
   /// The paragraph preview: edits already in a PDF (a preview of fewer comes too late to show); TAUDOT_PARA=0 off.
   private var paraRetired = -1
+  /// A new driver counts edits from 0 again: the previews' and PDFs' `applied` restart.
+  private func resetParaCount() {
+    paraRetired = -1
+    pane.para.covered = Int.min
+  }
   static let paraOff = ProcessInfo.processInfo.environment["TAUDOT_PARA"] == "0"
 
   private func pagesEvent(_ e: PagesEvent) {
@@ -657,6 +666,7 @@ import TaudotShared
   /// Line `line` (1-based) of a source file, from what TeXpresso was sent, else from disk.
   public func sourceLine(_ path: String, _ line: Int) -> String? {
     let rel = relative(path)
+    if sources[rel] != nil { let ls = cachedLines(rel); return line >= 1 && line <= ls.count ? ls[line - 1] : nil }
     var bytes = sources[rel]
     if bytes == nil, let folder {
       let url = rel.hasPrefix("/") ? URL(fileURLWithPath: rel) : folder.appendingPathComponent(rel)
@@ -1124,9 +1134,18 @@ extension TaudotPDFPane {
 // ---- figures and cross-references -----------------------------------------------------------------------------------
 
 extension TaudotPDFPane {
+  /// What TeXpresso was sent of `rel`, as lines (cached until it changes).
+  private func cachedLines(_ rel: String) -> [String] {
+    if let ls = sourceLinesCache[rel] { return ls }
+    let ls = String(decoding: sources[rel] ?? [], as: UTF8.self).components(separatedBy: "\n")
+    sourceLinesCache[rel] = ls
+    return ls
+  }
+
   /// A source file's lines: what TeXpresso was sent, else the file on disk.
   public func sourceLines(_ path: String) -> [String] {
     let rel = relative(path)
+    if sources[rel] != nil { return cachedLines(rel) }
     var bytes = sources[rel]
     if bytes == nil, let folder {
       let url = rel.hasPrefix("/") ? URL(fileURLWithPath: rel) : folder.appendingPathComponent(rel)
