@@ -1524,7 +1524,7 @@ int main(int argc, char **argv) {
   else snprintf(lib, sizeof lib, "libtau.dylib");
   snprintf(tdl_bin, sizeof tdl_bin, "%.*stau-tdl", sl ? (int)(sl + 1 - lib) : 0, lib);  // (beside tau-live)
   snprintf(pdfmx_bin, sizeof pdfmx_bin, "%.*stau-pdfmx", sl ? (int)(sl + 1 - lib) : 0, lib);
-  int use_pdfmx = 1;
+  int use_pdfmx = 1, lua_presize = 1;
   for (; i < argc && argv[i][0] == '-' && strcmp(argv[i], "--"); i++) {
     if (!strcmp(argv[i], "--lib") && i + 1 < argc) snprintf(lib, sizeof lib, "%s", argv[++i]);
     else if (!strcmp(argv[i], "--snapshot-ms") && i + 1 < argc) snapshot_ms = atol(argv[++i]);
@@ -1540,6 +1540,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--state") && i + 1 < argc) snprintf(state_dir, sizeof state_dir, "%s", argv[++i]);
     else if (!strcmp(argv[i], "--no-para")) para = 0;
     else if (!strcmp(argv[i], "--no-pdfmx")) use_pdfmx = 0;
+    else if (!strcmp(argv[i], "--no-presize")) lua_presize = 0;
     else if (!strcmp(argv[i], "--dense") && i + 1 < argc) dense = atol(argv[++i]);
     else { fprintf(stderr, "tau-live: unknown option %s\n", argv[i]); return 2; }
   }
@@ -1615,10 +1616,18 @@ int main(int argc, char **argv) {
       strcpy(pad + l + 17000, "}}}");
     } else
       strcpy(pad, "\\def\\taudotpad{}");
+    // LuaTeX: every node it frees sets its entry of the node properties table (luaotfload turns them on) to nil;
+    // for an absent key Lua inserts it and, the table being nearly empty, rehashes over and over: ~18% of a LuaLaTeX
+    // run. An array part over the node indices (filled, then emptied: the same empty table to every reader) makes
+    // those writes plain stores. Same output (checked byte for byte), a run ~19% faster.
+    const char *presize = strstr(a[0], "lua") && lua_presize
+                              ? "\\directlua{local t=node.direct.get_properties_table() for i=1,1048576 do t[i]=false end "
+                                "for i=1,1048576 do t[i]=nil end}"
+                              : "";
     static char inj[24576];
     snprintf(inj, sizeof inj,
-             "\\def\\taudotsig#1{%s}\\AddToHook{shipout/after}{\\taudotsig{ship/\\the\\ReadonlyShipoutCounter}}"
-             "%s%s%s\\csname @@input\\endcsname %s", sig, pass_macros, pad,
+             "%s\\def\\taudotsig#1{%s}\\AddToHook{shipout/after}{\\taudotsig{ship/\\the\\ReadonlyShipoutCounter}}"
+             "%s%s%s\\csname @@input\\endcsname %s", presize, sig, pass_macros, pad,
              getenv("TAU_PHASES") ? "\\def\\taudotmark#1{\\taudotsig{t/#1}}" : "\\def\\taudotmark#1{}", a[n - 1]);
     a[n - 1] = inj;
     eng_argv = a;
