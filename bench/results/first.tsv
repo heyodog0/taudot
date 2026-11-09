@@ -1,47 +1,25 @@
 date	system	version	doc	engine	pages	first_page_ms	done_ms	peak_mb	procs	load
-2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-1512.03385	pdflatex	12					4.1
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1512.03385	pdflatex	12	712.39	712.39	18.17		4.1
-2026-11-09	taudot-pdftex	pdftex-live 735481cd32	arxiv-1512.03385	pdflatex	12	319.28	458.03	225.41	16	4.2
-2026-11-09	taudot-universal	tau-live 735481cd32	arxiv-1512.03385	pdflatex	12	510.71	963.04	324.80	54	4.4
-2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-1706.03762	pdflatex	15					4.4
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1706.03762	pdflatex	15	953.10	953.10	18.16		4.4
-2026-11-09	taudot-pdftex	pdftex-live 735481cd32	arxiv-1706.03762	pdflatex	15	331.24	756.78	234.88	15	4.1
-2026-11-09	taudot-universal	tau-live 735481cd32	arxiv-1706.03762	pdflatex	15	803.54	804.16	358.44	37	3.9
-2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-2103.00020	pdflatex	48					3.8
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-2103.00020	pdflatex	48	1114.56	1114.56	18.17		3.8
-2026-11-09	taudot-pdftex	pdftex-live 735481cd32	arxiv-2103.00020	pdflatex	48	341.95	915.03	481.30	35	3.0
-2026-11-09	taudot-universal	tau-live 735481cd32	arxiv-2103.00020	pdflatex	38	956.75	2564.01	500.05	44	2.8
-2026-11-09	stock-run	TeX Live 2026 static engines	synth-10	pdflatex	10					2.9
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-10	pdflatex	10	373.62	373.62	17.80		2.9
-2026-11-09	taudot-pdftex	pdftex-live 735481cd32	synth-10	pdflatex	10	215.35	241.54	129.67	9	3.3
-2026-11-09	taudot-universal	tau-live 735481cd32	synth-10	pdflatex	10	294.02	294.76	178.83	22	2.9
-2026-11-09	stock-run	TeX Live 2026 static engines	synth-10	xelatex	10					2.4
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-10	xelatex	10	398.41	398.41	17.77		2.4
-2026-11-09	taudot-universal	tau-live 735481cd32	synth-10	xelatex	10	252.57	253.04	342.50	19	2.4
-2026-11-09	stock-run	TeX Live 2026 static engines	synth-10	lualatex	10					2.8
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-10	lualatex	10	632.77	632.77	18.12		2.8
-2026-11-09	taudot-universal	tau-live 735481cd32	synth-10	lualatex	10	551.23	551.80	467.66	24	3.1
-2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	pdflatex	100					2.4
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	pdflatex	100	581.12	581.12	17.92		2.4
-2026-11-09	taudot-pdftex	pdftex-live 735481cd32	synth-100	pdflatex	100	193.91	468.82	237.45	21	3.0
-2026-11-09	taudot-universal	tau-live 735481cd32	synth-100	pdflatex	100	536.06	538.44	312.84	40	2.9
-2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	xelatex	102					2.9
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	xelatex	102	649.39	649.39	17.94		2.9
-2026-11-09	taudot-universal	tau-live 735481cd32	synth-100	xelatex	102	400.29	401.52	487.48	37	2.4
-2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	lualatex	101					3.7
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	lualatex	101	1399.63	1399.63	17.88		3.7
-2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-100	lualatex	101	1612.12	1615.82	1084.95	62	3.8
-2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	300					5.5
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	300	1238.23	1238.23	17.75		5.5
-2026-11-09	taudot-pdftex	pdftex-live 09a9ce8000	synth-300	pdflatex	300	213.03	1145.07	485.02	52	4.9
-2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	pdflatex	300	1197.80	1204.59	557.03	78	11.7
-2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	xelatex	303					15.5
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	xelatex	303	2023.55	2023.55	17.94		15.5
-2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	xelatex	303	876.56	880.09	675.67	41	11.4
-2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	lualatex	301					3.8
-2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	lualatex	301	6967.98	6967.98	18.03		3.8
-2026-11-09	taudot-universal	tau-live 09a9ce8000	synth-300	lualatex	301	3851.01	3861.45	2783.88	158	4.2
-2026-11-09	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	10	2724.22	2724.22	489.22	4	5.0
-2026-11-09	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	11	294.49	294.49	168.69	1	5.0
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	10	1854.09	1854.09	145.09	6	5.6
-2026-11-09	texpresso	texpresso e8df770907 via txp-headless 09a9ce8000	synth-10	xelatex	10	631.15	631.15	456.22	35	4.6
+2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-1512.03385	pdflatex	12					4.9
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1512.03385	pdflatex	12	829.21	829.21	18.27		4.9
+2026-11-09	taudot-pdftex	pdftex-live 7f784f29c2	arxiv-1512.03385	pdflatex	12	368.89	539.04	221.11	16	4.2
+2026-11-09	taudot-universal	tau-live 7f784f29c2	arxiv-1512.03385	pdflatex	12	558.99	998.10	318.73	54	3.9
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	12	2831.77	2831.77	159.53	6	4.3
+2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-1706.03762	pdflatex	15					4.1
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1706.03762	pdflatex	15	947.55	947.55	17.95		4.1
+2026-11-09	taudot-pdftex	pdftex-live 7f784f29c2	arxiv-1706.03762	pdflatex	15	325.50	726.00	233.83	15	4.0
+2026-11-09	taudot-universal	tau-live 7f784f29c2	arxiv-1706.03762	pdflatex	15	810.71	811.31	361.08	36	3.9
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	15	3910.46	3910.46	130.86	4	5.1
+2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-2103.00020	pdflatex	48					4.1
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-2103.00020	pdflatex	48	2397.28	2397.28	18.06		4.1
+2026-11-09	taudot-pdftex	pdftex-live 7f784f29c2	arxiv-2103.00020	pdflatex	48	379.55	1076.86	513.47	38	3.9
+2026-11-09	taudot-universal	tau-live 7f784f29c2	arxiv-2103.00020	pdflatex	38	1074.51	2966.68	511.20	44	3.4
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	48	6386.03	6386.03	187.45	4	4.0
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-10	pdflatex	10					3.3
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-10	pdflatex	10	411.67	411.67	17.83		3.3
+2026-11-09	taudot-pdftex	pdftex-live 7f784f29c2	synth-10	pdflatex	10	203.32	227.94	128.52	9	3.4
+2026-11-09	taudot-universal	tau-live 7f784f29c2	synth-10	pdflatex	10	320.64	321.12	173.89	19	3.3
+2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	10	1625.08	1625.08	136.89	6	3.2
+2026-11-09	stock-run	TeX Live 2026 static engines	synth-10	xelatex	10					6.4
+2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-10	xelatex	10	431.25	431.25	18.09		6.4
+2026-11-09	taudot-universal	tau-live 7f784f29c2	synth-10	xelatex	10	256.75	257.04	333.34	18	10.3
+2026-11-09	texpresso	texpresso e8df770907 via txp-headless 7f784f29c2	synth-10	xelatex	10	436.25	436.25	445.88	34	8.9

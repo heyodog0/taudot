@@ -646,10 +646,19 @@ def run_driver(cls, doc, engine, meta):
     # exactness, after the timed part: the early PDF's new pages and the final output against latexmk's
     for r in rows:
         ref = f"{refs}/{r['n']}.{ext(engine)}"
+        if r["final"] and r["final"].endswith(".pdf") and ref.endswith(".xdv"):  # a XeLaTeX PDF: latexmk's PDF
+            if not os.path.exists(ref[:-4] + ".pdf"):
+                subprocess.run([f"{UBIN}/xdvipdfmx", "-q", "-E", "-o", ref[:-4] + ".pdf", ref], env=tex_env(),
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            ref = ref[:-4] + ".pdf"
         if "final_exact" not in r:
             if r["final"] and os.path.exists(r["final"]):
-                r["final_exact"] = "yes" if same_file(r["final"], ref) or \
-                    all(e for _, e in same_pages(r["final"], ref)) else "NO"
+                try:
+                    r["final_exact"] = "yes" if same_file(r["final"], ref) or \
+                        all(e for _, e in same_pages(r["final"], ref)) else "NO"
+                except Exception as x:
+                    log(f"  check failed: {x}")
+                    r["final_exact"] = "unreadable"
             else:
                 r["final_exact"] = "none"
         if r.get("page_is_final"):
@@ -662,7 +671,11 @@ def run_driver(cls, doc, engine, meta):
         if "page_exact" not in r:
             if r["early"]:
                 new = range(r["early_from"] or 0, r["early_pages"] or 0)
-                r["page_exact"] = "yes" if all(e for _, e in same_pages(r["early"], ref, new)) else "NO"
+                try:
+                    r["page_exact"] = "yes" if all(e for _, e in same_pages(r["early"], ref, new)) else "NO"
+                except Exception as x:
+                    log(f"  check failed: {x}")
+                    r["page_exact"] = "unreadable"
             else:
                 r["page_exact"] = "none"
     for d in (proj, out, f"{out}-keep"):
@@ -716,6 +729,13 @@ def run(system, doc, engine):
     write(sysm, doc, engine, first, rows)
 
 
+def done(system, doc, engine):
+    """Already in results/first.tsv (bench/run.py all resumes; delete the rows or the file to redo)."""
+    p = f"{RESULTS}/first.tsv"
+    return os.path.exists(p) and any(l.split("\t")[1:2] + l.split("\t")[3:5] == [system, doc, engine]
+                                     for l in open(p).read().splitlines()[1:])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("system")
@@ -728,7 +748,7 @@ def main():
         for doc in docs:
             for engine in ("pdflatex", "xelatex", "lualatex", "typst"):
                 for s in SYSTEMS.values():
-                    if engine in s.engines and engine in load(doc)["variants"]:
+                    if engine in s.engines and engine in load(doc)["variants"] and not done(s.name, doc, engine):
                         run(s.name, doc, engine)
         return
     run(a.system, a.doc, a.engine)
