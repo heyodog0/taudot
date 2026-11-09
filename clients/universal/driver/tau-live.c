@@ -798,6 +798,13 @@ static void emit_pdf(const char *tag, int s, pid_t pid, int pages, int final, in
       if (rn >= (int)sizeof req || write(pdfmx_in, req, rn) != rn) pdfmx_stop();
     }
   }
+  static int warmed;  // XeTeX: the reader loads the document's fonts now, not at the first pass (~50 ms)
+  if (!warmed && hook && para && reader_in >= 0 && njobs < 16 && !strcmp(out_ext(), "xdv") && exists(pdf)) {
+    char req[4700];
+    int rn = snprintf(req, sizeof req, "warm\t%s\n", pdf);
+    if (rn < (int)sizeof req && write(reader_in, req, rn) == rn) jobs[njobs++] = (reader_job){NULL, -1, now_us(), 0};
+    warmed = 1;
+  }
   if (sx_slot >= 0 && hook && para) {  // its SyncTeX, read now rather than when the next pass is waiting on it
     int64_t t0 = now_us();
     sx_load(&sxs[sx_slot], outs[sx_slot].sx);

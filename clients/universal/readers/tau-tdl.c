@@ -455,6 +455,8 @@ int main(int argc, char **argv)
       int n = 0;
       for (char *s = strtok(line, "\t\n"); s && n < 8; s = strtok(NULL, "\t\n")) w[n++] = s;
       if ((n == 4 || n == 5) && !strcmp(w[0], "xdv")) cmd_xdv(w[1], w[2], w[3], n == 5, n == 5 ? atof(w[4]) : 0);
+      else if (n == 2 && !strcmp(w[0], "warm"))  // the document's own last page, drawn and dropped: every font it
+        cmd_xdv(w[1], w[1], "/dev/null", 0, 0);  // defines is loaded before the first pass needs it
       else if ((n == 6 || n == 7) && !strcmp(w[0], "pdf"))
         cmd_pdf(w[1], atol(w[2]), w[3], w[4], w[5], n == 7, n == 7 ? atof(w[6]) : 0);
       else fail("bad command");
@@ -463,6 +465,7 @@ int main(int argc, char **argv)
     return 0;
   }
   fprintf(stderr, "usage: tau-tdl xdv DOC.xdv PASS.bin OUT.tdl [DY] | pdf EXACT.pdf PAGE PASS.bin OUT.pdf OUT.tdl [DY]"
-                  " | serve (those commands, tab-separated, one per line)\n");
+                  " | serve (those commands, tab-separated, one per line;\n"
+                  "  also: warm DOC.xdv, to load the document's fonts ahead of the first pass)\n");
   return 2;
 }
