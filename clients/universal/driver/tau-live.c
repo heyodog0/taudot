@@ -951,6 +951,29 @@ static char *bib_lines(void) {
   return outb;
 }
 
+// latexmk's -bibtex-cond: BibTeX only when every database \bibdata names is there (a project may ship only its .bbl,
+// as arXiv sources do: BibTeX would replace it with an empty one)
+static int bib_files_exist(const char *lines) {
+  int any = 0;
+  for (const char *l = strstr(lines, "\\bibdata{"); l; l = strstr(l + 1, "\\bibdata{")) {
+    const char *s = l + 9, *e = strchr(s, '}');
+    if (!e) return 0;
+    while (s < e) {
+      const char *c = memchr(s, ',', e - s);
+      if (!c) c = e;
+      char name[1024], p[4300], p2[4400];
+      snprintf(name, sizeof name, "%.*s", (int)(c - s), s);
+      snprintf(p, sizeof p, "%s/%s", work, name);
+      snprintf(p2, sizeof p2, "%s.bib", p);
+      if (!*name || (!exists(p2) && !(strlen(name) > 4 && !strcmp(name + strlen(name) - 4, ".bib") && exists(p))))
+        return 0;
+      any = 1;
+      s = c + 1;
+    }
+  }
+  return any;
+}
+
 static unsigned long bib_hash(void) {  // every .bib in the project (FNV-1a over names and contents)
   unsigned long h = 1469598103934665603UL;
   DIR *dd = opendir(work);
@@ -1102,7 +1125,7 @@ static int run_tools(rchange *ch, int max, int n) {
   } else if (bibtex_bin[0]) {
     char *lines = bib_lines();
     unsigned long h = bib_hash();
-    int has_bibdata = strstr(lines, "\\bibdata{") != NULL;
+    int has_bibdata = bib_files_exist(lines);
     if (has_bibdata && (!bib_state || strcmp(lines, bib_state) || h != bib_hash_last)) {
       code = run_tool(bibtex_bin, stem), ran_bib = 1, strcat(tools, "bibtex");
       free(bib_state), bib_state = lines, bib_hash_last = h;
