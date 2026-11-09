@@ -113,7 +113,7 @@ this file (not a prefetch). Shown as progress in the pane's status line.
   client would show then draw identically to a whole-document `xdvipdfmx` of the final XDV (checked in
   `uni.py xpdf`).
 - `pdf_error` (the converter's exit status) instead: the conversion failed; convert `path` yourself. The next event
-  converts every page from `from_page`.
+  converts every page.
 - `pdfmx_us`: from the request to the converter to its answer. Events after a pending conversion wait behind it, so
   the order is kept; `para` events don't wait.
 

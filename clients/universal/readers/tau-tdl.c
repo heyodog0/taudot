@@ -17,6 +17,7 @@
 // Prints one JSON line: {"ok":true,"page":N,"ops":K,"fonts":F,"bytes":B,"us":T} or {"ok":false,"error":...}.
 #include <kpathsea/kpathsea.h>
 #include <stdint.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -270,57 +271,53 @@ static int text_lines(const unsigned char *c, size_t n, tline *out, int max)
 
 static void put(FILE *f, const char *s) { fputs(s, f); }
 
-static int cmd_pdf(const char *exact_path, long page, const char *pass_path, const char *out_pdf, const char *out_tdl,
-                   int has_dy, double dy_in)
+// The exact PDF, read once per output (a pass is drawn against the same output until the next one): its bytes,
+// cross-references and the fonts and XObjects of all its pages. tau-live asks for it (`warmpdf`) when it announces the
+// output, so the first pass against it doesn't wait.
+typedef struct { char path[4096]; dev_t dev; ino_t ino; off_t size; struct timespec mt; unsigned char *ex; size_t en;
+                 pdf d; char *fonts, *xobjs; } exact_pdf;
+static exact_pdf exc;
+static void exact_resources(pdf *dp, char **fonts_out, char **xobjs_out);
+static exact_pdf *exact_get(const char *path)
 {
-  int64_t t0 = now_us();
-  size_t en, pn, cn;
-  unsigned char *ex = slurp(exact_path, &en), *pb = slurp(pass_path, &pn);
-  if (!ex || !pb) return fail("cannot read the inputs");
-  unsigned char *content = pass_content(pb, pn, &cn);
-  if (!content) return fail("no content stream in the pass's output");
-  pdf d = {0};
-  if (pdf_open(&d, ex, en)) return fail("cannot read the exact PDF's cross-references");
-  long pg = pdf_page(&d, page);
-  if (pg <= 0) return fail("no such page");
-  char *pd = pdf_object(&d, pg);
-  const char *pe = pd + strlen(pd), *vs, *ve;
-  // where the lines go: the pass's first line that is also on the exact page (an unchanged line of the paragraph)
-  size_t xn = 0;
-  unsigned char *xc = NULL;
-  if (dict_get(pd, pe, "Contents", &vs, &ve)) {
-    long cnum = ref_num(vs);
-    if (cnum > 0 && d.off[cnum] >= 0) {
-      const char *op = (const char *)d.b + d.off[cnum];
-      xc = stream_data(&d, strstr(op, "<<"), strstr(op, "stream"), &xn);
-    }
-  }
-  static tline pl[4096], el[8192];
-  int np = text_lines(content, cn, pl, 4096), ne = xc ? text_lines(xc, xn, el, 8192) : 0;
-  int placed = has_dy;
-  double dy = has_dy ? dy_in : 0;  // given (the driver knows the old lines' place): no matching
-  for (int i = np - 1; i >= 0 && !placed; i--)  // the pass's lines are last (earlier ones: the page above)
-    for (int j = 0; j < ne; j++)
-      if (strlen(pl[i].key) >= 12 && !strcmp(pl[i].key, el[j].key)) { dy = el[j].y - pl[i].y; placed = 1; break; }
-  // fonts and XObjects of every page: the pass may use one this page doesn't
+  struct stat st;
+  if (stat(path, &st)) return NULL;
+  if (exc.ex && !strcmp(exc.path, path) && exc.dev == st.st_dev && exc.ino == st.st_ino && exc.size == st.st_size &&
+      exc.mt.tv_sec == st.st_mtimespec.tv_sec && exc.mt.tv_nsec == st.st_mtimespec.tv_nsec)
+    return &exc;
+  if (exc.ex) { pdf_close(&exc.d); free(exc.ex), free(exc.fonts), free(exc.xobjs); memset(&exc, 0, sizeof exc); }
+  size_t en;
+  unsigned char *ex = slurp(path, &en);
+  if (!ex) return NULL;
+  if (pdf_open(&exc.d, ex, en)) { free(ex); memset(&exc, 0, sizeof exc); return NULL; }
+  exc.ex = ex, exc.en = en;
+  snprintf(exc.path, sizeof exc.path, "%s", path);
+  exc.dev = st.st_dev, exc.ino = st.st_ino, exc.size = st.st_size, exc.mt = st.st_mtimespec;
+  exact_resources(&exc.d, &exc.fonts, &exc.xobjs);
+  return &exc;
+}
+
+// The fonts and XObjects of every page (the pass may use one its page doesn't), as dictionary entries
+static void exact_resources(pdf *D, char **fonts_out, char **xobjs_out)
+{
   size_t fl = 0, xl = 0, fcap = 1 << 16, xcap = 1 << 16;
   char *fonts = malloc(fcap), *xobjs = malloc(xcap);
   for (long i = 0;; i++) {
-    long pi = pdf_page(&d, i);
+    long pi = pdf_page(D, i);
     if (pi <= 0) break;
-    char *o = pdf_object(&d, pi);
+    char *o = pdf_object(D, pi);
     const char *oe = o + strlen(o), *rs, *re;
     char *res = NULL;
     if (dict_get(o, oe, "Resources", &rs, &re)) {
       if (*rs == '<') { res = malloc(re - rs + 1); memcpy(res, rs, re - rs); res[re - rs] = 0; }
-      else res = pdf_object(&d, ref_num(rs));
+      else res = pdf_object(D, ref_num(rs));
     }
     for (int which = 0; res && which < 2; which++) {
       const char *ks, *ke;
       if (!dict_get(res, res + strlen(res), which ? "XObject" : "Font", &ks, &ke)) continue;
       char *dict = NULL;
       if (*ks == '<') { dict = malloc(ke - ks + 1); memcpy(dict, ks, ke - ks); dict[ke - ks] = 0; }
-      else dict = pdf_object(&d, ref_num(ks));
+      else dict = pdf_object(D, ref_num(ks));
       if (!dict) continue;
       const char *a = strstr(dict, "<<"), *z = dict + strlen(dict);
       a = a ? a + 2 : dict;
@@ -340,10 +337,48 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
     free(o);
   }
   fonts[fl] = 0, xobjs[xl] = 0;
+  *fonts_out = fonts, *xobjs_out = xobjs;
+}
+
+static int cmd_pdf(const char *exact_path, long page, const char *pass_path, const char *out_pdf, const char *out_tdl,
+                   int has_dy, double dy_in)
+{
+  int64_t t0 = now_us();
+  size_t pn, cn;
+  exact_pdf *E = exact_get(exact_path);
+  if (!E) return fail("cannot read the exact PDF");
+  unsigned char *ex = E->ex, *pb = slurp(pass_path, &pn);
+  size_t en = E->en;
+  if (!pb) return fail("cannot read the inputs");
+  unsigned char *content = pass_content(pb, pn, &cn);
+  if (!content) { free(pb); return fail("no content stream in the pass's output"); }
+  pdf *D = &E->d;
+  long pg = pdf_page(D, page);
+  if (pg <= 0) return fail("no such page");
+  char *pd = pdf_object(D, pg);
+  const char *pe = pd + strlen(pd), *vs, *ve;
+  // where the lines go: the pass's first line that is also on the exact page (an unchanged line of the paragraph)
+  size_t xn = 0;
+  unsigned char *xc = NULL;
+  if (dict_get(pd, pe, "Contents", &vs, &ve)) {
+    long cnum = ref_num(vs);
+    if (cnum > 0 && D->off[cnum] >= 0) {
+      const char *op = (const char *)D->b + D->off[cnum];
+      xc = stream_data(D, strstr(op, "<<"), strstr(op, "stream"), &xn);
+    }
+  }
+  static tline pl[4096], el[8192];
+  int np = text_lines(content, cn, pl, 4096), ne = xc ? text_lines(xc, xn, el, 8192) : 0;
+  int placed = has_dy;
+  double dy = has_dy ? dy_in : 0;  // given (the driver knows the old lines' place): no matching
+  for (int i = np - 1; i >= 0 && !placed; i--)  // the pass's lines are last (earlier ones: the page above)
+    for (int j = 0; j < ne; j++)
+      if (strlen(pl[i].key) >= 12 && !strcmp(pl[i].key, el[j].key)) { dy = el[j].y - pl[i].y; placed = 1; break; }
+  const char *fonts = E->fonts, *xobjs = E->xobjs;
   // the page's box
   double box[4] = {0, 0, 612, 792};
   for (long n = pg; n > 0;) {
-    char *o = pdf_object(&d, n);
+    char *o = pdf_object(D, n);
     if (!o) break;
     const char *oe = o + strlen(o), *bs, *be;
     if (dict_get(o, oe, "MediaBox", &bs, &be)) { sscanf(bs, "[ %lf %lf %lf %lf", &box[0], &box[1], &box[2], &box[3]); free(o); break; }
@@ -360,7 +395,7 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
     if (f) fwrite(ex, 1, en, f);
   }
   if (!f) return fail("cannot write the PDF");
-  long next = d.size > 0 ? d.size : d.nobj;
+  long next = D->size > 0 ? D->size : D->nobj;
   long a = next, r = next + 1, pp = next + 2, cat = next + 3, x = next + 4;
   long offs[5];
   if (ex[en - 1] != '\n') put(f, "\n");
@@ -399,7 +434,7 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
     for (int j = i + 1; j < NO; j++)
       if (nums[order[j]] < nums[order[i]]) { long t = order[i]; order[i] = order[j]; order[j] = t; }
   fprintf(f, "%ld 0 obj\n<< /Type /XRef /Size %ld /Root %ld 0 R /Prev %ld /W [1 4 2] /Index [", x, x + 1, cat,
-          d.prev_xref);
+          D->prev_xref);
   for (int i = 0; i < NO; i++) fprintf(f, "%ld 1 ", nums[order[i]]);
   fprintf(f, "] /Length %d >>\nstream\n", NO * 7);
   for (int i = 0; i < NO; i++) fwrite(rows[order[i]], 1, 7, f);
@@ -428,8 +463,7 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   FILE *g = fopen(out_tdl, "wb");
   int wrote = g && fwrite(tb.p, 1, tb.n, g) == tb.n;
   if (g && fclose(g)) wrote = 0;
-  free(tb.p), free(fonts), free(xobjs), free(xc), free(pd), free(content), free(ex), free(pb);
-  pdf_close(&d);
+  free(tb.p), free(xc), free(pd), free(content), free(pb);
   if (!wrote) return fail("cannot write the list");
   if (placed) printf("{\"ok\":true,\"page\":%ld,\"dy\":%.4f,\"us\":%lld}\n", page, dy, (long long)(now_us() - t0));
   else printf("{\"ok\":true,\"page\":%ld,\"dy\":null,\"us\":%lld}\n", page, (long long)(now_us() - t0));
@@ -457,7 +491,11 @@ int main(int argc, char **argv)
       if ((n == 4 || n == 5) && !strcmp(w[0], "xdv")) cmd_xdv(w[1], w[2], w[3], n == 5, n == 5 ? atof(w[4]) : 0);
       else if (n == 2 && !strcmp(w[0], "warm"))  // the document's own last page, drawn and dropped: every font it
         cmd_xdv(w[1], w[1], "/dev/null", 0, 0);  // defines is loaded before the first pass needs it
-      else if ((n == 6 || n == 7) && !strcmp(w[0], "pdf"))
+      else if (n == 2 && !strcmp(w[0], "warmpdf")) {  // an exact PDF read ahead of the passes drawn against it
+        int64_t t0 = now_us();
+        if (exact_get(w[1])) printf("{\"ok\":true,\"us\":%lld}\n", (long long)(now_us() - t0));
+        else fail("cannot read the exact PDF");
+      } else if ((n == 6 || n == 7) && !strcmp(w[0], "pdf"))
         cmd_pdf(w[1], atol(w[2]), w[3], w[4], w[5], n == 7, n == 7 ? atof(w[6]) : 0);
       else fail("bad command");
       fflush(stdout);
