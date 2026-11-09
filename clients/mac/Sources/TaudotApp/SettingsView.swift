@@ -487,12 +487,68 @@ struct PDFPage: View {
     }
     Heading(title: "Typesetting")
     Card(p: p) {
-      Row(p: p, label: "pdfLaTeX projects on pdfTeX",
-          note: "The PDF Overleaf would make, line for line. Off: every project on TeXpresso (XeTeX), as before. Applies when a project opens.",
-          last: true) {
-        Switch(p: p, on: Binding(get: { pdfEngine != "texpresso" }, set: { pdfEngine = $0 ? "auto" : "texpresso" }))
+      Row(p: p, label: "Typeset live",
+          note: "The PDF Overleaf would make, line for line, from TeX Live's own engines. Off: every project on TeXpresso, as before.") {
+        Switch(p: p, on: Binding(get: { pdfEngine != "texpresso" }, set: { pdfEngine = $0 ? "auto" : "texpresso"; universalChanged() }))
+      }
+      Row(p: p, label: "XeLaTeX and LuaLaTeX on universal",
+          note: "Stock XeTeX and LuaTeX, run live. Off: those projects on TeXpresso.") {
+        Switch(p: p, on: Binding(get: { uniUnicode }, set: { uniUnicode = $0; universalChanged() }))
+          .disabled(pdfEngine == "texpresso")
+      }
+      Row(p: p, label: "pdfLaTeX on universal too",
+          note: "Stock pdfTeX instead of Taudot's patched one (the default for pdfLaTeX).", last: true) {
+        Switch(p: p, on: Binding(get: { uniPdf }, set: { uniPdf = $0; universalChanged() }))
+          .disabled(pdfEngine == "texpresso")
       }
     }
+    if let folder = project.folder {
+      Heading(title: "This project")
+      Card(p: p) {
+        Row(p: p, label: "Engine",
+            note: "\(folder.lastPathComponent). From Overleaf: the project's Compiler setting. \(project.running.map { "Now: \($0)." } ?? "")",
+            last: true) {
+          let own = UniversalSettings.engine(for: folder)
+          let fromOverleaf = "From Overleaf" + (project.engine.map { " (\($0.title))" } ?? "")
+          Popup(p: p, value: own?.title ?? fromOverleaf) {
+            Button(fromOverleaf) { setEngine(nil, folder) }
+            ForEach(TexEngine.allCases, id: \.self) { e in Button(e.title) { setEngine(e, folder) } }
+          }
+        }
+      }
+    }
+  }
+
+  @AppStorage(UniversalSettings.unicodeKey) private var uniUnicode = true
+  @AppStorage(UniversalSettings.pdflatexKey) private var uniPdf = false
+  @StateObject private var project = CurrentProjectModel()
+
+  private func universalChanged() { NotificationCenter.default.post(name: UniversalSettings.changed, object: nil) }
+  private func setEngine(_ e: TexEngine?, _ folder: URL) {
+    UniversalSettings.setEngine(e, for: folder)
+    project.refresh()
+    universalChanged()
+  }
+}
+
+/// `CurrentProject` for SwiftUI: the project Settings ▸ PDF talks about, refreshed when it changes.
+@MainActor final class CurrentProjectModel: ObservableObject {
+  @Published private(set) var folder: URL?
+  @Published private(set) var engine: TexEngine?
+  @Published private(set) var running: String?
+  @Published private var tick = 0
+  private var token: NSObjectProtocol?
+  init() {
+    refresh()
+    token = NotificationCenter.default.addObserver(forName: CurrentProject.changed, object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated { self?.refresh() }
+    }
+  }
+  func refresh() {
+    folder = CurrentProject.folder
+    engine = CurrentProject.projectEngine
+    running = CurrentProject.running
+    tick += 1
   }
 }
 

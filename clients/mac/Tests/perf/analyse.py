@@ -43,6 +43,8 @@ def panes(d: Path, w_px: int):
             groups.append(cur)
         elif cur is not None:
             cur.append(a)
+    if not groups:  # no AX dump (an off-screen run can leave ax.json empty): no panes to measure
+        return None
     ax = max(groups, key=lambda g: g[0]["w"] * g[0]["h"])
     win = ax[0]
     cuts = sorted(a["x"] - win["x"] for a in ax if a["role"] == "AXSplitter" and a["depth"] == 2)
@@ -89,7 +91,10 @@ def analyse(d: Path):
         return {"dir": str(d), "error": "no frames", "timeline": timeline(d)}
     h, w = fs[-1][1].shape
     fs = [f for f in fs if f[1].shape == (h, w)]
-    ps, top, bottom = panes(d, w)
+    p = panes(d, w)
+    if p is None:
+        return {"dir": str(d), "error": "no data: ax.json lists no window", "timeline": timeline(d)}
+    ps, top, bottom = p
     res = {"dir": d.name, "window": windows(d), "capture_from": fs[0][0], "frames": len(fs), "timeline": timeline(d)}
     for name, (x0, x1) in ps.items():
         crop = lambda a: a[top:h - bottom, x0:x1].astype(np.int16)

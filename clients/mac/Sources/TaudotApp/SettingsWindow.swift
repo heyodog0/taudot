@@ -88,7 +88,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     switch self {
     case .appearance: "dark light system accent colour color look"
     case .editor: "theme font size line height width wrap solarized overleaf paper dusk tomorrow neovim native vim import"
-    case .pdf: "highlight follows cursor sepia dark page comments colour color"
+    case .pdf: "highlight follows cursor sepia dark page comments colour color engine typesetting compiler xelatex lualatex pdflatex universal live"
     case .comments: "tint underline bar resolved floating card lines"
     case .account: "sign in projects overleaf"
     }

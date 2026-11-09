@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- For universal's stock engines only (Contents/Resources/universal/bin/{pdftex,xetex,luahbtex}; sign.sh): tau-live
+     starts them with DYLD_INSERT_LIBRARIES=libtau.dylib, which the hardened runtime strips unless the program allows
+     it. libtau is signed with the same identity, so library validation passes without an exception. Not for the app
+     or any other program in it. -->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key><true/>
+</dict>
+</plist>
