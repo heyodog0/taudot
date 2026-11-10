@@ -277,6 +277,44 @@ char *pdf_object(pdf *d, long num)
 
 static long ref_num(const char *vs) { return strtol(vs, NULL, 10); }
 
+// Every page's object number, in order, from one walk of the page tree (pdf_page per index walks it each time).
+// Returns the count; *out is malloc'd.
+static void pages_walk(pdf *d, long node, long **out, long *n, long *cap, int depth)
+{
+  char *o = pdf_object(d, node);
+  if (!o || depth > 64) { free(o); return; }
+  const char *e = o + strlen(o), *vs, *ve;
+  if (!dict_get(o, e, "Kids", &vs, &ve)) {
+    if (*n == *cap) *out = realloc(*out, (*cap = *cap ? *cap * 2 : 256) * sizeof **out);
+    (*out)[(*n)++] = node;
+    free(o);
+    return;
+  }
+  for (const char *q = vs + 1; q < ve;) {
+    q = skip_ws(q, ve);
+    if (*q == ']') break;
+    char *r;
+    long kid = strtol(q, &r, 10);
+    if (r == q) break;
+    strtol(r, &r, 10);
+    q = skip_ws(r, ve) + 1;  // 'R'
+    pages_walk(d, kid, out, n, cap, depth + 1);
+  }
+  free(o);
+}
+long pdf_pages(pdf *d, long **out)
+{
+  long n = 0, cap = 0;
+  *out = NULL;
+  char *root = pdf_object(d, d->root);
+  if (!root) return 0;
+  const char *vs, *ve;
+  long node = dict_get(root, root + strlen(root), "Pages", &vs, &ve) ? ref_num(vs) : -1;
+  free(root);
+  if (node > 0) pages_walk(d, node, out, &n, &cap, 0);
+  return n;
+}
+
 // The object number of page INDEX (0-based) in the page tree.
 long pdf_page(pdf *d, long index)
 {

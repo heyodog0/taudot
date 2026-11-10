@@ -507,6 +507,50 @@ Measured on paper-b, per placed `para` event (TeX time from the pass's start / t
   **LuaLaTeX 70 → 19 ms, pdfLaTeX 34 → 11 ms**.
 - `from_page` in `run` and `pdf` events was always 0; it is now the pages shipped before the resume snapshot.
 
+## Bench gaps: first page, display coverage (2026-11-10)
+
+- **First compile, first page.** A fresh engine finished only at its end, so the first PDF grew with the document
+  (bench: 340 ms–1.27 s vs patched pdfTeX's 220–440 ms). Now a fresh engine (`TAU_FIRST_FINISH`, `--no-first-finish`)
+  forks a finisher once, at the goal page (else the first) as soon as it ships. Open → first PDF, no `.aux`, 3 runs
+  each (machine load ~20):
+
+| | before | after |
+|---|---|---|
+| synth-10 pdfLaTeX | 0.34 s | 0.32 s |
+| synth-300 pdfLaTeX | 1.21 s | 0.32 s |
+| paper-b pdfLaTeX | 1.02 s | 0.44 s |
+| paper-b XeLaTeX | 0.85 s | 0.31 s |
+| paper-b LuaLaTeX | 1.50 s | 0.61 s |
+
+  Open → done unchanged. The early page draws as the same run's full output (0 px at 288 dpi: synth-300, paper-b,
+  1512.03385 on pdfLaTeX; paper-b on LuaLaTeX); on XeLaTeX the full run's XDV page 1 is byte-identical (tau-live
+  converts only pages 2–51 after it).
+- **Display pages on long documents** (bench: 1/30 keys on synth-300 and 1512.03385). `tau-tdl page` rescanned every
+  page of each new finished PDF (decompress, collect each (font, code)) and walked the page tree from the root once per
+  page: ~55 ms at 300 pages, so the finish came first. Now one walk lists the pages, each font's bytes per code is
+  looked up once, and each page's (font, code)s are kept by a hash of its raw content stream (pages unchanged since the
+  last output aren't rescanned; the cache is dropped when the fonts' bytes per code differ); `warmpdf` does this
+  before the key (it hadn't been sent without SyncTeX). The cached set equals a full rescan on all 44 outputs of a
+  synth-300 session (checksum). `page`: 55 → 0.5–1 ms at 300 pages.
+- **Display pages show the changed page.** The display page was always page `from_page`, but TeX often set that page
+  before it read the edited line, or the run resumed pages before the edit (first-run snapshots are spaced): the
+  "display page" was then unchanged, and a key needing a new glyph wasn't refused because its page wasn't the one
+  checked. `page` now answers `same` for a page whose content stream is the old page's, and tau-live tries the next
+  page shipped until one differs (or the finish is out); the event's `pages` - 1 is that page. The earlier p50s (11 ms
+  pdfLaTeX, 19 ms LuaLaTeX on paper-b) partly timed unchanged pages. `uni.py display`, 40 keys + novel characters,
+  every display page 0 px at 288 dpi against the run's finished page, all novel-glyph keys refused:
+
+| | keys with a display page | key → display page p50 | changed page past `from_page` (keys) |
+|---|---|---|---|
+| synth-300 pdfLaTeX | 29/40 (the others change no page, or need new glyphs) | 11.0 ms | 0: 19, 1: 9, 6: 1 |
+| 1512.03385 pdfLaTeX | 40/40 | 7.9 ms | 0: 39, 2: 1 |
+| paper-b pdfLaTeX | 40/40 | 21.8 ms | 0: 19, 1: 21 |
+| paper-b LuaLaTeX | 40/40 | 27–32 ms | 0: 36, 1: 4 |
+| synth-300 LuaLaTeX | 29/40 | 26.2 ms | 0: 28, 1: 1 |
+
+  (machine load ~20 during these.) Of paper-b LuaLaTeX's ~27 ms, ~25 is TeX from the edit to the page's ship; the
+  reader is under 1 ms.
+
 ## Results (TeX Live 2026, M-series Mac, 2026-11-07)
 
 Papers: paper-a (32 pages, one column, review-mode line numbers) and paper-b (the corpus's arXiv 2103.00020, 48 pages, two columns). "Stock" is TeX Live's

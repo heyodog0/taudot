@@ -95,10 +95,11 @@ this file (not a prefetch). Shown as progress in the pane's status line.
 - `edit_us`: from reading the first edit of `applied` to this PDF written; `finish_us`: the finish alone.
 
 **Display pages on tau-live** (pdfTeX, LuaTeX; verified in `clients/universal/driver/tau-live.c`): a `pdf` event with
-`"display":true` comes before the run's first finished output: `path` is the last finished PDF with page `from_page`
-drawing the new run's page (an incremental update), every other page as it was; `pages` is `from_page` + 1 (pages after it in the file are old ones, as for any early
-output); no
-`synctex` or `log`. It draws exactly what the finished page will (checked in `uni.py display`); the finished output
+`"display":true` comes before the run's first finished output: `path` is the last finished PDF with page `pages` - 1
+drawing the new run's page (an incremental update), every other page as it was. That page is the first the run
+ships that differs from the old one: `from_page`, or a later page when TeX had set those before it read the edited
+line or the run resumed pages before the edit (pages from `from_page` to it are unchanged; pages after it in the file are old ones, as for any early
+output). No `synctex` or `log`. It draws exactly what the finished page will (checked in `uni.py display`); the finished output
 follows in a normal `pdf` event.
 
 **XeTeX on tau-live** (verified in `clients/universal/driver/tau-live.c`): `path` is the run's `.xdv`. With
@@ -224,6 +225,10 @@ The app needs the page in view soon, and the rest when it's cheap. The driver's 
    yet: the first PDF can stop a page short of it (the run resumes before a page break), and under typing no other
    came before the next key, so the edited page stayed old for as long as the typing lasted.
 4. At the run's end, a `final` PDF; after the compile settles, `done`.
+
+On tau-live (verified in `clients/universal/interpose/tau.c`), a fresh engine (the first compile, or a restart) also
+finishes once as soon as it ships the goal page (page 1 when no goal is set): an early `pdf` (`final:false`) before the
+rest of the document is typeset (paper-b, pdfLaTeX: open → first PDF 1.02 → 0.44 s).
 5. A `finish` command finishes one now from the pages shipped so far (after an edit, only once the runner has
    passed the edited byte).
 6. A new edit during a run kills that run's pending finishes; PDFs already announced stay valid.

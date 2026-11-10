@@ -7,6 +7,7 @@
 #   uv run clients/universal/tests/uni.py finish ENGINE SRC MAIN [N]     step 3: finished-early outputs == the full
 #                                                                         run's pages
 # ENGINE: pdflatex | xelatex | lualatex. Environment: clients/universal/env.sh, WORK.
+import collections
 import json
 import os
 import random
@@ -78,6 +79,8 @@ def settle(engine, src, main, name):
         os.makedirs(out)
         run_tau(engine, base, main, out, fetch=True)  # fetches TeX Live files the stock engine will need
         stock_rule(engine, base, main)  # settled as latexmk would leave it: BibTeX, reruns
+        if not os.path.exists(f"{base}/{stem(main)}.aux"):  # (a wrong main file: not settled, nothing to reuse)
+            sys.exit(f"settle: the stock runs left no {stem(main)}.aux in {base}")
         open(base + "/.settled", "w").close()
     return base
 
@@ -123,7 +126,7 @@ class Live:
         c = cmd(engine, main)
         if synctex:  # as the app runs it (the paragraph preview finds the old lines with SyncTeX)
             c.insert(-1, "-synctex=-1")
-        argv = [f"{UBIN}/tau-live", *opts, d, main, out, "--", *c]
+        argv = [f"{UBIN}/tau-live", *opts, *os.environ.get("LIVE_OPTS", "").split(), d, main, out, "--", *c]  # (LIVE_OPTS: e.g. --no-first-finish)
         if os.environ.get("PATCHED"):  # the patched pdfTeX of clients/pdftex, for comparison (same protocol)
             pb = os.path.join(os.environ.get("TAUDOT_REF", os.path.expanduser("~/code/lab/taudot-ref")), "pdftex-build-2026")
             env.update(TEXFORMATS=f".:{pb}/fmt-live", TEXSTORE_URL="https://texlive.taudot.app")
@@ -995,6 +998,7 @@ def display(engine, src, main, n=40, seed=3):
     checked = same = shown = refused_ok = 0
     worst = 0
     t_disp, t_first = [], []
+    offs = []  # the display page past from_page
 
     def key(p, ch, expect_refusal=False):
         nonlocal checked, same, shown, refused_ok, worst
@@ -1014,7 +1018,8 @@ def display(engine, src, main, n=40, seed=3):
         d = disp[0]
         shown += 1
         t_disp.append(d["edit_us"] / 1000)
-        k = d["from_page"]
+        k = d["pages"] - 1  # (the first page that changed: from_page or a few after)
+        offs.append(k - d["from_page"])
         ref = next((e for e in real if e["pages"] > k), done if done.get("path") else None)
         if not ref:
             return len(ch)
@@ -1048,6 +1053,7 @@ def display(engine, src, main, n=40, seed=3):
     if t_disp:
         print(f"  edit -> display page p50 {statistics.median(t_disp):.1f} ms; edit -> first output p50 "
               f"{statistics.median(t_first):.1f} ms")
+        print(f"  display page past from_page: {dict(sorted(collections.Counter(offs).items()))}")
     return same == checked and refused_ok > 0
 
 
