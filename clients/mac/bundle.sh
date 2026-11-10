@@ -5,6 +5,7 @@
 #   Contents/Resources/neovim/           Neovim's official release build (system libraries only)
 #   Contents/Resources/nvim/             the Neovim plugin (clients/nvim)
 #   Contents/Resources/txp-render        TeXpresso's driver (the live XeLaTeX preview)
+#   Contents/Resources/tau-attach        the Claude pane's shared terminal (clients/attach)
 #   Contents/Resources/texpresso/        texpresso-xetex and taudot-pdfinfo
 #   Contents/Resources/bin/tectonic      the stand-in TeXpresso's file provider calls (tools/release/tectonic)
 #   Contents/Resources/bibtex/, pdftex/  TeX Live's BibTeX; the live pdfTeX per TeX Live year (GPL, separate programs)
@@ -52,6 +53,11 @@ if [ ! -x "$rnd" ] || [ -n "$(find "$here/../render" \( -name '*.c' -o -name '*.
   TEXPRESSO_DIR="$T" sh "$here/../render/build.sh" >&2 || note "building txp-render failed"
 fi
 [ -x "$rnd" ] && cp "$rnd" "$app/Contents/Resources/" || note "no txp-render: XeLaTeX projects have no preview"
+# tau-attach: the Claude pane's claude runs behind it (in the project's Rex session when Rex is there), so it outlives
+# the app and Rex can show it too (ClaudeSession.swift). libc only.
+att="$here/../attach/tau-attach"
+if [ ! -x "$att" ] || [ "$here/../attach/tau-attach.c" -nt "$att" ]; then sh "$here/../attach/build.sh" >&2 || note "building tau-attach failed"; fi
+[ -x "$att" ] && cp "$att" "$app/Contents/Resources/" || note "no tau-attach: the Claude pane runs claude in a plain terminal"
 mkdir -p "$app/Contents/Resources/texpresso" "$app/Contents/Resources/bin"
 for f in texpresso-xetex taudot-pdfinfo; do
   if [ -x "$T/build/$f" ]; then cp "$T/build/$f" "$app/Contents/Resources/texpresso/"; else note "no $T/build/$f (make -C $T all)"; fi
