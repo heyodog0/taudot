@@ -48,7 +48,7 @@ import TaudotShared
   public var pdfMarkColor: String { get { string("taudot.pdfMarkColor", "accent") } set { set("taudot.pdfMarkColor", newValue) } }
   public var pdfComments: Bool { get { bool("taudot.pdfComments", true) } set { set("taudot.pdfComments", newValue) } }
   /// The word box and line band follow the cursor everywhere (off: only the coral dot follows it; the highlight shows
-  /// on deliberate jumps, ⌘⌥J, a click in the PDF, ]r, a cross-reference, until the cursor changes line).
+  /// on deliberate jumps, ⌘⌥J, ]r, a cross-reference, until the cursor changes line; a click in the PDF fades by itself).
   public var pdfHighlightFollows: Bool { get { bool("taudot.pdfHighlightFollows", false) } set { set("taudot.pdfHighlightFollows", newValue) } }
   /// "white", "sepia" or "dark".
   public var pdfPage: String { get { string("taudot.pdfPage", "white") } set { set("taudot.pdfPage", newValue) } }

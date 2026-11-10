@@ -52,6 +52,8 @@ import TaudotShared
   private var jumpSeq = 0
   /// The source line the deliberate highlight is for.
   var markFor: (path: String, line: Int)?
+  /// Bumped by every new mark: a click's fade from before it is stale.
+  var clickFadeGen = 0
   /// For benches: the last cross-reference followed (its key and where its label is).
   public private(set) var lastRef: (key: String, path: String, line: Int)?
   /// The latest jump's word search has ended (found or not).
@@ -709,8 +711,30 @@ import TaudotShared
     }
   }
 
-  /// A deliberate mark now shows for this source line (it goes when the cursor leaves it).
-  func marked(_ path: String, _ line: Int) { markFor = (relative(path), line) }
+  /// A deliberate mark now shows for this source line (it goes when the cursor leaves it). Any new mark cancels a
+  /// click's pending fade.
+  func marked(_ path: String, _ line: Int) {
+    markFor = (relative(path), line)
+    clickFadeGen += 1
+  }
+
+  /// Seconds a click's mark stays before it fades (tests shorten it).
+  nonisolated(unsafe) static var clickMarkHold: TimeInterval = 1.5
+
+  /// A click in the PDF marked this line: the mark only confirms where the editor went, so it fades by itself after
+  /// `clickMarkHold`, even with the cursor still on that line. Clicks in a row: each one's timer replaces the last
+  /// (the user's report: clicking from line to line left the highlight on for good).
+  func clickMarked(_ path: String, _ line: Int) {
+    marked(path, line)
+    let gen = clickFadeGen
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.clickMarkHold) { [weak self] in
+      MainActor.assumeIsolated {
+        guard let self, self.clickFadeGen == gen, self.markFor != nil else { return }
+        self.markFor = nil
+        self.pane.clearMark()  // a quick fade
+      }
+    }
+  }
 
   /// A new jump (or a clear): earlier word searches are dropped, and none is running until one starts.
   @discardableResult func nextJump() -> Int {
@@ -868,7 +892,7 @@ import TaudotShared
     guard let st = synctex, let r = st.inverse(page: page, x: x, y: y) else { return }
     if let f = figureAt(st, page: page, x: x, y: y, hit: r) {
       lastInverse = (f.path, f.line, f.column, "figure")
-      marked(f.path, f.line)
+      clickMarked(f.path, f.line)
       if let cb = onInverseSearchWord { cb(f.path, f.line, f.column) } else { onInverseSearch?(f.path, f.line) }
       return
     }
@@ -883,14 +907,14 @@ import TaudotShared
         pane.reveal(page: page, rects: [w.rect], lines: [row])
       }
       lastInverse = (path, pos.line, pos.column, nil)
-      marked(path, pos.line)
+      clickMarked(path, pos.line)
       if let cb = onInverseSearchWord { cb(path, pos.line, pos.column) } else { onInverseSearch?(path, pos.line) }
       return
     }
     let path = relative(r.file)
     let w = await inverseWord(st, page: page, x: x, y: y, path: path, line: r.line)
     lastInverse = (path, w?.line ?? r.line, w?.column, w?.word)
-    marked(path, w?.line ?? r.line)
+    clickMarked(path, w?.line ?? r.line)
     if let cb = onInverseSearchWord { cb(path, w?.line ?? r.line, w?.column) }
     else { onInverseSearch?(path, w?.line ?? r.line) }
   }
