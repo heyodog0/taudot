@@ -16,8 +16,10 @@ PAPERS = ("arxiv-1512.03385", "arxiv-1706.03762", "arxiv-2103.00020")
 ROWS = [  # (system, engine, label)
     ("taudot-pdftex", "pdflatex", "**Taudot**, patched pdfTeX"),
     ("taudot-universal", "pdflatex", "**Taudot** universal, pdfLaTeX"),
+    ("taudot-universal", "pdflatex", "↳ its display page", "display_ms"),
     ("taudot-universal", "xelatex", "**Taudot** universal, XeLaTeX"),
     ("taudot-universal", "lualatex", "**Taudot** universal, LuaLaTeX"),
+    ("taudot-universal", "lualatex", "↳ its display page", "display_ms"),
     ("rtex", "lualatex", "rtex, LuaLaTeX"),
     ("rosina", "pdflatex", "liveTeX-Rosina, pdfLaTeX"),
     ("rosina", "xelatex", "liveTeX-Rosina, XeLaTeX"),
@@ -60,7 +62,10 @@ OWN = {"para_ms": ("taudot-pdftex", "taudot-universal", "rtex", "rosina"), "page
 def table(edits, docs, key, title, note=None, extra=None):
     out = [f"| {title} | " + " | ".join(d.replace("synth-", "") + " pp" if d.startswith("synth") else d.replace("arxiv-", "")
                                         for d in docs) + " |", "|---|" + "---|" * len(docs)]
-    for s, e, label in ROWS:
+    for s, e, label, *own_key in ROWS:
+        if own_key and key != "page_ms":
+            continue
+        k_ = own_key[0] if own_key else key
         if key == "para_ms" and s in NO_PREVIEW:
             continue
         cells, any_ = [], False
@@ -72,7 +77,10 @@ def table(edits, docs, key, title, note=None, extra=None):
                 cells.append("")
                 continue
             any_ = True
-            c = cell([num(r[key]) for r in rs])
+            c = cell([num(r.get(k_)) for r in rs])
+            if own_key:  # display pages: how many keys got one, and how many showed the edited page
+                got = [r for r in rs if r.get(k_)]
+                c += f"<br><sub>{len(got)} of {len(rs)}, {sum(r['display_page'] == r['page'] for r in got)} the edited page</sub>"
             if extra:
                 c += extra(rs)
             if s in OWN.get(key, ()):  # the system's own figure for the same thing, where it reports one
@@ -95,10 +103,10 @@ def coverage(rs):
 
 
 def exact_table(edits):
-    out = ["| | exact page = stock | whole PDF = stock |", "|---|---|---|"]
-    for s, e, label in ROWS:
+    out = ["| | display page = stock | exact page = stock | whole PDF = stock |", "|---|---|---|---|"]
+    for s, e, label, *own_key in ROWS:
         rs = [r for r in edits if r["system"] == s and r["engine"] == e]
-        if not rs or s in ("latexmk", "stock-run"):
+        if not rs or s in ("latexmk", "stock-run") or own_key:
             continue
 
         def c(k):
@@ -107,14 +115,19 @@ def exact_table(edits):
                 return {"n/a": "not checkable", "claim": "claimed (display lists)"}[vals[0]]
             return f"{sum(v == 'yes' for v in vals)} / {len(vals)}" + (
                 f" ({sum(v == 'NO' for v in vals)} differ)" if any(v == "NO" for v in vals) else "")
-        out.append(f"| {label} | {c('page_exact')} | {c('final_exact')} |")
+        disp = [r.get("display_exact") for r in rs if r.get("display_exact")]
+        dc = (f"{sum(v == 'yes' for v in disp)} / {len(disp)}" + (f" ({len(disp) - sum(v == 'yes' for v in disp)} not)"
+              if any(v != "yes" for v in disp) else "")) if disp else ""
+        out.append(f"| {label} | {dc} | {c('page_exact')} | {c('final_exact')} |")
     return "\n".join(out)
 
 
 def first_table(first):
     out = ["| | " + " | ".join(f"{d.replace('synth-', '')} pp: first page / settled / peak RSS" for d in SIZES) + " |",
            "|---|" + "---|" * len(SIZES)]
-    for s, e, label in ROWS:
+    for s, e, label, *own_key in ROWS:
+        if own_key:
+            continue
         cells, any_ = [], False
         for d in SIZES:
             r = [x for x in first if x["system"] == s and (x["engine"] == e or s == "typst") and x["doc"] == d]
@@ -124,8 +137,8 @@ def first_table(first):
             any_ = True
             r = r[0]
             fp, dn, mb = num(r["first_page_ms"]), num(r["done_ms"]), num(r["peak_mb"])
-            cells.append(f"{f(fp) if fp else '–'} / {f(dn) if dn else '–'} ms / {mb:.0f} MB" if mb else
-                         f"{f(fp) if fp else '–'} / {f(dn) if dn else '–'} ms")
+            cells.append((f"{f(fp) if fp else '–'} / {f(dn) if dn else '–'} ms / {mb:.0f} MB" if mb else
+                          f"{f(fp) if fp else '–'} / {f(dn) if dn else '–'} ms") + f"<br><sub>{r.get('other_cpu', '')} cores busy elsewhere</sub>")
         if any_:
             out.append(f"| {label} | " + " | ".join(cells) + " |")
     return "\n".join(out)
@@ -138,7 +151,8 @@ MARK = ["circle", "square", "diamond", "triangle", "circle-open"]
 PANELS = [
     ("pdfLaTeX: edit → exact page", "page_ms", [
         ("taudot-pdftex", "pdflatex", "Taudot (patched)"), ("taudot-universal", "pdflatex", "Taudot universal"),
-        ("rosina", "pdflatex", "Rosina (full build)"), ("latexmk", "pdflatex", "latexmk")]),
+        ("taudot-universal", "pdflatex", "universal: display page", "display_ms"),
+        ("latexmk", "pdflatex", "latexmk"), ("rosina", "pdflatex", "Rosina (full build)")]),
     ("XeLaTeX, LuaLaTeX, Typst: edit → page", "page_ms", [
         ("taudot-universal", "xelatex", "Taudot, XeLaTeX"), ("taudot-universal", "lualatex", "Taudot, LuaLaTeX"),
         ("rtex", "lualatex", "rtex layout"), ("texpresso", "xelatex", "TeXpresso*"), ("typst", "typst", "Typst watch")]),
@@ -175,10 +189,10 @@ def chart(edits):
             g.append(f'<text x="{xs[d]:.1f}" y="{H - bottom + 20}" text-anchor="middle">'
                      f'{d.replace("synth-", "")} pp</text>')
         labels = []
-        for i, (s, e, name) in enumerate(series):
+        for i, (s, e, name, *kk) in enumerate(series):
             pts = []
             for d in SIZES:
-                rs = [num(r[key]) for r in edits if r["system"] == s and r["doc"] == d and (r["engine"] == e)]
+                rs = [num(r.get(kk[0] if kk else key)) for r in edits if r["system"] == s and r["doc"] == d and (r["engine"] == e)]
                 rs = [v for v in rs if v is not None]
                 if rs:
                     pts.append((xs[d], y(pct(rs, 50)), pct(rs, 50), d))
