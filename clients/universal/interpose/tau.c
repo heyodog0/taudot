@@ -359,6 +359,7 @@ static int ctl_text(int pid, char *b, size_t cap) {
   return 1;
 }
 static void read_ctl(char *b) {
+  finish_first = 0;  // (a fresh engine's own run only: runs resumed from its snapshots, latexmk's reruns too, follow the rule)
   // Every source file from the clone: an older snapshot (resumed for a rerun) may hold text from before later edits
   // past what it read; what it read is unchanged (else the driver wouldn't have chosen it).
   for (int i = 0; i < nfiles; i++)

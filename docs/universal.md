@@ -713,3 +713,16 @@ The app side of the same report (`LiveTex.stale`, `retirePara`): tau-live's firs
 the run's finished PDF and `done` and put the older page back (and keep SyncTeX from installing); and the preview
 was taken down on the edit's second PDF (`changed` []), before the display page's tiles were up, so the old text
 showed for a frame at every key.
+
+## A finisher after its run's end (2026-11-10)
+
+The Mac test `paneChoosesUniversal` (XeLaTeX) sometimes waited its 60 s with no SyncTeX (1 in 42 runs here). Captured
+live: in the last latexmk rerun the first-page finisher (forked at page 2, the document's last) reported after the
+run's own end, so its early `pdf` went out after the final one and `done`; the pane installs SyncTeX only once reports
+have been quiet for 250 ms after `done`, and the early one cancelled it with no `done` to follow. Fixed: a finisher's
+output that comes after its run's final output isn't sent (its pages are no newer), and the first-page finish applies
+to a fresh engine's own run only (reruns resumed from its snapshots had it too). `uni.py latefinish` holds the first
+finisher 0.5 s (TAU_DEBUG_SAMPLE) on a two-page document with a settled `.aux`: the previous build sent an early `pdf`
+after `done` on all three engines, this one none. The Mac test: 30/30 after (the race was too rare to show by count).
+Checked: `finish` 10/10 ×3, first PDF on open pdfLaTeX 0.40 s and XeLaTeX 0.29 s, `edits` 8/8, `display`, `parked`,
+`rule`.
