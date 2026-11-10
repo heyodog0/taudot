@@ -10,7 +10,7 @@ MAC=$(cd "$HERE/.." && pwd)
 REPO=$(cd "$MAC/../.." && pwd)
 . "$HERE/shell_lib.sh"
 W=$(mktemp -d); mkdir -p "$W/proj" "$W/bin"; cp "$1" "$W/proj/main.tex"
-printf '#!/bin/sh\nseq 1 200\necho "fake claude: ready in $(basename "$PWD")"\nexec cat\n' > "$W/bin/fake-claude"; chmod +x "$W/bin/fake-claude"
+printf '#!/bin/sh\nseq 1 200\necho "args: $*"\necho "rex-env: ${REX_SESSION:-none} ${REX_BLOCK:-none}"\necho "fake claude: ready in $(basename "$PWD")"\nexec cat\n' > "$W/bin/fake-claude"; chmod +x "$W/bin/fake-claude"
 ES=/tmp/txs-claude$$.sock
 deno run -A "$REPO/clients/mock-engine/main.ts" --folder "$W/proj" --socket "$ES" >"$W/mock.log" 2>&1 &
 MOCK=$!; started $MOCK
@@ -59,6 +59,13 @@ rx send -s "$SID" -b "$BID" 'fromrex' >/dev/null && rx send-key -s "$SID" -b "$B
 sleep 0.5
 # reopening the project attaches to the same claude and shows what Rex typed
 rexrun reopen TAUDOT_REX_SERVER="$RS" TAUDOT_CLAUDE_KEEP=1 TAUDOT_CLAUDECHECK_EXPECT=fromrex
+# what claude was given in Rex: its pane's REX_SESSION / REX_BLOCK, the note and the allowed rex commands
+rx capture -s "$SID" -b "$BID" 2>/dev/null | tr -d "\n" | grep -q "rex-env: $SID $BID" && echo "ok   rex: claude knows its Rex session and pane (REX_SESSION, REX_BLOCK)" || { echo "FAIL rex: REX_* didn't reach claude: $(rx capture -s "$SID" -b "$BID" 2>/dev/null | grep rex-env)"; fail=1; }
+A=$(rx capture -s "$SID" -b "$BID" 2>/dev/null | tr -d '\n' | sed -n 's/.*args: \(.*\)rex-env.*/\1/p')
+case "$A" in *--append-system-prompt-file*--settings*) echo "ok   rex: claude gets the note and the settings";; *) echo "FAIL rex: claude's args: $A"; fail=1;; esac
+grep -q '"Bash(rex capture:\*)"' "$SOCKS/rex-settings.json" && ! grep -q 'rex send' "$SOCKS/rex-settings.json" \
+  && echo "ok   rex: read-only rex commands allowed, rex send still asks" || { echo "FAIL rex settings: $(cat "$SOCKS/rex-settings.json")"; fail=1; }
+grep -q "taudot-proj" "$SOCKS/rex-prompt.md" && echo "ok   rex: the note names the session" || { echo "FAIL rex note"; fail=1; }
 # the end of claude: the pane's claude and the Rex session go; nothing left behind
 p=$("$TA" status "$SOCKS"/*.s 2>/dev/null); [ -n "$p" ] && kill "$p"
 sleep 0.5
@@ -66,7 +73,7 @@ rx kill "$SID" >/dev/null 2>&1
 # without a Rex server answering: started here (and ended with the app)
 rexrun down TAUDOT_REX_SERVER="unix://$RD/none"
 sleep 0.5
-left=$(ls "$SOCKS" 2>/dev/null | wc -l | tr -d ' ')
+left=$(ls "$SOCKS" 2>/dev/null | grep -c '\.s$')
 [ "$left" = 0 ] && echo "ok   nothing left behind (no claude sockets)" || { echo "FAIL $left claude socket(s) left in $SOCKS"; fail=1; }
 [ -z "$(rx ls --json | sed -n 's/.*"session_id".*/x/p')" ] && echo "ok   no Rex sessions left on the test server" || { echo "FAIL Rex sessions left"; fail=1; }
 rx api call server.stop '{}' >/dev/null 2>&1

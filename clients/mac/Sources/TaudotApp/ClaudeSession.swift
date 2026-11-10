@@ -80,8 +80,9 @@ enum ClaudeSession {
     guard let t = tool else { return nil }
     let sock = socket(for: folder)
     if pid(sock) != nil { return (sock, .running) }
-    // `exec` through sh: the command may carry arguments, and PATH is the shell's
-    let start = [t, "new", sock, "--", "/bin/sh", "-c", "exec " + command]
+    // `exec` through sh: the command may carry arguments, and PATH is the shell's. In Rex, claude is also told where
+    // it is and may read the other panes (rexFlags).
+    let start = [t, "new", sock, "--", "/bin/sh", "-c", "exec " + command + rexFlags(folder: folder, sockDir: (sock as NSString).deletingLastPathComponent)]
     let rexOK = inRex && (!isTest || ProcessInfo.processInfo.environment["TAUDOT_REX_SERVER"] != nil)
     if rexOK, startInRex(folder: folder, start: start) {
       for _ in 0..<100 { if pid(sock) != nil { return (sock, .rex) }; usleep(50_000) }
@@ -93,6 +94,32 @@ enum ClaudeSession {
     let local = [t, "new", "-d", sock, "--", "/bin/sh", "-c", "exec " + command]
     guard let r = run(local[0], Array(local.dropFirst()), env: e, cwd: folder, timeout: 5), r.status == 0 || r.status == 3 else { return nil }
     return pid(sock) != nil ? (sock, .local) : nil
+  }
+
+  /// Read-only rex commands claude may run without asking: finding and reading other sessions and panes (other Claude
+  /// Code agents among them). Typing into one (`rex send`) still asks.
+  static let rexAllowed = ["ls", "list", "capture", "block ls", "block list", "block inspect", "block capture",
+                           "session inspect", "window ls", "whoami", "skill show"].map { "Bash(rex \($0):*)" }
+
+  /// Claude Code flags for a claude in Rex, for this session only (nothing written to the user's agent setup or the
+  /// project folder, which syncs with Overleaf): a note on where it runs and how to reach the other panes, and the
+  /// read-only rex commands allowed. Written next to the sockets each time.
+  static func rexFlags(folder: URL, sockDir: String) -> String {
+    let prompt = """
+    You are running in a Rex terminal (the Rex terminal multiplexer), in the Rex session `\(label(for: folder))` that \
+    Taudot made for this project; your own pane is $REX_SESSION / $REX_BLOCK. Other Rex sessions and panes on this \
+    machine may run other Claude Code agents. List them with `rex ls` and `rex block ls -s SESSION --json`, read one \
+    with `rex capture -s SESSION -b BLOCK --trim`, and message one with `rex send -s SESSION -b BLOCK 'text'` then \
+    `rex send-key -s SESSION -b BLOCK Enter`. `rex skill show` has the full guide. Don't rename or close your own Rex \
+    session (Taudot finds it by that name), and type into another pane only when the user asks you to.
+    """
+    let settings: [String: Any] = ["permissions": ["allow": rexAllowed]]
+    let promptFile = sockDir + "/rex-prompt.md", settingsFile = sockDir + "/rex-settings.json"
+    guard (try? prompt.write(toFile: promptFile, atomically: true, encoding: .utf8)) != nil,
+          let json = try? JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys]),
+          (try? json.write(to: URL(fileURLWithPath: settingsFile))) != nil else { return "" }
+    func q(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+    return " --append-system-prompt-file " + q(promptFile) + " --settings " + q(settingsFile)
   }
 
   /// A window running `start` in the project's Rex session (made if it isn't there; the user's other sessions are
