@@ -489,8 +489,10 @@ static long snap_extent(snap *s, const char *rel) {
   return 0;
 }
 
-// Snapshots past the resume point, killed after the paragraph pass has run: tearing down dozens of large processes
-// (a long document has many) while the warm pass wakes held its wake up by ~2 ms. Parked, they do nothing meanwhile.
+// Processes an edit supersedes (snapshots past the resume point, the old runner and finishers, stopped), killed once
+// the paragraph preview is out: tearing down dozens of large processes (a long document has many) while the warm pass
+// wakes and the reader writes held both up by ms (wake 1.4 ms, reader 6 ms at 300 pages). Parked or stopped, they
+// cost nothing meanwhile.
 static pid_t doomed[8192];
 static int ndoomed;
 static int64_t doomed_at;
@@ -715,7 +717,8 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
   drop_deferred();
   if (!rerun) applied_at_run = applied;
   t_apply = now_us();
-  kill_fins();
+  for (int i = 0; i < nfins; i++) { kill(fins[i], SIGSTOP); doom(fins[i]); }  // (stopped now, killed after the
+  nfins = 0;                                                                    // preview: kill_doomed)
   int best = -1;
   for (int i = nsnaps - 1; i >= 0 && best < 0; i--) {
     int ok = 1;
@@ -730,7 +733,7 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
          run_no, applied_at_run, why);
     return;
   }
-  if (runner > 0) kill(runner, SIGKILL);
+  if (runner > 0) { kill(runner, SIGSTOP); doom(runner); }
   runner = -1;
   long next_ext = best + 1 < nsnaps && nch ? snap_extent(&snaps[best + 1], ch[0].rel) : -1;
   for (int i = best + 1; i < nsnaps; i++) free_snap_later(&snaps[i]);  // (killed once the pass is out: kill_doomed)
@@ -2030,7 +2033,7 @@ int main(int argc, char **argv) {
   size_t ilen = 0, mlen = 0;
   for (;;) {
     while (waitpid(-1, NULL, WNOHANG) > 0) {}
-    if (ndoomed && (pass.seq != seq || pass_out_seq == seq || now_us() - doomed_at > 50000)) kill_doomed();
+    if (ndoomed && (pass.seq != seq || (pass_out_seq == seq && !njobs) || now_us() - doomed_at > 50000)) kill_doomed();
     struct pollfd pf[4] = {{0, POLLIN, 0}, {msg_r, POLLIN, 0}, {reader_out, POLLIN, 0}, {pdfmx_out, POLLIN, 0}};
     if (poll(pf, 4, ndoomed ? 10 : 200) < 0 && errno != EINTR) die("poll");  // (negative fds are skipped)
     if (pdfmx_out >= 0 && (pf[3].revents & (POLLIN | POLLHUP))) {
