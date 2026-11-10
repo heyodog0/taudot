@@ -8,6 +8,8 @@ source. No engine patches. Instead, a small library sits below the engine and a 
   store on demand (only paths in the tree's `ls-R`; misses are remembered), with no Python.
 - **tau-live** (`driver/`) is a drop-in for the live pdfTeX's `--serve`. It runs latexmk's rule (BibTeX, biber,
   makeindex) and emits the same events, including the paragraph preview.
+- **`tau-live --park SOCKET`** keeps an engine parked past its format load; sessions started with `--parked SOCKET`
+  fork from it (100–300 ms off a first compile).
 - **tau-pdfmx** (`pdfmx/`) is xdvipdfmx kept resident (stock dvipdfm-x objects, so GPL as a program): tau-live converts
   only XeTeX's changed pages with it, ~5 ms a page, byte for byte what `xdvipdfmx` gives.
 - **tau-tdl** (`readers/`) reads the paragraph preview's output (PDF or XDV) into a display list for the app. tau-live keeps

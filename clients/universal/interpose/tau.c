@@ -1216,19 +1216,10 @@ __attribute__((constructor)) static void tau_init(void) {
 
 static int reserve_fd(void) { return open_nc("/dev/null", O_RDONLY | O_CLOEXEC); }
 
-static int alias_fd = -1;
 static int do_open_(const char *path, int flags, int mode, int (*real)(const char *, int, ...));
 static int do_open(const char *path, int flags, int mode, int (*real)(const char *, int, ...)) {
   const char *p2 = main_alias(path);
   int fd = do_open_(p2, flags, mode, real);
-  if (p2 != path) {
-    alias_fd = fd;
-    if (getenv("TAU_ALIAS_DEBUG")) {
-      char b[1300];
-      int k = snprintf(b, sizeof b, "tau: open alias -> fd %d errno %d used %d rel %s\n", fd, errno, fd >= 0 && fd < MAXFD ? fds[fd].used : -1, fd >= 0 && fd < MAXFD && fds[fd].used ? fds[fd].f->rel : "-");
-      write_nc(2, b, k);
-    }
-  }
   return fd;
 }
 static int do_open_(const char *path, int flags, int mode, int (*real)(const char *, int, ...)) {
@@ -1389,24 +1380,13 @@ static ssize_t mem_read(mfd *d, void *buf, size_t n, int fd) {
 }
 
 static ssize_t my_read(int fd, void *buf, size_t n) {
-  if (getenv("TAU_ALIAS_DEBUG") && parked_engine) {
-    char b[200];
-    int k = snprintf(b, sizeof b, "tau: read alias fd %d used %d\n", fd, fd < MAXFD ? fds[fd].used : -1);
-    write_nc(2, b, k);
-  }
   if (fd >= 0 && fd < MAXFD && fds[fd].used) return mem_read(&fds[fd], buf, n, fd);
   return read(fd, buf, n);
 }
 INTERPOSE(my_read, read);
 static ssize_t my_read_nc(int fd, void *buf, size_t n) {
-  ssize_t r = fd >= 0 && fd < MAXFD && fds[fd].used ? mem_read(&fds[fd], buf, n, fd) : read_nc(fd, buf, n);
-  if (getenv("TAU_ALIAS_DEBUG") && parked_engine) {
-    char b[200];
-    int k = snprintf(b, sizeof b, "tau: read_nc fd %d used %d -> %zd (eof_all %d para %d)\n", fd,
-                     fd >= 0 && fd < MAXFD ? fds[fd].used : -1, r, eof_all, para_mode);
-    write_nc(2, b, k);
-  }
-  return r;
+  if (fd >= 0 && fd < MAXFD && fds[fd].used) return mem_read(&fds[fd], buf, n, fd);
+  return read_nc(fd, buf, n);
 }
 INTERPOSE(my_read_nc, read_nc);
 
