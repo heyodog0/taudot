@@ -196,7 +196,10 @@ class TaudotDriver(System):
                     r["para_ms"], r["self_ms"] = ms, ev.get("us", 0) / 1000 or None
             elif k == "run" and ev.get("applied", 0) >= n and seq is None:
                 seq = ev["seq"]
-            elif k == "pdf" and ev.get("applied", 0) >= n and r["page_ms"] is None:
+            elif k == "pdf" and ev.get("display") and ev.get("applied", 0) >= n and r.get("display_ms") is None:
+                # tau-live's display page: the last finished PDF with the run's first page drawn anew
+                r["display_ms"], r["display_pdf"], r["display_page"] = ms, ev.get("kept_path"), ev.get("from_page", 0)
+            elif k == "pdf" and not ev.get("display") and ev.get("applied", 0) >= n and r["page_ms"] is None:
                 if page is None or ev.get("final") or ev.get("pages", 0) > page:
                     r["page_ms"], r["early"] = ms, ev.get("kept_path")
                     r["early_pages"], r["early_from"] = ev.get("pages"), ev.get("from_page", 0)
@@ -702,10 +705,37 @@ def run_driver(cls, doc, engine, meta):
                     r["page_exact"] = "unreadable"
             else:
                 r["page_exact"] = "none"
+    for r in rows:
+        if r.get("display_pdf"):
+            ref = f"{refs}/{r['n']}.{ext(engine)}"
+            try:
+                r["display_exact"] = display_check(r["display_pdf"], r["display_page"], ref)
+            except Exception as x:
+                log(f"  display check failed: {x}")
+                r["display_exact"] = "unreadable"
     if not os.environ.get("BENCH_KEEP"):  # BENCH_KEEP=1: leave the run's files for a look
         for d in (proj, out, f"{out}-keep"):
             shutil.rmtree(d, ignore_errors=True)
     return sysm, first, rows
+
+
+def display_check(path, k, ref):
+    """A display page against stock's page k: "yes" when the content streams are byte-equal and the two pages draw
+    the same pixels at 288 dpi (Core Graphics, every channel of every pixel), "pixels" when only the drawing agrees,
+    "NO" otherwise."""
+    from pypdf import PdfReader
+    a, b = PdfReader(path).pages[k], PdfReader(ref).pages[k]
+    same_stream = a.get_contents().get_data() == b.get_contents().get_data()
+    box = [float(v) for v in b.mediabox]
+    ra = _pixels().render(open(path, "rb").read(), k, box)[0]
+    rb = _pixels().render(open(ref, "rb").read(), k, box)[0]
+    return "yes" if same_stream and ra == rb else "pixels" if ra == rb else "NO"
+
+
+def _pixels():
+    sys.path.insert(0, f"{REPO}/clients/universal/tests")
+    import pixels  # Core Graphics renders (pikepdf, pyobjc)
+    return pixels
 
 
 def fmt(x):
@@ -713,15 +743,14 @@ def fmt(x):
 
 
 COLS = ["date", "system", "version", "doc", "engine", "n", "spot", "page", "para_ms", "para_state", "page_ms",
-        "page_exact", "final_ms", "final_exact", "self_ms", "xdvipdfmx_ms"]
+        "page_exact", "final_ms", "final_exact", "self_ms", "xdvipdfmx_ms", "display_ms", "display_exact", "display_page"]
 FCOLS = ["date", "system", "version", "doc", "engine", "pages", "first_page_ms", "done_ms", "peak_mb", "procs", "load"]
 
 
 def write(sysm, doc, engine, first, rows):
     os.makedirs(RESULTS, exist_ok=True)
     date = time.strftime("%Y-%m-%d")
-    base = dict(date=date, system=sysm.name, version=sysm.version(), doc=doc, engine=engine,
-                load=f"{os.getloadavg()[0]:.1f}")
+    base = dict(date=date, system=sysm.name, version=sysm.version(), doc=doc, engine=engine)
     for name, cols, items in (("edits", COLS, rows), ("first", FCOLS, [first])):
         path = f"{RESULTS}/{name}.tsv"
         old = []
@@ -740,18 +769,53 @@ def fmt_cell(x):
     return str(x)
 
 
+class Load:
+    """The 1-minute load average, sampled every second while a run lasts: its mean goes in first.tsv."""
+
+    def __init__(self):
+        self.xs, self.stop = [], False
+        self.t = threading.Thread(target=self.loop, daemon=True)
+        self.t.start()
+
+    def loop(self):
+        while not self.stop:
+            self.xs.append(os.getloadavg()[0])
+            time.sleep(1)
+
+    def done(self):
+        self.stop = True
+        self.t.join()
+        return sum(self.xs) / len(self.xs)
+
+
+LOAD_MAX = float(os.environ.get("BENCH_LOAD_MAX", 6))  # a run whose mean load is above this is run again (twice)
+
+
 def run(system, doc, engine):
     meta = load(doc)
     if engine not in meta["variants"]:
         log(f"skip {system} {doc} {engine}: no such variant")
         return
-    log(f"{system} {doc} {engine}")
-    if system == "latexmk":
-        sysm, first, rows, stock = run_latexmk(doc, engine, meta)
-        write(Stock(), doc, engine, dict(pages=first["pages"]), stock)
-    else:
-        sysm, first, rows = run_driver(SYSTEMS[system], doc, engine, meta)
-    write(sysm, doc, engine, first, rows)
+    for attempt in range(3):
+        log(f"{system} {doc} {engine}" + (f" (again: load {prev:.1f})" if attempt else ""))
+        saved = {n: open(f"{RESULTS}/{n}.tsv").read() for n in ("edits", "first") if os.path.exists(f"{RESULTS}/{n}.tsv")}
+        lo = Load()
+        if system == "latexmk":
+            sysm, first, rows, stock = run_latexmk(doc, engine, meta)
+        else:
+            sysm, first, rows = run_driver(SYSTEMS[system], doc, engine, meta)
+        mean = lo.done()
+        first["load"] = f"{mean:.1f}"
+        if attempt and mean >= prev:  # no quieter than the kept run: keep that one
+            for n, text in saved.items():
+                open(f"{RESULTS}/{n}.tsv", "w").write(text)
+        else:
+            if system == "latexmk":
+                write(Stock(), doc, engine, dict(pages=first["pages"], load=first["load"]), stock)
+            write(sysm, doc, engine, first, rows)
+            prev = mean
+        if prev <= LOAD_MAX:
+            return
 
 
 def done(system, doc, engine):
@@ -767,11 +831,12 @@ def main():
     ap.add_argument("doc", nargs="?")
     ap.add_argument("engine", nargs="?")
     ap.add_argument("--docs", nargs="*")
+    ap.add_argument("--engines", nargs="*")
     a = ap.parse_args()
     if a.system == "all":
         docs = a.docs or sorted(d for d in os.listdir(DOCS) if os.path.exists(f"{DOCS}/{d}/edits.json"))
-        for doc in docs:
-            for engine in ("pdflatex", "xelatex", "lualatex", "typst"):
+        for engine in a.engines or ("pdflatex", "xelatex", "lualatex", "typst"):  # pdfLaTeX's verdict first
+            for doc in docs:
                 for s in SYSTEMS.values():
                     if engine in s.engines and engine in load(doc)["variants"] and not done(s.name, doc, engine):
                         run(s.name, doc, engine)
