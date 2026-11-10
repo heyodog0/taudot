@@ -1054,6 +1054,36 @@ def parked(engine, src, main, n=3):
     return ok
 
 
+def latefinish(engine):
+    """A finisher done after its run's own output (the first-page finish forked at the last page of a short document,
+    held here 0.5 s by TAU_DEBUG_SAMPLE) must not send an early `pdf` after the final one and `done`: the app installs
+    SyncTeX only once reports have been quiet after `done`, and waited for ever (a Mac test's 60 s stall)."""
+    d = f"{WORK}/late-src"
+    shutil.rmtree(d, ignore_errors=True)
+    os.makedirs(d)
+    open(f"{d}/main.tex", "w").write("\\documentclass{article}\n\\begin{document}\nPage one.\n\\newpage\nPage two.\n"
+                                     "\\end{document}\n")
+    run_stock(engine, d, "main.tex")
+    run_stock(engine, d, "main.tex")  # (a settled .aux: the first run is the last)
+    for f in os.listdir(d):
+        if not f.endswith((".tex", ".aux")):
+            os.remove(f"{d}/{f}")
+    smp = f"{WORK}/late-sample"
+    shutil.rmtree(smp, ignore_errors=True)
+    os.environ["TAU_DEBUG_SAMPLE"] = smp
+    try:
+        live = Live(engine, d, "main.tex", f"{WORK}/late-out", "--hook")
+    finally:
+        del os.environ["TAU_DEBUG_SAMPLE"]
+    live.until(lambda e: e["ev"] == "done")
+    time.sleep(1.5)
+    live.close()
+    late = [json.loads(x)["ev"] for x in live.p.stdout.read().splitlines() if x.strip()]  # (it has exited: to EOF)
+    ok = not late
+    print(f"latefinish {engine}: events after done: {late or 'none'}: {'ok' if ok else 'FAILED'}")
+    return ok
+
+
 def display(engine, src, main, n=40, seed=3):
     """Display pages (tau-tdl page): typing as in `typing`, then keys bringing characters the document doesn't use.
     Each display page against the same run's finished output, page for page, drawn at 288 dpi (every pixel counts);
@@ -1145,6 +1175,8 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["paragraph"]:
         paragraph(*sys.argv[2:5], *(int(x) for x in sys.argv[5:6]))
         sys.exit(0)
+    if sys.argv[1:2] == ["latefinish"]:
+        sys.exit(0 if latefinish(sys.argv[2]) else 1)
     if sys.argv[1:2] == ["display"]:
         sys.exit(0 if display(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["parked"]:

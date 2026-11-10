@@ -1697,11 +1697,17 @@ static void on_msg(char *line) {
   if (sscanf(line, "E %d %d %d %lld %63s %d", &a, &b, &c, &t, tag, &code) >= 5) {
     if (b != seq) return;
     if (!strcmp(tag, "run") && a != runner) { defer(line); return; }
+    static int final_seq = -1, final_run = -1;  // the last run whose own (final) output went out
     if (!strcmp(tag, "run")) {
       run_open = 0;
       emit_pdf("run", b, a, c, 1, t);
+      final_seq = b, final_run = run_no;
       rule_step(a, c, t, code);
     } else if (!strcmp(tag, "fin")) {
+      // a finisher done after its run's own output (forked at the last pages): its pages are no newer, and an early
+      // output after the final one would make the client wait for another final one (the app's SyncTeX waits for a
+      // quiet `done`)
+      if (b == final_seq && run_no == final_run) return;
       emit_pdf("fin", b, a, c, 0, t);
     } else if (!strcmp(tag, "para")) {
       // the pass ended without its stop signal (an error, the input ran out): no lines to show
