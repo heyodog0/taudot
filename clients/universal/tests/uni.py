@@ -260,7 +260,7 @@ def finish(engine, src, main, n=10, seed=2):
     live.send("goal", 0)  # the patched driver: finish at the first page past the edit (tau-live always does)
     pdfs = []
     while True:
-        ev = live.until(lambda e: e["ev"] in ("pdf", "done"))
+        ev = live.until(lambda e: e["ev"] in ("pdf", "done") and not e.get("display"))
         if ev["ev"] == "done":
             break
         if not ev["final"]:
@@ -290,9 +290,9 @@ def finish(engine, src, main, n=10, seed=2):
         text = text[:pos] + ins.encode() + text[pos + dl:]
         live.send("change", main, pos, dl, ins)
         run = newer_run(live)
-        first = live.until(lambda e: e["ev"] in ("pdf", "done") and e.get("seq") == run["seq"])
+        first = live.until(lambda e: e["ev"] in ("pdf", "done") and e.get("seq") == run["seq"] and not e.get("display"))
         if first["ev"] == "done":
-            first = [e for e in live.events if e["ev"] == "pdf" and e["seq"] == run["seq"]][-1]
+            first = [e for e in live.events if e["ev"] == "pdf" and e["seq"] == run["seq"] and not e.get("display")][-1]
         got = f"{out}/edit-{i}.{ext}"
         shutil.copy(first["path"], got)
         live.until(lambda e: e["ev"] == "done" and e["seq"] == run["seq"]) if live.events[-1]["ev"] != "done" else None

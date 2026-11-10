@@ -96,7 +96,8 @@ this file (not a prefetch). Shown as progress in the pane's status line.
 
 **Display pages on tau-live** (pdfTeX, LuaTeX; verified in `clients/universal/driver/tau-live.c`): a `pdf` event with
 `"display":true` comes before the run's first finished output: `path` is the last finished PDF with page `from_page`
-drawing the new run's page (an incremental update), every other page as it was; `pages` is that PDF's page count; no
+drawing the new run's page (an incremental update), every other page as it was; `pages` is `from_page` + 1 (pages after it in the file are old ones, as for any early
+output); no
 `synctex` or `log`. It draws exactly what the finished page will (checked in `uni.py display`); the finished output
 follows in a normal `pdf` event.
 

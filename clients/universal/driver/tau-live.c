@@ -1636,7 +1636,7 @@ static void on_msg(char *line) {
           size_t hn = 0;
           FILE *h = open_memstream(&head, &hn);
           fprintf(h, "{\"ev\":\"pdf\",\"seq\":%d,\"run\":%d,\"applied\":%d,\"pages\":%d,\"final\":false,"
-                  "\"from_page\":%d,\"display\":true,\"path\":", seq, run_no, applied_at_run, last_exact_pages, from_page);
+                  "\"from_page\":%d,\"display\":true,\"path\":", seq, run_no, applied_at_run, c, from_page);  // (pages: through this one)
           jstr(h, outp, strlen(outp));
           fclose(h);
           jobs[njobs++] = (reader_job){head, seq, now_us(), 1, 1};
