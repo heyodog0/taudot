@@ -643,3 +643,27 @@ pdfTeX 25 MiB (max single snapshot).
 - **Memory** (bench's peak summed RSS while typing, 1512.03385): patched 219–222 MB with 15 engine processes,
   universal 272–293 MB with 26 (snapshots being replaced at an edit, the warm process, finishers, line snapshots near
   the edit; ~10.7 MB each against patched's ~14.7). Returning freed malloc memory at idle saves ~1 MB; nothing cheap.
+
+## Display pages after the preview (2026-11-10)
+
+Bench (c6881dd): with display pages on most keys, tau-live's paragraph preview p50 rose 3.6 → 6.1 ms at 10 pages.
+The runner resumes before the edit and ships its first (often unchanged) page within a few ms, while the preview's
+TeX pass is still running; that page went to the reader at once (`page`: a `same` check or a display page) and the
+reader's work, beside the pass and the finisher, competes for cores. Measured here (bench's 30-key script,
+pdfLaTeX, p50 of the preview's own time): at load ~14, display pages on vs off: synth-10 3.5 → 4.0 ms, paper-b
+6.3 → 7.4 ms (reader time the same; the pass itself slower); at load 3–8 no difference either way.
+
+Now display-page requests for an edit wait while its paragraph pass runs (released when the pass reports, after its
+reader request; at most 50 ms), and every shipped page is queued in order: before, while a `page` request was out only
+the latest page shipped was kept, so a `same` answer could skip a changed page between them (the display PDF would
+then show an old page before the display page). Interleaved, same load (3–8), previous build vs this one, p50:
+
+| | preview | finished page | display page |
+|---|---|---|---|
+| synth-10 | 3.2–3.6 vs 3.0–3.8 ms | 36–43 vs 38–41 ms | 8.2–9.3 vs 7.8–10.5 ms |
+| synth-100 (with goal) | 2.9–3.6 vs 2.8–3.2 ms | 34–36 vs 36–39 ms | 8.3–9.3 vs 9.2–9.8 ms |
+| paper-b (with goal) | 5.6–5.8 vs 5.7–6.5 ms | 44–48 vs 44–49 ms | 18.5–20.5 vs 18.1–20.2 ms |
+
+At this load the two are within noise; the bench's regression needs a loaded machine to show, where the hold keeps
+the reader off the cores during the pass. `uni.py display` after the change: 40/40 (1512.03385, paper-b pdfLaTeX and
+LuaLaTeX), 29/40 synth-300, all 0 px, novel-glyph keys refused.
