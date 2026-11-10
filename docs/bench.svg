@@ -15,18 +15,18 @@
 <text x="94.0" y="384" text-anchor="middle">10 pp</text>
 <text x="224.0" y="384" text-anchor="middle">100 pp</text>
 <text x="354.0" y="384" text-anchor="middle">300 pp</text>
-<polyline fill="none" stroke-width="2" stroke="var(--c0)" points="94.0,239.1 224.0,247.5 354.0,237.4"/>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><circle cx="94.0" cy="239.1" r="4.5" fill="var(--c0)"/><title>Taudot (patched), synth-10: 41.9 ms</title></g>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><circle cx="224.0" cy="247.5" r="4.5" fill="var(--c0)"/><title>Taudot (patched), synth-100: 32.6 ms</title></g>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><circle cx="354.0" cy="237.4" r="4.5" fill="var(--c0)"/><title>Taudot (patched), synth-300: 44.0 ms</title></g>
-<polyline fill="none" stroke-width="2" stroke="var(--c1)" points="94.0,233.7 224.0,233.3 354.0,233.7"/>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><rect x="89.5" y="229.2" width="9.0" height="9.0" rx="1" fill="var(--c1)"/><title>Taudot universal, synth-10: 49.2 ms</title></g>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><rect x="219.5" y="228.8" width="9.0" height="9.0" rx="1" fill="var(--c1)"/><title>Taudot universal, synth-100: 49.8 ms</title></g>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><rect x="349.5" y="229.2" width="9.0" height="9.0" rx="1" fill="var(--c1)"/><title>Taudot universal, synth-300: 49.2 ms</title></g>
-<polyline fill="none" stroke-width="2" stroke="var(--c2)" points="94.0,269.6 224.0,263.1 354.0,267.2"/>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><path d="M94.0,264.1L99.5,269.6L94.0,275.1L88.5,269.6Z" fill="var(--c2)"/><title>universal: display page, synth-10: 16.8 ms</title></g>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><path d="M224.0,257.6L229.5,263.1L224.0,268.6L218.5,263.1Z" fill="var(--c2)"/><title>universal: display page, synth-100: 20.4 ms</title></g>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><path d="M354.0,261.7L359.5,267.2L354.0,272.7L348.5,267.2Z" fill="var(--c2)"/><title>universal: display page, synth-300: 18.1 ms</title></g>
+<polyline fill="none" stroke-width="2" stroke="var(--c0)" points="94.0,235.5 224.0,237.8 354.0,236.3"/>
+<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><circle cx="94.0" cy="235.5" r="4.5" fill="var(--c0)"/><title>Taudot (patched), synth-10: 46.6 ms</title></g>
+<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><circle cx="224.0" cy="237.8" r="4.5" fill="var(--c0)"/><title>Taudot (patched), synth-100: 43.5 ms</title></g>
+<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><circle cx="354.0" cy="236.3" r="4.5" fill="var(--c0)"/><title>Taudot (patched), synth-300: 45.6 ms</title></g>
+<polyline fill="none" stroke-width="2" stroke="var(--c1)" points="94.0,239.4 224.0,239.0 354.0,237.6"/>
+<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><rect x="89.5" y="234.9" width="9.0" height="9.0" rx="1" fill="var(--c1)"/><title>Taudot universal, synth-10: 41.5 ms</title></g>
+<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><rect x="219.5" y="234.5" width="9.0" height="9.0" rx="1" fill="var(--c1)"/><title>Taudot universal, synth-100: 42.0 ms</title></g>
+<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><rect x="349.5" y="233.1" width="9.0" height="9.0" rx="1" fill="var(--c1)"/><title>Taudot universal, synth-300: 43.7 ms</title></g>
+<polyline fill="none" stroke-width="2" stroke="var(--c2)" points="94.0,285.7 224.0,277.6 354.0,281.9"/>
+<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><path d="M94.0,280.2L99.5,285.7L94.0,291.2L88.5,285.7Z" fill="var(--c2)"/><title>universal: display page, synth-10: 10.4 ms</title></g>
+<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><path d="M224.0,272.1L229.5,277.6L224.0,283.1L218.5,277.6Z" fill="var(--c2)"/><title>universal: display page, synth-100: 13.2 ms</title></g>
+<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><path d="M354.0,276.4L359.5,281.9L354.0,287.4L348.5,281.9Z" fill="var(--c2)"/><title>universal: display page, synth-300: 11.6 ms</title></g>
 <polyline fill="none" stroke-width="2" stroke="var(--c3)" points="94.0,162.6 224.0,146.8 354.0,127.6"/>
 <g stroke="var(--s)" stroke-width="2" paint-order="stroke"><path d="M94.0,157.1L99.5,167.1L88.5,167.1Z" fill="var(--c3)"/><title>latexmk, synth-10: 413 ms</title></g>
 <g stroke="var(--s)" stroke-width="2" paint-order="stroke"><path d="M224.0,141.3L229.5,151.3L218.5,151.3Z" fill="var(--c3)"/><title>latexmk, synth-100: 661 ms</title></g>
@@ -37,9 +37,9 @@
 <g stroke="var(--s)" stroke-width="2" paint-order="stroke"><circle cx="354.0" cy="81.5" r="4.5" fill="var(--s)" stroke="var(--c4)" stroke-width="2"/><title>Rosina (full build), synth-300: 4663 ms</title></g>
 <text class="l" x="364.0" y="85.5">Rosina (full build)</text>
 <text class="l" x="364.0" y="131.6">latexmk</text>
-<text class="l" x="364.0" y="237.7">Taudot universal</text>
-<text class="l" x="364.0" y="251.7">Taudot (patched)</text>
-<text class="l" x="364.0" y="271.2">universal: display page</text>
+<text class="l" x="364.0" y="240.3">Taudot (patched)</text>
+<text class="l" x="364.0" y="254.3">Taudot universal</text>
+<text class="l" x="364.0" y="285.9">universal: display page</text>
 <text class="h" x="584" y="24">XeLaTeX, LuaLaTeX, Typst: edit → page</text>
 <text x="584" y="42">median ms after a key, log scale</text>
 <line x1="584" x2="884" y1="364.0" y2="364.0" stroke="var(--g)"/>

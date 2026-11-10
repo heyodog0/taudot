@@ -1,0 +1,25 @@
+date	system	version	doc	round	load	other_cpu	first_page_ms	para_p50	display_p50	page_p50	final_p50	para_exact	display_n	display_exact	page_exact	final_exact
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	1	7.9	3.38	245.7	4.33		46.96	60.91	23	0	0	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	1	9.1	2.98	978.3	3.96	9.26	40.97	57.75	20	24	24	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	2	8.9	3.02	293.9	3.89	11.46	43.66	62.49	21	24	24	30	30
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	2	10.1	3.33	231.8	4.64		45.86	63.03	25	0	0	30	30
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	1	12.3	4.13	238.4	8.09		48.01	206.29	24	0	0	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	1	14.2	3.74	305.0	4.43	14.01	43.03	173.93	20	30	30	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	2	14.9	4.39	311.1	3.30	11.98	41.82	175.83	21	30	30	30	30
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	2	15.1	3.99	239.4	5.85		42.29	192.47	24	0	0	30	30
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	1	17.0	4.21	227.3	11.44		46.09	512.79	24	0	0	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	1	19.2	3.63	333.2	5.32	11.40	46.02	470.00	26	30	30	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	2	17.5	3.64	380.5	5.42	11.75	40.65	457.61	27	30	30	30	30
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	2	15.3	3.84	230.3	8.93		45.48	497.20	24	0	0	30	30
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	1	16.6	3.62	372.5	11.17		51.55	139.17	23	0	0	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	1	16.7	3.75	396.5	8.31	23.23	47.75	137.84	20	30	30	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	2	17.2	3.78	413.1	4.30	16.28	46.85	131.37	20	30	30	30	30
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	2	18.6	3.79	339.3	6.05		49.92	141.28	23	0	0	30	30
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	1	19.0	3.39	353.3	7.53		74.61	149.66	15	0	0	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	1	18.1	3.48	440.0	7.12	33.70	76.73	151.22	17	24	24	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	2	17.1	3.31	481.3	4.38	31.62	73.49	146.72	17	24	24	30	30
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	2	16.5	3.09	350.9	3.82		70.99	148.73	15	0	0	30	30
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	1	16.9	3.78	370.7	7.72		63.06	417.44	14	0	0	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	1	16.8	3.98	431.3	7.63	24.54	61.61	420.39	12	30	30	30	30
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	2	16.6	3.90	480.6	9.12	27.49	69.27	428.21	11	30	30	30	30
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	2	16.7	4.14	412.1	6.75		58.41	442.27	14	0	0	30	30

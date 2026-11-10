@@ -18,7 +18,7 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import (TL_ROOT, BUILD, REPO, TAU_BIN, DOCS, LATEXMK, PDFTEX_BUILD, RESULTS, SRC, UBIN, USTOCK, WORK, TreeRSS, copy, git_rev, log,  # noqa
+from common import (pct, TL_ROOT, BUILD, REPO, TAU_BIN, DOCS, LATEXMK, PDFTEX_BUILD, RESULTS, SRC, UBIN, USTOCK, WORK, TreeRSS, copy, git_rev, log,  # noqa
                     page_count, run_stock, same_file, same_pages, stem, tex_env)
 
 TIMEOUT = 300  # s, per edit
@@ -844,6 +844,52 @@ def run(system, doc, engine):
             return
 
 
+def interleave(docs, engine="pdflatex"):
+    """Patched and universal pdfLaTeX in ABBA order per document (patched, universal, universal, patched), so load
+    that drifts over the minutes hits both alike. No reruns: each run's noise is recorded in results/interleave.tsv
+    (one row per run) and both rounds' keys are pooled into edits.tsv/first.tsv (60 keys per system and document)."""
+    order = [("taudot-pdftex", 1), ("taudot-universal", 1), ("taudot-universal", 2), ("taudot-pdftex", 2)]
+    path = f"{RESULTS}/interleave.tsv"
+    cols = ["date", "system", "version", "doc", "round", "load", "other_cpu", "first_page_ms", "para_p50",
+            "display_p50", "page_p50", "final_p50", "para_exact", "display_n", "display_exact", "page_exact",
+            "final_exact"]
+    kept = [l for l in (open(path).read().splitlines()[1:] if os.path.exists(path) else [])
+            if l.split("\t")[3] not in docs]
+    for doc in docs:
+        meta = load(doc)
+        pooled, firsts, sysms = {}, {}, {}
+        for name, rnd in order:
+            log(f"{name} {doc} {engine} round {rnd}")
+            lo = Load()
+            sysm, first, rows = run_driver(SYSTEMS[name], doc, engine, meta)
+            load_, other = lo.done()
+            sysms[name] = sysm
+            for r in rows:
+                r["n"] = (rnd - 1) * 100 + r["n"]  # round 2's keys numbered 101..130
+            pooled.setdefault(name, []).extend(rows)
+            firsts.setdefault(name, []).append(first)
+
+            def p50(k):
+                xs = [r[k] for r in rows if r.get(k) is not None]
+                return f"{pct(xs, 50):.2f}" if xs else ""
+            row = dict(date=time.strftime("%Y-%m-%d"), system=name, version=sysm.version(), doc=doc, round=rnd,
+                       load=f"{load_:.1f}", other_cpu=f"{other:.2f}", first_page_ms=f"{first['first_page_ms']:.1f}",
+                       para_p50=p50("para_ms"), display_p50=p50("display_ms"), page_p50=p50("page_ms"),
+                       final_p50=p50("final_ms"),
+                       para_exact=sum(r["para_state"] == "exact" for r in rows),
+                       display_n=sum(1 for r in rows if r.get("display_ms") is not None),
+                       display_exact=sum(r.get("display_exact") == "yes" for r in rows),
+                       page_exact=sum(r["page_exact"] == "yes" for r in rows),
+                       final_exact=sum(r["final_exact"] == "yes" for r in rows))
+            kept.append("\t".join(str(row[c]) for c in cols))
+            open(path, "w").write("\t".join(cols) + "\n" + "".join(l + "\n" for l in kept))
+        for name, rows in pooled.items():
+            f = firsts[name]
+            first = {k: (sum(x[k] for x in f) / len(f) if isinstance(f[0].get(k), (int, float)) else f[-1].get(k))
+                     for k in f[-1]}
+            write(sysms[name], doc, engine, first, rows)
+
+
 def done(system, doc, engine):
     """Already in results/first.tsv (bench/run.py all resumes; delete the rows or the file to redo)."""
     p = f"{RESULTS}/first.tsv"
@@ -859,6 +905,10 @@ def main():
     ap.add_argument("--docs", nargs="*")
     ap.add_argument("--engines", nargs="*")
     a = ap.parse_args()
+    if a.system == "interleave":
+        interleave(a.docs or ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762",
+                              "arxiv-2103.00020"])
+        return
     if a.system == "all":
         docs = a.docs or sorted(d for d in os.listdir(DOCS) if os.path.exists(f"{DOCS}/{d}/edits.json"))
         for engine in a.engines or ("pdflatex", "xelatex", "lualatex", "typst"):  # pdfLaTeX's verdict first

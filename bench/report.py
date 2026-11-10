@@ -144,6 +144,23 @@ def first_table(first):
     return "\n".join(out)
 
 
+def interleave_table():
+    p = f"{RESULTS}/interleave.tsv"
+    if not os.path.exists(p):
+        return ""
+    rows = list(csv.DictReader(open(p), delimiter="\t"))
+    out = ["| document | run | cores busy elsewhere (load) | preview p50 (exact) | display page p50 (sent, = stock) | "
+           "finished page p50 | whole PDF p50 | first page on open |", "|---|---|---|---|---|---|---|---|"]
+    name = {"taudot-pdftex": "patched", "taudot-universal": "universal"}
+    for r in rows:
+        g = lambda k: f(float(r[k])) if r[k] else "–"
+        disp = f"{g('display_p50')} ({r['display_n']}, {r['display_exact']})" if r["display_n"] != "0" else "–"
+        out.append(f"| {r['doc'].replace('synth-', '').replace('arxiv-', '')}{' pp' if r['doc'].startswith('synth') else ''}"
+                   f" | {name[r['system']]} {r['round']} | {r['other_cpu']} ({r['load']}) | {g('para_p50')} "
+                   f"({r['para_exact']}) | {disp} | {g('page_p50')} | {g('final_p50')} | {g('first_page_ms')} |")
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------------------------------------- chart
 LIGHT = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
 DARK = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181"]
@@ -246,6 +263,13 @@ def main():
         "Cells: **p50 / p90 ms** over the 30 edits. Blank: the system doesn't support that engine.",
         "",
         "Versions: " + "; ".join(f"{s} `{v}`" for s, v in versions) + ".",
+        "",
+        "### pdfLaTeX, patched and universal interleaved",
+        "",
+        "Per document: patched, universal, universal, patched (ABBA), back to back; one row per run of 30 keys. "
+        "The tables below pool both rounds (60 keys per document for these two).",
+        "",
+        interleave_table(),
         "",
         "### Edit → paragraph preview",
         "",
