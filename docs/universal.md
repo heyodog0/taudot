@@ -485,6 +485,14 @@ Measured on paper-b, per placed `para` event (TeX time from the pass's start / t
 | XeLaTeX | 1.98 s (0.90) | 1.90 s (0.83) | 1.82 s (0.72) |
 | LuaLaTeX | 4.24 s (1.66) | 4.02 s (1.44) | 3.72 s (1.17) |
 
+- **LuaTeX's exact page** (typing, paper-b: key → first exact output p50 86 ms vs pdfTeX's 34): the early finish is
+  ~60 ms of CPU, 80% of it LuaTeX's `pdf_finish_file` walking every font's whole character range (`char_info`,
+  `get_sa_item`, `char_used` for its CID dictionaries and ToUnicode), ~25% freeing its Lua state, fonts and trees
+  after the PDF is written. A finisher now writes its outputs and exits when TeX closes its log (the document and its
+  SyncTeX are complete by then): CPU 61 → 50 ms, faults 6200 → 2450, key → first exact output p50 **86 → 70 ms**
+  (p95 105 → 92). `uni.py finish`: early outputs identical to the full run's pages, 10/10 on all three engines. The
+  character-range walk is the engine's own and stays.
+
 ## Results (TeX Live 2026, M-series Mac, 2026-11-07)
 
 Papers: paper-a (32 pages, one column, review-mode line numbers) and paper-b (the corpus's arXiv 2103.00020, 48 pages, two columns). "Stock" is TeX Live's

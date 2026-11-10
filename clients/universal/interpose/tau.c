@@ -1308,7 +1308,16 @@ static int my_openat_nc(int dfd, const char *path, int flags, ...) {
 INTERPOSE(my_openat_nc, openat_nc);
 
 static int do_close(int fd, int (*real)(int)) {
-  if (fd >= 0 && fd < MAXFD && fds[fd].used) fds[fd].used = 0;
+  if (fd >= 0 && fd < MAXFD && fds[fd].used) {
+    fds[fd].used = 0;
+    // a finisher is done when TeX closes its log: the document and its SyncTeX are complete by then, and what TeX does
+    // after (LuaTeX frees its Lua state, fonts and trees: ~25% of a finish) is of no use: write them out and go
+    size_t rl = strlen(fds[fd].f->rel);
+    if (fds[fd].wr && !strcmp(tag, "fin") && rl > 4 && !strcmp(fds[fd].f->rel + rl - 4, ".log")) {
+      real(fd);
+      at_exit();
+    }
+  }
   for (int i = 0; i < nrfds; i++)
     if (rfds[i].fd == fd) {
       free(rfds[i].path);
