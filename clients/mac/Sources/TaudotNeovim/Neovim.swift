@@ -80,6 +80,8 @@ import TaudotShared
   public func input(_ keys: String) { send("nvim_input", [.string(keys)]) }
 
   public func terminate() { process?.terminate() }
+  /// SIGKILL (a Neovim stuck in Lua ignores SIGTERM).
+  public func kill() { process?.kill() }
 
   // MARK: TAUDOT_RPCSTATS=1: what goes over the wire, per kind, every 5 s on stderr (finding what runs at rest).
 

@@ -552,6 +552,7 @@ import Testing
   vim.api.nvim_buf_set_lines(b, 0, -1, false, {'edited'}); vim.bo[b].modified = true
   package.loaded['taudot.buffer'] = { by_buf = { [b] = true } }
   """)
+  defer { nv.kill() }  // reaped even when an expectation fails
   var asked: [String] = []
   let t0 = CACurrentMediaTime()
   let ok = await nv.quit { bufs, _ in asked = bufs.map { ($0.name as NSString).lastPathComponent }; return .save }
@@ -564,6 +565,7 @@ import Testing
 
 @Test @MainActor func quitDiscardAndCancel() async throws {
   let (nv, f) = try await quitNvim()
+  defer { nv.kill() }  // reaped even when an expectation fails
   #expect(await nv.quit { _, _ in .cancel } == false)
   #expect(nv.isRunning)
   #expect(await nv.quit { _, _ in .discard })
@@ -574,6 +576,7 @@ import Testing
 @Test @MainActor func quitNeverHangs() async throws {
   // Neovim stuck in a prompt that blocks the API, then stuck for good: quit still returns, Neovim gone.
   let (nv, _) = try await quitNvim()
+  defer { nv.kill() }  // reaped even when an expectation fails
   nv.input(":call input('waiting: ')<CR>")
   try await Task.sleep(for: .milliseconds(200))
   var t0 = CACurrentMediaTime()
@@ -582,6 +585,7 @@ import Testing
   #expect(CACurrentMediaTime() - t0 < 4)  // quit gives up after ~2 s; slack for a loaded parallel run
 
   let (hung, _) = try await quitNvim()
+  defer { hung.kill() }  // reaped even when an expectation fails
   hung.send("nvim_exec_lua", [.string("while true do end"), .array([])])
   try await Task.sleep(for: .milliseconds(200))
   t0 = CACurrentMediaTime()

@@ -53,7 +53,7 @@ extension Neovim {
     // Still there: SIGTERM, and SIGKILL if Lua is stuck in a loop (it only handles signals between events).
     terminate()
     for _ in 0..<10 where isRunning { try? await Task.sleep(for: .milliseconds(20)) }
-    if isRunning, let pid = process?.process.processIdentifier { kill(pid, SIGKILL) }
+    if isRunning { kill() }
     for _ in 0..<10 where isRunning { try? await Task.sleep(for: .milliseconds(20)) }
   }
 }

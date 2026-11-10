@@ -104,3 +104,38 @@ import Testing
   let y1 = try #require(v.y(ofLine: 10)), y11 = try #require(v.y(ofLine: 11))
   #expect(y11 - y1 > lh0 + 1, "lines 10 and 11 \(y11 - y1) apart, line height \(v.lineHeight) (was at \(y0))")
 }
+
+// MARK: an orphaned Neovim never spins (editfix bug 5)
+
+/// Starts Neovim from a shell that then exits (as a crashed app does), its event loop blocked in Lua; returns its pid.
+/// Blocked in `vim.uv.sleep` rather than spinning: the same for Neovim (neither the closed pipe nor SIGTERM is seen
+/// until Lua returns), without loading a core under the suite's timing checks, and over by itself after 3 s.
+func orphanBusyNvim(watchdog: Bool) throws -> pid_t {
+  let sh = Process()
+  sh.executableURL = URL(fileURLWithPath: "/bin/sh")
+  // its stdin stays open until the loop runs, so only our exit can end it (an idle Neovim exits on EOF anyway)
+  sh.arguments = ["-c", "sleep 0.4 | \"$0\" --embed --headless --clean -n --cmd \"$1\" -c 'lua vim.uv.sleep(3000)' >/dev/null 2>&1 & echo $!; sleep 0.6",
+                  NeovimProcess.findNvim(), watchdog ? "lua " + NeovimProcess.watchdogLua : "lua x = 1"]
+  let out = Pipe()
+  sh.standardOutput = out
+  try sh.run()
+  sh.waitUntilExit()
+  let s = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+  return pid_t(s.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+}
+
+@Test func orphanedNeovimExits() async throws {
+  // without the watchdog: still there after its parent (stuck in a loop, the quit tests' leftovers spun at 100% CPU)
+  let control = try orphanBusyNvim(watchdog: false)
+  #expect(control > 0)
+  try await Task.sleep(for: .milliseconds(200))  // its parent exited 0.2 s before the helper returned
+  #expect(kill(control, 0) == 0, "the control Neovim should outlive its parent")
+  kill(control, SIGKILL)
+  // with it: gone within a second of its parent
+  let pid = try orphanBusyNvim(watchdog: true)
+  #expect(pid > 0)
+  var gone = false
+  for _ in 0..<50 where !gone { try await Task.sleep(for: .milliseconds(20)); gone = kill(pid, 0) != 0 }
+  if !gone { kill(pid, SIGKILL) }
+  #expect(gone, "an orphaned Neovim blocked in Lua must exit within a second")
+}
