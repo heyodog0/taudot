@@ -436,16 +436,28 @@ static void para_setup(const char *p) {
     if (P > E) _exit(1);
     newtext = f->data + P;
   }
-  size_t lp = strlen(prefix), lf = strlen(flush);
-  char *d = malloc(E + lp + lf + 3);
-  memcpy(d, f->data, P);  // (bytes before P are the same in the old and the new text: P <= the edit)
-  memcpy(d + P, prefix, lp);
-  d[P + lp] = '\n';
-  memcpy(d + P + lp + 1, newtext, E - P);
-  memcpy(d + E + lp + 1, flush, lf);
-  d[E + lp + 1 + lf] = '\n';
-  free_data(f);
-  f->data = d, f->len = E + lp + lf + 2, f->cap = f->len;
+  size_t lp = strlen(prefix), lf = strlen(flush), need = E + lp + lf + 3;
+  if (!f->mapped && f->data && f->cap >= need) {
+    // in place: bytes before P are the same in the old and the new text (P <= the edit), and copying them into a
+    // new buffer cost the whole file up to the paragraph (copy-on-write faults and all) on every pass
+    char *d = f->data;
+    memmove(d + P + lp + 1, newtext, E - P);  // (newtext may be d + P itself)
+    memcpy(d + P, prefix, lp);
+    d[P + lp] = '\n';
+    memcpy(d + E + lp + 1, flush, lf);
+    d[E + lp + 1 + lf] = '\n';
+    f->len = E + lp + lf + 2;
+  } else {
+    char *d = malloc(need);
+    memcpy(d, f->data, P);  // (bytes before P are the same in the old and the new text: P <= the edit)
+    memcpy(d + P, prefix, lp);
+    d[P + lp] = '\n';
+    memcpy(d + P + lp + 1, newtext, E - P);
+    memcpy(d + E + lp + 1, flush, lf);
+    d[E + lp + 1 + lf] = '\n';
+    free_data(f);
+    f->data = d, f->len = E + lp + lf + 2, f->cap = f->len;
+  }
   para_file = f;
   para_end = E + lp + 1;
   t_para_start = now_us();

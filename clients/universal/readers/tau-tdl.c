@@ -251,6 +251,7 @@ static int text_lines(const unsigned char *c, size_t n, tline *out, int max)
     if ((*p >= '0' && *p <= '9') || *p == '-' || *p == '.' || *p == '+') {
       char *q;
       double v = strtod(p, &q);
+      if (q == p) { p++; nn = 0; continue; }  // (a lone sign or dot: no number; strtod didn't move, and we looped)
       if (nn < 8) num[nn++] = v;
       p = q;
       continue;
