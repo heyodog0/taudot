@@ -744,7 +744,7 @@ def fmt(x):
 
 COLS = ["date", "system", "version", "doc", "engine", "n", "spot", "page", "para_ms", "para_state", "page_ms",
         "page_exact", "final_ms", "final_exact", "self_ms", "xdvipdfmx_ms", "display_ms", "display_exact", "display_page"]
-FCOLS = ["date", "system", "version", "doc", "engine", "pages", "first_page_ms", "done_ms", "peak_mb", "procs", "load"]
+FCOLS = ["date", "system", "version", "doc", "engine", "pages", "first_page_ms", "done_ms", "peak_mb", "procs", "load", "other_cpu"]
 
 
 def write(sysm, doc, engine, first, rows):
@@ -770,25 +770,41 @@ def fmt_cell(x):
 
 
 class Load:
-    """The 1-minute load average, sampled every second while a run lasts: its mean goes in first.tsv."""
+    """While a run lasts, every second: the 1-minute load average, and the cores busy in processes outside this
+    harness's process tree (ps's %cpu summed): other agents' work. The run's noise is the mean of the second."""
 
     def __init__(self):
-        self.xs, self.stop = [], False
+        self.load, self.other, self.stop = [], [], False
         self.t = threading.Thread(target=self.loop, daemon=True)
         self.t.start()
 
     def loop(self):
+        me = os.getpid()
         while not self.stop:
-            self.xs.append(os.getloadavg()[0])
+            self.load.append(os.getloadavg()[0])
+            out = subprocess.run(["ps", "-Ao", "pid=,ppid=,pcpu="], capture_output=True, text=True).stdout
+            parent, cpu = {}, {}
+            for line in out.splitlines():
+                p, pp, c = line.split()
+                parent[int(p)], cpu[int(p)] = int(pp), float(c)
+            ours = set()
+            for p in parent:
+                q, seen = p, 0
+                while q > 1 and seen < 64:
+                    if q == me:
+                        ours.add(p)
+                        break
+                    q, seen = parent.get(q, 0), seen + 1
+            self.other.append(sum(c for p, c in cpu.items() if p not in ours and p != me) / 100)
             time.sleep(1)
 
     def done(self):
         self.stop = True
         self.t.join()
-        return sum(self.xs) / len(self.xs)
+        return sum(self.load) / len(self.load), sum(self.other) / len(self.other)
 
 
-LOAD_MAX = float(os.environ.get("BENCH_LOAD_MAX", 6))  # a run whose mean load is above this is run again (twice)
+OTHER_MAX = float(os.environ.get("BENCH_OTHER_MAX", 2))  # cores busy elsewhere; above it the run is done again
 
 
 def run(system, doc, engine):
@@ -796,25 +812,27 @@ def run(system, doc, engine):
     if engine not in meta["variants"]:
         log(f"skip {system} {doc} {engine}: no such variant")
         return
+    prev = None
     for attempt in range(3):
-        log(f"{system} {doc} {engine}" + (f" (again: load {prev:.1f})" if attempt else ""))
+        log(f"{system} {doc} {engine}" + (f" (again: {prev:.1f} cores busy elsewhere)" if attempt else ""))
         saved = {n: open(f"{RESULTS}/{n}.tsv").read() for n in ("edits", "first") if os.path.exists(f"{RESULTS}/{n}.tsv")}
         lo = Load()
         if system == "latexmk":
             sysm, first, rows, stock = run_latexmk(doc, engine, meta)
         else:
             sysm, first, rows = run_driver(SYSTEMS[system], doc, engine, meta)
-        mean = lo.done()
-        first["load"] = f"{mean:.1f}"
-        if attempt and mean >= prev:  # no quieter than the kept run: keep that one
+        load_, other = lo.done()
+        first["load"], first["other_cpu"] = f"{load_:.1f}", f"{other:.2f}"
+        if prev is not None and other >= prev:  # no quieter than the kept run: keep that one
             for n, text in saved.items():
                 open(f"{RESULTS}/{n}.tsv", "w").write(text)
         else:
             if system == "latexmk":
-                write(Stock(), doc, engine, dict(pages=first["pages"], load=first["load"]), stock)
+                write(Stock(), doc, engine, dict(pages=first["pages"], load=first["load"],
+                                                 other_cpu=first["other_cpu"]), stock)
             write(sysm, doc, engine, first, rows)
-            prev = mean
-        if prev <= LOAD_MAX:
+            prev = other
+        if prev <= OTHER_MAX:
             return
 
 

@@ -148,7 +148,7 @@ def pct(xs, p):
 
 # ---------------------------------------------------------------------------------------------- memory
 class TreeRSS:
-    """Peak resident memory of a process and all its descendants, sampled every 50 ms with ps."""
+    """Peak resident memory of a process and all its descendants, sampled every 200 ms with ps."""
 
     def __init__(self, pid):
         self.pid, self.peak, self.peak_n, self.stop = pid, 0, 0, False
@@ -176,7 +176,7 @@ class TreeRSS:
             tot, n = self.sample()
             if tot > self.peak:
                 self.peak, self.peak_n = tot, n
-            time.sleep(0.05)
+            time.sleep(0.2)
 
     def done(self):
         self.stop = True
