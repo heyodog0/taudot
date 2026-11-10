@@ -259,7 +259,10 @@ class TauLive(TaudotDriver):
         return "tau-live " + git_rev(REPO)
 
     def env(self):
-        return tex_env()
+        e = tex_env()
+        if os.environ.get("TAU_LIVE_LOG"):  # the driver's debug log, for a look
+            e["TAU_LIVE_LOG"] = os.environ["TAU_LIVE_LOG"]
+        return e
 
     def argv(self, proj, engine, main, out):
         return [f"{TAU_BIN}/tau-live", "--serve", "--engine", f"{UBIN}/{engine}", "--bibtex", f"{UBIN}/bibtex", proj,
@@ -449,7 +452,11 @@ class Typst(External):
     def edit(self, file, pos, key, page):
         t0 = time.monotonic()
         apply(f"{self.proj}/{file}", pos, key)
-        t, ev = self.next()
+        try:
+            t, ev = self.next(timeout=20)
+        except queue.Empty:  # the watcher missed the save: counted as a key with no output
+            log("  typst: no compile within 20 s of the save")
+            return blank(para_state="n/a", page_exact="n/a", final_exact="missed")
         ms = (t - t0) * 1000
         return blank(para_state="n/a", page_ms=ms, final_ms=ms, self_ms=ev["ms"], page_exact="n/a",
                      final_exact="n/a")
