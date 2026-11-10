@@ -196,6 +196,29 @@ static int cmd_xdv(const char *doc_path, const char *pass_path, const char *out_
 #include "pdfmini.c"
 
 // The pass's content: the first stream in PASS.bin that draws text, decoded.
+// A content stream's dictionary: /Length, /Filter, /DecodeParms and nothing else (a font program, an ICC profile or an
+// image has other entries, and its bytes may hold "BT" by chance: an embedded figure's fonts ship with the page)
+static int plain_stream_dict(const char *ds, const char *de)
+{
+  static const char *ok[] = {"Length", "Filter", "DecodeParms", NULL};
+  const char *p = ds + 2;
+  for (;;) {
+    p = skip_ws(p, de);
+    if (p >= de || (*p == '>' && p + 1 < de && p[1] == '>')) return 1;
+    if (*p != '/') return 0;
+    const char *k = ++p;
+    while (p < de && !strchr(" \t\r\n\f/<>[]()", *p)) p++;
+    char key[32];
+    size_t kl = p - k;
+    if (!kl || kl >= sizeof key) return 0;
+    memcpy(key, k, kl), key[kl] = 0;
+    int good = 0;
+    for (int i = 0; ok[i]; i++) good |= !strcmp(key, ok[i]);
+    const char *vs, *ve;
+    if (!good || !dict_get(ds, de, key, &vs, &ve) || ve <= p) return 0;
+    p = ve;
+  }
+}
 static unsigned char *pass_content(const unsigned char *b, size_t n, size_t *cn)
 {
   pdf tmp = {.b = (unsigned char *)b, .n = n};
@@ -203,6 +226,11 @@ static unsigned char *pass_content(const unsigned char *b, size_t n, size_t *cn)
     const char *ds = p;
     while (ds > (const char *)b && !(ds[0] == '<' && ds[1] == '<')) ds--;
     if (p > (const char *)b + 3 && !memcmp(p - 3, "end", 3)) { p += 6; continue; }
+    const char *v1, *v2;  // (a figure's form XObject or font program, written at the same ship, isn't the page's)
+    if (dict_get(ds, p, "Subtype", &v1, &v2) || dict_get(ds, p, "Type", &v1, &v2) || !plain_stream_dict(ds, p)) {
+      p += 6;
+      continue;
+    }
     size_t k;
     unsigned char *c = stream_data(&tmp, ds, p, &k);
     if (c && memmem(c, k, "BT", 2)) { *cn = k; return c; }
@@ -675,6 +703,11 @@ static const char *scan_content(exact_pdf *E, const unsigned char *c, size_t n, 
       kind = 2;
     } else {  // an operator
       while (p < e && !strchr(" \t\r\n\f/<>[]()%{}", *p)) p++;
+      if (p == ts) {  // a stray delimiter (e.g. ')'): not a content stream as TeX writes one, or misread
+        if (!collect) return "syntax";
+        p++;
+        continue;
+      }
       size_t ol = p - ts;
 #define OP(s) (ol == strlen(s) && !memcmp(ts, s, ol))
       if (OP("BI")) return "inline image";
@@ -874,7 +907,10 @@ static unsigned char *page_content(const unsigned char *b, size_t n, size_t *cn)
     while (ds > (const char *)b && !(ds[0] == '<' && ds[1] == '<')) ds--;
     if (p > (const char *)b + 3 && !memcmp(p - 3, "end", 3)) { p += 6; continue; }
     const char *de = p, *v1, *v2;
-    if (dict_get(ds, de, "Subtype", &v1, &v2) || dict_get(ds, de, "Type", &v1, &v2)) { p += 6; continue; }
+    if (dict_get(ds, de, "Subtype", &v1, &v2) || dict_get(ds, de, "Type", &v1, &v2) || !plain_stream_dict(ds, de)) {
+      p += 6;
+      continue;
+    }
     size_t k;
     unsigned char *c = stream_data(&tmp, ds, p, &k);
     if (c && memmem(c, k, "BT", 2)) { free(best); best = c, *cn = k; }

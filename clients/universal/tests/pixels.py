@@ -137,6 +137,14 @@ def event_check(ev, exact_path, other=None):
     b, _, _ = render(ex, ev["page"], (x0, H - y1, x1, H - y0))
     # (pixels where the overlay draws nothing and the page has ink: other content in the rect, counted apart)
     o = render(other, ev["page"], (x0, H - y1, x1, H - y0))[0] if other else None
+    import os
+    dump = os.environ.get("PIX_DUMP")
+    if dump:
+        from PIL import Image
+        os.makedirs(dump, exist_ok=True)
+        k = len(os.listdir(dump))
+        Image.frombytes("RGBA", (w, h), a).save(f"{dump}/ev{k}-overlay.png")
+        Image.frombytes("RGBA", (w, h), b).save(f"{dump}/ev{k}-exact.png")
     diff = [i for i in range(0, len(a), 4) if a[i:i + 3] != b[i:i + 3]]
     foreign = sum(1 for i in diff if a[i:i + 3] == b"\xff\xff\xff" or (o and inked(o, i)))
     return len(diff) - foreign, w * h, foreign

@@ -445,7 +445,7 @@ def paragraph(engine, src, main, n=20, seed=4):
             print(f"  edit {i:2d} @{pos:6d} provisional (the paragraph crosses a page or column) {ev['us'] / 1000:.1f} ms{placed}")
             continue
         if pdf:
-            ours = para.lines(para.text_runs(para.pdf_runs(b"".join(para.streams(blob)))))
+            ours = para.lines(para.text_runs(para.pdf_runs(b"".join(para.streams(blob, content=True)))))
             time.sleep(float(os.environ.get("PARA_SLEEP", "0")))
             pages = [para.lines(para.text_runs(para.pdf_runs(c))) for c in pdf_pages_content(done["path"])]
         else:
@@ -472,7 +472,7 @@ def paragraph(engine, src, main, n=20, seed=4):
         if ok and pdf:  # the independent check: pixels, no tolerance
             import pixels
             n_ = ev["lines"]
-            content = b"".join(c for c in para.streams(blob) if b"BT" in c)
+            content = b"".join(c for c in para.streams(blob, content=True) if b"BT" in c)
             base_ys = [y for y, r in ours[-n_:]]
             x0 = min(x for y, r in ours[-n_:] for dy_, x, f, s_, o in r)
             pc = pdf_pages_content(done["path"])[hit[0]]
@@ -537,7 +537,7 @@ def other_layer(ev, exact_path, para):
     """For the event check: the exact page without the pass's lines (found as in `paragraph`), or None."""
     import pixels
     blob = open(ev["bin"], "rb").read()
-    ours = para.lines(para.text_runs(para.pdf_runs(b"".join(para.streams(blob)))))
+    ours = para.lines(para.text_runs(para.pdf_runs(b"".join(para.streams(blob, content=True)))))
     pc = pdf_pages_content(exact_path)[ev["page"]]
     flat = [(y + dy, x, f, s_, o) for y, r in para.lines(para.text_runs(para.pdf_runs(pc))) for dy, x, f, s_, o in r]
     off = para.match_lines(ours, flat, ev["lines"], 0.05, True) if ev.get("lines", 0) > 0 else None

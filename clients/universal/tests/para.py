@@ -8,11 +8,17 @@ import zlib
 STREAM = re.compile(rb"<<(.*?)>>\s*stream\r?\n", re.S)
 
 
-def streams(b):
-    """Decoded streams of a PDF fragment, in order."""
+PLAIN = re.compile(rb"\s*(/(Length|Filter|DecodeParms)\s*(\d+(\s+\d+\s+R)?|/\w+|\[[^\]]*\]|<<[^>]*>>)\s*)*")
+
+
+def streams(b, content=False):
+    """Decoded streams of a PDF fragment, in order. CONTENT: only content streams (a dictionary of /Length, /Filter,
+    /DecodeParms alone: not a figure's form XObject, image or font program written at the same ship)."""
     out = []
     for m in STREAM.finditer(b):
         d = m.group(1)
+        if content and not PLAIN.fullmatch(d):
+            continue
         ln = re.search(rb"/Length (\d+)(?! \d+ R)", d)
         start = m.end()
         if ln:
