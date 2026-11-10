@@ -53,6 +53,12 @@ import TaudotShared
   /// Soft-wrap column: the editor's grid is at most this many columns wide (0: the window's width).
   public var maxTextWidth: Int { get { defaults.integer(forKey: "taudot.maxTextWidth") } set { set("taudot.maxTextWidth", newValue) } }
 
+  // MARK: Claude
+
+  /// The Claude pane's claude runs in the project's Rex session when a Rex server answers (ClaudeSession); off, or
+  /// without Rex, Taudot runs it itself. Either way it outlives Taudot.
+  public var claudeInRex: Bool { get { bool("taudot.claude.inRex", true) } set { set("taudot.claude.inRex", newValue) } }
+
   // MARK: PDF (read by the PDF pane)
 
   public var pdfMarkColor: String { get { string("taudot.pdfMarkColor", "accent") } set { set("taudot.pdfMarkColor", newValue) } }

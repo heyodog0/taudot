@@ -18,7 +18,7 @@ typealias SettingsPalette = TaudotPalette
 let settingsTiles: [SettingsSection: (Color, Color)] = [
   .appearance: (Color(taudot: 0x2fbf9f), Color(taudot: 0x0f5a5c)), .editor: (Color(taudot: 0xe2ff8a), Color(taudot: 0x8fcf3a)),
   .pdf: (Color(taudot: 0x6fd3c0), Color(taudot: 0x1f8f86)), .comments: (Color(taudot: 0x2a8a8c), Color(taudot: 0x0c4752)),
-  .account: (Color(taudot: 0x9fb3b0), Color(taudot: 0x56706d)),
+  .claude: (Color(taudot: 0x8fe0c8), Color(taudot: 0x2f8f7a)), .account: (Color(taudot: 0x9fb3b0), Color(taudot: 0x56706d)),
 ]
 
 // MARK: - the window
@@ -114,6 +114,7 @@ struct SettingsView: View {
           case .editor: EditorPage(model: model, p: p)
           case .pdf: PDFPage(model: model, p: p)
           case .comments: CommentsPage(model: model, p: p)
+          case .claude: ClaudePage(model: model, p: p)
           case .account: AccountPage(p: p)
           }
         }
@@ -611,6 +612,21 @@ struct PagePreview: View {
 }
 
 // MARK: - Comments
+
+struct ClaudePage: View {
+  @ObservedObject var model: SettingsModel
+  let p: SettingsPalette
+  var body: some View {
+    Heading(title: "The Claude pane")
+    Card(p: p) {
+      Row(p: p, label: "Run in Rex",
+          note: "Claude runs in the project's Rex session, so it shows in Rex and on your other Macs too. Off, or without Rex, Taudot runs it. Either way it keeps going after Taudot quits.",
+          last: true) {
+        Switch(p: p, on: model.bind({ $0.claudeInRex }, { $0.claudeInRex = $1 }))
+      }
+    }
+  }
+}
 
 struct CommentsPage: View {
   @ObservedObject var model: SettingsModel

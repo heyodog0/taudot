@@ -16,7 +16,15 @@ import TaudotShared
   /// The command run in the terminal: $TAUDOT_CLAUDE (tests), else `claude`.
   static var command: String { ProcessInfo.processInfo.environment["TAUDOT_CLAUDE"] ?? "claude" }
 
+  let folder: URL
+  let env: [String: String]
+  /// Where claude runs (ClaudeSession): its socket and how it was found or started; nil: a plain terminal of this
+  /// pane's own (tau-attach missing, or claude isn't on PATH).
+  private(set) var session: (sock: String, how: ClaudeSession.How)?
+
   init(folder: URL, env: [String: String]) throws {
+    self.folder = folder
+    self.env = env
     nvim = try Neovim(args: [], cwd: folder, env: env)
     view = EditorView(nvim: nvim, frame: NSRect(x: 0, y: 0, width: 600, height: 240))
     view.focused = false
@@ -32,7 +40,15 @@ import TaudotShared
       try await Task.sleep(for: .milliseconds(20))
     }
     let chan = try await nvim.channelID()
-    _ = try await nvim.execLua(Self.lua, [.string(Self.command), .int(Int64(chan))])
+    // claude behind tau-attach (in Rex, or started here), outliving Taudot; the terminal attaches to it
+    let command = Self.command, folder = folder, env = env, inRex = TaudotSettings.shared.claudeInRex
+    let found = Self.executable(command, env: env)
+      ? await Task.detached { ClaudeSession.ensure(folder: folder, command: command, env: env, inRex: inRex) }.value : nil
+    session = found
+    if ClaudeSession.isTest, ProcessInfo.processInfo.environment["TAUDOT_CLAUDE_KEEP"] == nil, let pid = await claudePid() { ClaudeSession.endWithUs(pid) }
+    var run = command
+    if let found, let t = ClaudeSession.tool { run = Self.quote(t) + " attach " + Self.quote(found.sock) }
+    _ = try await nvim.execLua(Self.lua, [.string(run), .int(Int64(chan)), .string(command)])
     nvim.notify("taudot_claude_exit") { [weak self] _ in self?.exited = true; self?.onExit?() }
   }
 
@@ -50,6 +66,22 @@ import TaudotShared
       """, [.string(text)])
   }
 
+  /// claude's own pid (behind tau-attach), to check a reopen reattached to the same one.
+  func claudePid() async -> Int? {
+    guard let sock = session?.sock else { return nil }
+    return await Task.detached { ClaudeSession.pid(sock) }.value
+  }
+
+  /// The command's program is on PATH (the login environment's): else the pane shows how to install claude.
+  static func executable(_ command: String, env: [String: String]) -> Bool {
+    guard let prog = command.split(separator: " ").first.map(String.init) else { return false }
+    if prog.contains("/") { return FileManager.default.isExecutableFile(atPath: prog) }
+    let path = env["PATH"] ?? ProcessInfo.processInfo.environment["PATH"] ?? ""
+    return path.split(separator: ":").contains { FileManager.default.isExecutableFile(atPath: "\($0)/\(prog)") }
+  }
+
+  static func quote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+
   /// The terminal's job and its process, to check a toggle kept the same session.
   func job() async -> (job: Int, pid: Int)? {
     guard let a = (try? await nvim.execLua("local j = vim.b.taudot_claude_job; return j and {j, vim.fn.jobpid(j)} or nil", []))?.array,
@@ -61,10 +93,16 @@ import TaudotShared
     (try? await nvim.execLua("return table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), '\\n')", []))?.string ?? ""
   }
 
-  func stop() async { _ = await nvim.quit { _, _ in .discard } }
+  /// The pane goes (the window closes, Taudot quits): claude keeps running behind tau-attach, except a test's.
+  func stop() async {
+    if ClaudeSession.isTest, ProcessInfo.processInfo.environment["TAUDOT_CLAUDE_KEEP"] == nil, let pid = await claudePid() {
+      kill(pid_t(pid), SIGTERM)
+    }
+    _ = await nvim.quit { _, _ in .discard }
+  }
 
   static let lua = """
-  local cmd, chan = ...
+  local cmd, chan, check = ...
   local o = vim.o
   o.laststatus = 0; o.cmdheight = 0; o.showtabline = 0; o.ruler = false; o.showmode = false
   local function plain()
@@ -74,7 +112,7 @@ import TaudotShared
     wo.colorcolumn = ''; wo.fillchars = 'eob: '
   end
   vim.cmd('enew')
-  if vim.fn.executable(vim.split(cmd, ' ')[1]) == 0 then
+  if vim.fn.executable(vim.split(check or cmd, ' ')[1]) == 0 then
     vim.api.nvim_buf_set_lines(0, 0, -1, false, {
       "  claude isn't on PATH. Install Claude Code:  curl -fsSL https://claude.ai/install.sh | bash   (then ⌘J again)" })
     vim.bo.modified = false; vim.bo.buftype = 'nofile'
