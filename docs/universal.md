@@ -690,5 +690,6 @@ in triples from consecutive pids).
   route: a resume of a snapshot from the untracked chain.
 
 Checked after: `edits` 8/8 (pdfLaTeX, LuaLaTeX), `finish` 10/10 (3 engines), `paragraph` pdfLaTeX 11/11 at 0 px,
-`display` 40/40, `parked` XeLaTeX and LuaLaTeX ok (with the new checks). `rule pdflatex` on paper-b differs from stock
-on this build and the previous one alike (3 runs against stock's 4): open, next.
+`display` 40/40, `parked` XeLaTeX and LuaLaTeX ok (with the new checks). `rule` on paper-b had failed on both builds: the
+test's own reference ran BibTeX on a `.bbl`-only project (no `.bib`) and emptied the `.bbl`; fixed (latexmk's
+`-bibtex-cond`, as `stock_rule`). Now identical to stock in 3 runs, pdfLaTeX and LuaLaTeX.

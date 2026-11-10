@@ -668,7 +668,7 @@ def rule(engine, src, main):
         run_stock(engine, ref, main)
         a = open(f"{ref}/{st}.aux", "rb").read() if os.path.exists(f"{ref}/{st}.aux") else b""
         bl = b"\n".join(l for l in a.split(b"\n") if l.startswith((b"\\citation", b"\\bibdata", b"\\bibstyle")))
-        bib_changed = b"\\bibdata" in a and bl != bib_lines_last
+        bib_changed = b"\\bibdata" in a and bl != bib_lines_last and bib_files_exist(ref, a)  # (as latexmk -bibtex-cond)
         if bib_changed:
             subprocess.run([f"{USTOCK}/bibtex", st], cwd=ref, env=stock_env(), stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL)
