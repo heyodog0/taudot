@@ -852,8 +852,41 @@ import TaudotShared
           "\(where_): typing goes back to the prompt and reaches claude (mode \(back.mode), top line \(back.top), '\(word)' ×\(count(word, in: t)))")
   }
 
+  /// Item 7 (editfix): claude behind tau-attach, in Rex. TAUDOT_CLAUDECHECK_REX = "start" (a Rex server of the
+  /// test's own, TAUDOT_REX_SERVER: claude starts in a block; its pid goes to TAUDOT_CLAUDECHECK_PIDFILE), "reopen"
+  /// (the same claude, attached again, with what Rex typed into it: TAUDOT_CLAUDECHECK_EXPECT), "down" (no Rex server
+  /// answers: started here).
+  func rexRun(_ mode: String) async {
+    let env = ProcessInfo.processInfo.environment
+    await press("j")
+    check(await waitText("fake claude: ready"), "\(mode): claude shows in the pane (\(await text().suffix(80).debugDescription))")
+    let how = p.claude?.session?.how
+    let pid = await p.claude?.claudePid()
+    let pidFile = env["TAUDOT_CLAUDECHECK_PIDFILE"].map { URL(fileURLWithPath: $0) }
+    switch mode {
+    case "start":
+      check(how == .rex && pid != nil, "start: claude runs in the project's Rex session (\(how?.rawValue ?? "none"), pid \(pid.map(String.init) ?? "-"))")
+      if let pid, let pidFile { try? "\(pid)".write(to: pidFile, atomically: true, encoding: .utf8) }
+      p.focus(pane: 3)
+      for c in "frompane" { keyClaude(String(c)) }
+      keyClaude("\r", code: 36)
+      var t = await text()
+      for _ in 0..<40 where count("frompane", in: t) < 2 { await sleep(0.05); t = await text() }
+      check(count("frompane", in: t) >= 2, "start: keys reach claude through tau-attach")
+    case "reopen":
+      let before = pidFile.flatMap { try? String(contentsOf: $0, encoding: .utf8) }.flatMap { Int($0) }
+      check(how == .running && pid != nil && pid == before, "reopen: attached to the same claude (\(how?.rawValue ?? "none"), pid \(before.map(String.init) ?? "-") → \(pid.map(String.init) ?? "-"))")
+      if let want = env["TAUDOT_CLAUDECHECK_EXPECT"] {
+        check(await waitText(want), "reopen: the pane shows what was typed into the Rex block ('\(want)')")
+      }
+    default:
+      check(how == .local && pid != nil, "down: no Rex server answers, so claude starts here (\(how?.rawValue ?? "none"))")
+    }
+  }
+
   func run() async {
     defer { finish() }
+    if let mode = ProcessInfo.processInfo.environment["TAUDOT_CLAUDECHECK_REX"] { await rexRun(mode); return }
     if ProcessInfo.processInfo.environment["TAUDOT_CLAUDECHECK_MISSING"] != nil {
       await press("j")
       check(await waitText("isn't on PATH"), "no claude: the pane says how to install it (\(await text().prefix(120)))")
