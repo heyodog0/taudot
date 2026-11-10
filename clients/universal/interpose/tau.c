@@ -848,6 +848,28 @@ static int magic(const char *path) {  // 1 if PATH is a TeX-side signal (handled
     if (n <= pages) return 1;
     pages = n;
     msg("p %d %d %d %lld", getpid(), seq, pages, (long long)now_us());
+    // TAU_PAGE_PREVIEW: what the engine wrote for this page (its content stream among it), for a display page
+    // built on the last finished document (tau-tdl page) before this run's own finish is out
+    static long ship_off = -1;  // (the output's length at the last ship: inherited by snapshots and runners)
+    if (is_runner && tau_fd >= 0 && getenv("TAU_PAGE_PREVIEW")) {
+      mfile *o = NULL;
+      for (int i = 0; i < nfiles; i++)
+        if (files[i]->written && is_output(files[i])) o = files[i];
+      if (o) {
+        fflush(NULL);
+        if (ship_off >= 0 && (size_t)ship_off < o->len) {
+          char pp[2048];
+          snprintf(pp, sizeof pp, "%s/page-%d-%d-%d.bin", out, seq, getpid(), n);
+          int fd = open_nc(pp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+          if (fd >= 0) {
+            write_nc(fd, o->data + ship_off, o->len - ship_off);
+            close_nc(fd);
+            msg("P %d %d %d %s", getpid(), seq, n, pp);
+          }
+        }
+        ship_off = (long)o->len;
+      }
+    }
     int g = finish_rule ? goal_page() : -1;
     int at_goal = g >= 0 && pages == g + 1;  // the goal page itself: at once
     int rule = finish_rule && (at_goal || now_us() - last_finish >= finish_period_us);

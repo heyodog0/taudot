@@ -276,7 +276,9 @@ static void put(FILE *f, const char *s) { fputs(s, f); }
 // cross-references and the fonts and XObjects of all its pages. tau-live asks for it (`warmpdf`) when it announces the
 // output, so the first pass against it doesn't wait.
 typedef struct { char path[4096]; dev_t dev; ino_t ino; off_t size; struct timespec mt; unsigned char *ex; size_t en;
-                 pdf d; char *fonts, *xobjs; } exact_pdf;
+                 pdf d; char *fonts, *xobjs;
+                 // for `page`: every (font, code) the document's pages draw, and the other resource categories
+                 int scanned; uint64_t *used; size_t ucap, un; char *res[5]; } exact_pdf;
 static exact_pdf exc;
 static int exc_hit;  // the last exact_get was served from the cache (reported in the answer)
 static void exact_resources(pdf *dp, char **fonts_out, char **xobjs_out);
@@ -290,7 +292,12 @@ static exact_pdf *exact_get(const char *path)
     return &exc;
   }
   exc_hit = 0;
-  if (exc.ex) { pdf_close(&exc.d); free(exc.ex), free(exc.fonts), free(exc.xobjs); memset(&exc, 0, sizeof exc); }
+  if (exc.ex) {
+    pdf_close(&exc.d);
+    free(exc.ex), free(exc.fonts), free(exc.xobjs), free(exc.used);
+    for (int i = 0; i < 5; i++) free(exc.res[i]);
+    memset(&exc, 0, sizeof exc);
+  }
   size_t en;
   unsigned char *ex = slurp(path, &en);
   if (!ex) return NULL;
@@ -511,6 +518,344 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   return 0;
 }
 
+
+// ---- page: a display page from a runner's page data, before its document is finished
+//
+// `page EXACT.pdf PAGE PAGE.bin OUT.pdf`: PAGE.bin holds what the engine wrote while shipping page PAGE (0-based) of a
+// newer run; OUT.pdf is EXACT.pdf (a finished output) with page PAGE drawing that page's content stream instead, as an
+// incremental update, every other page as it was. Only when it draws the same: every (font, code) the content shows
+// is drawn somewhere in EXACT.pdf (so the font subsets there have the glyph), and every resource it names is there;
+// else {"ok":false,"error":"glyph"|"resource"|...} and the caller waits for the finished document.
+
+static const char *res_key[5] = {"ExtGState", "ColorSpace", "Pattern", "Shading", "Properties"};
+
+static uint64_t fc_hash(const char *name, size_t nl, unsigned code)
+{
+  uint64_t h = 1469598103934665603ULL;
+  for (size_t i = 0; i < nl; i++) h = (h ^ (unsigned char)name[i]) * 1099511628211ULL;
+  h = (h ^ code) * 1099511628211ULL;
+  return h ? h : 1;
+}
+static void used_add(exact_pdf *E, uint64_t h)
+{
+  if (E->un * 2 >= E->ucap) {
+    size_t oc = E->ucap;
+    uint64_t *old = E->used;
+    E->ucap = oc ? oc * 2 : 4096;
+    E->used = calloc(E->ucap, sizeof *E->used);
+    E->un = 0;
+    for (size_t i = 0; i < oc; i++) if (old[i]) used_add(E, old[i]);
+    free(old);
+  }
+  for (size_t i = h & (E->ucap - 1);; i = (i + 1) & (E->ucap - 1)) {
+    if (E->used[i] == h) return;
+    if (!E->used[i]) { E->used[i] = h; E->un++; return; }
+  }
+}
+static int used_has(const exact_pdf *E, uint64_t h)
+{
+  if (!E->ucap) return 0;
+  for (size_t i = h & (E->ucap - 1);; i = (i + 1) & (E->ucap - 1)) {
+    if (E->used[i] == h) return 1;
+    if (!E->used[i]) return 0;
+  }
+}
+// "/Name" in a union of resource entries ("/Name ref /Name ref ...")
+static int res_has(const char *u, const char *name, size_t nl)
+{
+  if (!u) return 0;
+  for (const char *h = u; (h = strstr(h, "/")); h++)
+    if (!strncmp(h + 1, name, nl) && (h[1 + nl] == ' ' || h[1 + nl] == '/' || h[1 + nl] == '<' || h[1 + nl] == '['))
+      return 1;
+  return 0;
+}
+// Bytes per code of font NAME: 2 for a Type0 (CID) font, else 1
+static int font_bpc(exact_pdf *E, const char *name, size_t nl)
+{
+  for (const char *h = E->fonts; h && (h = strstr(h, "/")); h++)
+    if (!strncmp(h + 1, name, nl) && h[1 + nl] == ' ') {
+      long num = strtol(h + 1 + nl, NULL, 10);
+      char *o = num > 0 ? pdf_object(&E->d, num) : NULL;
+      int two = o && strstr(o, "Type0") != NULL;
+      free(o);
+      return two ? 2 : 1;
+    }
+  return 0;
+}
+// One content stream: COLLECT adds its (font, code)s to E->used; else checks them and its resource names against E.
+// Returns NULL when fine, else why not.
+static const char *scan_content(exact_pdf *E, const unsigned char *c, size_t n, int collect)
+{
+  const char *p = (const char *)c, *e = p + n;
+  const char *tn[3] = {0}; size_t tl[3] = {0}; int tk[3] = {0};  // the last three tokens: 1 name, 2 number, 3 other
+  const char *font = NULL; size_t fl = 0; int bpc = 1;
+  static char fname[256];
+  while (p < e) {
+    unsigned char ch = (unsigned char)*p;
+    if (ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t' || ch == '\f' || ch == 0) { p++; continue; }
+    if (ch == '%') { while (p < e && *p != '\n' && *p != '\r') p++; continue; }
+    int kind = 3;
+    const char *ts = p;
+    if (ch == '/') {
+      p++;
+      while (p < e && !strchr(" \t\r\n\f/<>[]()%{}", *p)) p++;
+      kind = 1;
+    } else if (ch == '(' || (ch == '<' && p + 1 < e && p[1] != '<')) {  // a string: the codes of the current font
+      unsigned char buf[4096];
+      size_t bl = 0;
+      if (ch == '(') {
+        int depth = 1;
+        p++;
+        while (p < e && depth) {
+          unsigned char c2 = (unsigned char)*p++;
+          if (c2 == '\\' && p < e) {
+            unsigned char x = (unsigned char)*p++;
+            if (x >= '0' && x <= '7') {
+              int v = x - '0';
+              for (int k = 0; k < 2 && p < e && *p >= '0' && *p <= '7'; k++) v = v * 8 + (*p++ - '0');
+              c2 = (unsigned char)v;
+            } else if (x == 'n') c2 = '\n'; else if (x == 'r') c2 = '\r'; else if (x == 't') c2 = '\t';
+            else if (x == 'b') c2 = '\b'; else if (x == 'f') c2 = '\f'; else if (x == '\r' || x == '\n') continue;
+            else c2 = x;
+          } else if (c2 == '(') depth++;
+          else if (c2 == ')' && --depth == 0) break;
+          if (bl < sizeof buf) buf[bl++] = c2;
+        }
+      } else {
+        p++;
+        int hi = -1;
+        while (p < e && *p != '>') {
+          int v = -1;
+          char x = *p++;
+          if (x >= '0' && x <= '9') v = x - '0'; else if (x >= 'a' && x <= 'f') v = x - 'a' + 10;
+          else if (x >= 'A' && x <= 'F') v = x - 'A' + 10;
+          if (v < 0) continue;
+          if (hi < 0) hi = v; else { if (bl < sizeof buf) buf[bl++] = (unsigned char)(hi * 16 + v); hi = -1; }
+        }
+        if (hi >= 0 && bl < sizeof buf) buf[bl++] = (unsigned char)(hi * 16);
+        p++;
+      }
+      if (font) {
+        for (size_t i = 0; i + bpc <= bl; i += bpc) {
+          unsigned code = bpc == 2 ? (unsigned)buf[i] << 8 | buf[i + 1] : buf[i];
+          uint64_t h = fc_hash(font, fl, code);
+          if (collect) used_add(E, h);
+          else if (!used_has(E, h)) return "glyph";
+        }
+      }
+      kind = 3;
+      ts = NULL;
+    } else if (ch == '<' || ch == '>') {
+      p += (p + 1 < e && p[1] == ch) ? 2 : 1;
+    } else if (ch == '[' || ch == ']' || ch == '{' || ch == '}') {
+      p++;
+    } else if ((ch >= '0' && ch <= '9') || ch == '-' || ch == '+' || ch == '.') {
+      p++;
+      while (p < e && ((*p >= '0' && *p <= '9') || *p == '.')) p++;
+      kind = 2;
+    } else {  // an operator
+      while (p < e && !strchr(" \t\r\n\f/<>[]()%{}", *p)) p++;
+      size_t ol = p - ts;
+#define OP(s) (ol == strlen(s) && !memcmp(ts, s, ol))
+      if (OP("BI")) return "inline image";
+      if (OP("Tf") && tk[1] == 1) {
+        size_t l = tl[1] - 1 < sizeof fname - 1 ? tl[1] - 1 : sizeof fname - 1;
+        memcpy(fname, tn[1] + 1, l);
+        fname[l] = 0;
+        font = fname, fl = l;
+        bpc = font_bpc(E, font, fl);
+        if (!bpc) { if (!collect) return "resource"; bpc = 1; }
+      } else if (!collect && tk[2] == 1 && (OP("Do") || OP("gs") || OP("sh") || OP("cs") || OP("CS") || OP("scn") ||
+                                           OP("SCN") || OP("DP") || OP("BDC"))) {
+        const char *nm = tn[2] + 1;
+        size_t nl = tl[2] - 1;
+        int std = (OP("cs") || OP("CS")) && ((nl == 10 && !memcmp(nm, "DeviceGray", 10)) ||
+                                             (nl == 9 && !memcmp(nm, "DeviceRGB", 9)) ||
+                                             (nl == 10 && !memcmp(nm, "DeviceCMYK", 10)) ||
+                                             (nl == 7 && !memcmp(nm, "Pattern", 7)));
+        int found = std || res_has(OP("Do") ? E->xobjs : NULL, nm, nl);
+        for (int k = 0; !found && k < 5; k++) found = res_has(E->res[k], nm, nl);
+        if (!found && (OP("BDC") || OP("DP"))) found = 1;  // (a marked-content tag, not a resource)
+        if (!found) return "resource";
+      }
+#undef OP
+      kind = 3;
+    }
+    tn[0] = tn[1], tl[0] = tl[1], tk[0] = tk[1];
+    tn[1] = tn[2], tl[1] = tl[2], tk[1] = tk[2];
+    tn[2] = ts, tl[2] = ts ? (size_t)(p - ts) : 0, tk[2] = kind;
+  }
+  return NULL;
+}
+// The streams of a page's /Contents (one reference or an array of them), decoded and concatenated
+static unsigned char *page_streams(pdf *D, const char *pd, size_t *cn)
+{
+  const char *pe = pd + strlen(pd), *vs, *ve;
+  *cn = 0;
+  if (!dict_get(pd, pe, "Contents", &vs, &ve)) return NULL;
+  unsigned char *all = NULL;
+  for (const char *q = vs; q < ve;) {
+    q = skip_ws(q, ve);
+    if (*q == '[' || *q == ']') { q++; continue; }
+    char *r;
+    long num = strtol(q, &r, 10);
+    if (r == q) break;
+    strtol(r, &r, 10);
+    q = skip_ws(r, ve);
+    if (q < ve && *q == 'R') q++;
+    if (num <= 0 || num >= D->nobj || D->off[num] < 0) continue;
+    const char *op = (const char *)D->b + D->off[num];
+    size_t k;
+    unsigned char *c = stream_data(D, strstr(op, "<<"), strstr(op, "stream"), &k);
+    if (!c) continue;
+    all = realloc(all, *cn + k + 1);
+    memcpy(all + *cn, c, k);
+    *cn += k;
+    all[(*cn)++] = '\n';
+    free(c);
+  }
+  return all;
+}
+static void exact_scan(exact_pdf *E)
+{
+  if (E->scanned) return;
+  E->scanned = 1;
+  for (long i = 0;; i++) {
+    long pi = pdf_page(&E->d, i);
+    if (pi <= 0) break;
+    char *o = pdf_object(&E->d, pi);
+    if (!o) break;
+    size_t cn;
+    unsigned char *c = page_streams(&E->d, o, &cn);
+    if (c) scan_content(E, c, cn, 1);
+    free(c), free(o);
+  }
+}
+// The page's content stream among what the engine wrote: the last stream with text that is no XObject, object
+// stream or cross-reference stream
+static unsigned char *page_content(const unsigned char *b, size_t n, size_t *cn)
+{
+  pdf tmp = {.b = (unsigned char *)b, .n = n};
+  unsigned char *best = NULL;
+  for (const char *p = (const char *)b; (p = memmem(p, (const char *)b + n - p, "stream", 6));) {
+    const char *ds = p;
+    while (ds > (const char *)b && !(ds[0] == '<' && ds[1] == '<')) ds--;
+    if (p > (const char *)b + 3 && !memcmp(p - 3, "end", 3)) { p += 6; continue; }
+    const char *de = p, *v1, *v2;
+    if (dict_get(ds, de, "Subtype", &v1, &v2) || dict_get(ds, de, "Type", &v1, &v2)) { p += 6; continue; }
+    size_t k;
+    unsigned char *c = stream_data(&tmp, ds, p, &k);
+    if (c && memmem(c, k, "BT", 2)) { free(best); best = c, *cn = k; }
+    else free(c);
+    p += 6;
+  }
+  return best;
+}
+static int cmd_page(const char *exact_path, long page, const char *bin_path, const char *out_pdf)
+{
+  int64_t t0 = now_us();
+  exact_pdf *E = exact_get(exact_path);
+  if (!E) return fail("cannot read the exact PDF");
+  size_t bn, cn;
+  unsigned char *b = slurp(bin_path, &bn);
+  if (!b) return fail("cannot read the page's data");
+  unsigned char *content = page_content(b, bn, &cn);
+  free(b);
+  if (!content) return fail("no content stream");
+  if (!E->res[0]) {  // the other resource categories of every page
+    for (int k = 0; k < 5; k++) E->res[k] = calloc(1, 1);
+    for (long i = 0;; i++) {
+      long pi = pdf_page(&E->d, i);
+      if (pi <= 0) break;
+      char *o = pdf_object(&E->d, pi);
+      const char *oe = o + strlen(o), *rs, *re;
+      char *res = NULL;
+      if (dict_get(o, oe, "Resources", &rs, &re)) {
+        if (*rs == '<') { res = malloc(re - rs + 1); memcpy(res, rs, re - rs); res[re - rs] = 0; }
+        else res = pdf_object(&E->d, ref_num(rs));
+      }
+      for (int k = 0; res && k < 5; k++) {
+        const char *ks, *ke;
+        if (!dict_get(res, res + strlen(res), res_key[k], &ks, &ke)) continue;
+        char *dict = *ks == '<' ? strndup(ks, ke - ks) : pdf_object(&E->d, ref_num(ks));
+        if (!dict) continue;
+        const char *a = strstr(dict, "<<"), *z = dict + strlen(dict);
+        a = a ? a + 2 : dict;
+        while (z > a && !(z[-1] == '>' && z[-2] == '>')) z--;
+        if (z > a) z -= 2;
+        size_t ol = strlen(E->res[k]), l = z > a ? z - a : 0;
+        if (!strstr(E->res[k], "") || l) {
+          E->res[k] = realloc(E->res[k], ol + l + 2);
+          memcpy(E->res[k] + ol, a, l);
+          E->res[k][ol + l] = ' ', E->res[k][ol + l + 1] = 0;
+        }
+        free(dict);
+      }
+      free(res), free(o);
+    }
+  }
+  exact_scan(E);
+  const char *why = scan_content(E, content, cn, 0);
+  if (why) {
+    free(content);
+    printf("{\"ok\":false,\"error\":\"%s\",\"us\":%lld}\n", why, (long long)(now_us() - t0));
+    return 1;
+  }
+  pdf *D = &E->d;
+  long pg = pdf_page(D, page);
+  if (pg <= 0) { free(content); return fail("no such page"); }
+  char *pd = pdf_object(D, pg);
+  const char *pe = pd + strlen(pd), *vs, *ve;
+  unlink(out_pdf);
+  FILE *f = NULL;
+  if (clonefile(exact_path, out_pdf, 0) == 0) f = fopen(out_pdf, "ab");
+  if (!f) { f = fopen(out_pdf, "wb"); if (f) fwrite(E->ex, 1, E->en, f); }
+  if (!f) { free(content), free(pd); return fail("cannot write the PDF"); }
+  long next = D->size > 0 ? D->size : D->nobj;
+  long a = next, r = next + 1, x = next + 2, offs[3];
+  if (E->ex[E->en - 1] != '\n') put(f, "\n");
+  offs[0] = ftell(f);
+  fprintf(f, "%ld 0 obj\n<< /Length %zu >>\nstream\n", a, cn);
+  fwrite(content, 1, cn, f);
+  fprintf(f, "\nendstream\nendobj\n");
+  offs[1] = ftell(f);
+  fprintf(f, "%ld 0 obj\n<< /ProcSet [/PDF /Text /ImageB /ImageC /ImageI] /Font << %s>> /XObject << %s>>", r, E->fonts,
+          E->xobjs);
+  for (int k = 0; k < 5; k++) if (E->res[k][0]) fprintf(f, " /%s << %s>>", res_key[k], E->res[k]);
+  fprintf(f, " >>\nendobj\n");
+  offs[2] = ftell(f);
+  fprintf(f, "%ld 0 obj\n<<", pg);  // the page, same number: its own entries but the content and the resources
+  static const char *keep[] = {"Type", "Parent", "MediaBox", "CropBox", "BleedBox", "TrimBox", "ArtBox", "Rotate",
+                               "Annots", "Group", "UserUnit", "Tabs", "StructParents", "Metadata", NULL};
+  for (int i = 0; keep[i]; i++)
+    if (dict_get(pd, pe, keep[i], &vs, &ve)) fprintf(f, " /%s %.*s", keep[i], (int)(ve - vs), vs);
+  fprintf(f, " /Contents %ld 0 R /Resources %ld 0 R >>\nendobj\n", a, r);
+  long xoff = ftell(f);
+  enum { NO = 4 };
+  long nums[NO] = {a, r, pg, x}, offv[NO] = {offs[0], offs[1], offs[2], xoff};
+  unsigned char rows[NO][7];
+  for (int i = 0; i < NO; i++) {
+    rows[i][0] = 1;
+    for (int bb = 0; bb < 4; bb++) rows[i][1 + bb] = (offv[i] >> (24 - 8 * bb)) & 255;
+    rows[i][5] = rows[i][6] = 0;
+  }
+  long order[NO] = {0, 1, 2, 3};
+  for (int i = 0; i < NO; i++)
+    for (int j = i + 1; j < NO; j++)
+      if (nums[order[j]] < nums[order[i]]) { long t = order[i]; order[i] = order[j]; order[j] = t; }
+  fprintf(f, "%ld 0 obj\n<< /Type /XRef /Size %ld /Root %ld 0 R /Prev %ld /W [1 4 2] /Index [", x, x + 1, D->root,
+          D->prev_xref);
+  for (int i = 0; i < NO; i++) fprintf(f, "%ld 1 ", nums[order[i]]);
+  fprintf(f, "] /Length %d >>\nstream\n", NO * 7);
+  for (int i = 0; i < NO; i++) fwrite(rows[order[i]], 1, 7, f);
+  fprintf(f, "\nendstream\nendobj\nstartxref\n%ld\n%%%%EOF\n", xoff);
+  int bad = ferror(f);
+  if (fclose(f) || bad) { free(content), free(pd); return fail("cannot write the PDF"); }
+  free(content), free(pd);
+  printf("{\"ok\":true,\"page\":%ld,\"us\":%lld}\n", page, (long long)(now_us() - t0));
+  return 0;
+}
+
 int main(int argc, char **argv)
 {
   out = stdout;
@@ -532,6 +877,7 @@ int main(int argc, char **argv)
       if ((n == 4 || n == 5) && !strcmp(w[0], "xdv")) cmd_xdv(w[1], w[2], w[3], n == 5, n == 5 ? atof(w[4]) : 0);
       else if (n == 2 && !strcmp(w[0], "warm"))  // the document's own last page, drawn and dropped: every font it
         cmd_xdv(w[1], w[1], "/dev/null", 0, 0);  // defines is loaded before the first pass needs it
+      else if (n == 5 && !strcmp(w[0], "page")) cmd_page(w[1], atol(w[2]), w[3], w[4]);
       else if (n == 2 && !strcmp(w[0], "warmpdf")) {  // an exact PDF read ahead of the passes drawn against it
         int64_t t0 = now_us();
         if (exact_get(w[1])) printf("{\"ok\":true,\"us\":%lld}\n", (long long)(now_us() - t0));

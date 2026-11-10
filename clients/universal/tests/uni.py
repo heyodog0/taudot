@@ -260,7 +260,7 @@ def finish(engine, src, main, n=10, seed=2):
     live.send("goal", 0)  # the patched driver: finish at the first page past the edit (tau-live always does)
     pdfs = []
     while True:
-        ev = live.until(lambda e: e["ev"] in ("pdf", "done"))
+        ev = live.until(lambda e: e["ev"] in ("pdf", "done") and not e.get("display"))
         if ev["ev"] == "done":
             break
         if not ev["final"]:
@@ -290,9 +290,9 @@ def finish(engine, src, main, n=10, seed=2):
         text = text[:pos] + ins.encode() + text[pos + dl:]
         live.send("change", main, pos, dl, ins)
         run = newer_run(live)
-        first = live.until(lambda e: e["ev"] in ("pdf", "done") and e.get("seq") == run["seq"])
+        first = live.until(lambda e: e["ev"] in ("pdf", "done") and e.get("seq") == run["seq"] and not e.get("display"))
         if first["ev"] == "done":
-            first = [e for e in live.events if e["ev"] == "pdf" and e["seq"] == run["seq"]][-1]
+            first = [e for e in live.events if e["ev"] == "pdf" and e["seq"] == run["seq"] and not e.get("display")][-1]
         got = f"{out}/edit-{i}.{ext}"
         shutil.copy(first["path"], got)
         live.until(lambda e: e["ev"] == "done" and e["seq"] == run["seq"]) if live.events[-1]["ev"] != "done" else None
@@ -974,6 +974,83 @@ def parked(engine, src, main, n=3):
     return ok
 
 
+def display(engine, src, main, n=40, seed=3):
+    """Display pages (tau-tdl page): typing as in `typing`, then keys bringing characters the document doesn't use.
+    Each display page against the same run's finished output, page for page, drawn at 288 dpi (every pixel counts);
+    a key whose page needs a glyph the last finished output lacks must get no display page."""
+    import pixels
+    name = os.path.basename(os.path.abspath(src))
+    base = settle(engine, src, main, name)
+    out = f"{WORK}/d-out"
+    shutil.rmtree(out, ignore_errors=True)
+    rng = random.Random(seed)
+    text = open(f"{base}/{main}", "rb").read()
+    lo = text.find(b"\\begin{document}")
+    live = Live(engine, base, main, out, "--hook")
+    live.send("goal", 0)
+    live.until(lambda e: e["ev"] == "done")
+    pos = [m.end() for m in re.finditer(rb"[a-z]{4,}\. ", text[lo:])]
+    keys = list("Typing goes here, one key at a time. ") * (n // 37 + 1)
+    novel = ["\\textsuperscript{\\textcircled{z}}", "\\L{}\\o{}\\ae{}", "$\\aleph\\wp$"]
+    checked = same = shown = refused_ok = 0
+    worst = 0
+    t_disp, t_first = [], []
+
+    def key(p, ch, expect_refusal=False):
+        nonlocal checked, same, shown, refused_ok, worst
+        live.send("change", main, p, 0, ch)
+        run = newer_run(live)
+        done = live.until(lambda e: e["ev"] == "done" and e["seq"] == run["seq"])
+        evs = [e for e in live.events if e["ev"] == "pdf" and e["seq"] == run["seq"]]
+        disp = [e for e in evs if e.get("display")]
+        real = [e for e in evs if not e.get("display")]
+        if evs:
+            t_first.append(evs[0]["edit_us"] / 1000)
+        if expect_refusal and not disp:
+            refused_ok += 1
+            return len(ch)
+        if not disp or not real:
+            return len(ch)
+        d = disp[0]
+        shown += 1
+        t_disp.append(d["edit_us"] / 1000)
+        k = d["from_page"]
+        ref = next((e for e in real if e["pages"] > k), done if done.get("path") else None)
+        if not ref:
+            return len(ch)
+        a, b = open(d["path"], "rb").read(), open(ref["path"], "rb").read()
+        H = pixels.page_height(b, k)
+        import pikepdf
+        with pikepdf.open(ref["path"]) as doc:
+            w = float(doc.pages[k].mediabox[2])
+        ra = pixels.render(a, k, (0, 0, w, H))[0]
+        rb = pixels.render(b, k, (0, 0, w, H))[0]
+        diff = sum(1 for i in range(0, len(ra), 4) if ra[i:i + 3] != rb[i:i + 3])
+        checked += 1
+        same += diff == 0
+        worst = max(worst, diff)
+        return len(ch)
+
+    for spot in range(n // 20):
+        p = lo + rng.choice(pos)
+        for i in range(20):
+            time.sleep(0.12)
+            p += key(p, keys[spot * 20 + i])
+    # characters the document may not draw yet: no display page when the font subsets lack them, else (the glyph is
+    # drawn somewhere already) a page that draws identically
+    novel += ["\\symbol{\"2603}", "\\symbol{\"0416}\\symbol{\"03A8}"] if engine != "pdflatex" else []
+    for c in novel:
+        p = lo + rng.choice(pos)
+        key(p, " " + c + " ", expect_refusal=True)
+    live.close()
+    print(f"display {engine} {name}: {shown} display pages for {n} keys; {same}/{checked} draw identically to the "
+          f"run's finished page (288 dpi, worst {worst} px); keys with new characters: {refused_ok}/{len(novel)} refused, the others checked above")
+    if t_disp:
+        print(f"  edit -> display page p50 {statistics.median(t_disp):.1f} ms; edit -> first output p50 "
+              f"{statistics.median(t_first):.1f} ms")
+    return same == checked and refused_ok > 0
+
+
 if __name__ == "__main__":
     if sys.argv[1:2] == ["serve"]:
         serve(*sys.argv[2:5])
@@ -985,6 +1062,8 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["paragraph"]:
         paragraph(*sys.argv[2:5], *(int(x) for x in sys.argv[5:6]))
         sys.exit(0)
+    if sys.argv[1:2] == ["display"]:
+        sys.exit(0 if display(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["parked"]:
         sys.exit(0 if parked(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["bblonly"]:

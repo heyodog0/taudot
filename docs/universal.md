@@ -493,6 +493,20 @@ Measured on paper-b, per placed `para` event (TeX time from the pass's start / t
   (p95 105 → 92). `uni.py finish`: early outputs identical to the full run's pages, 10/10 on all three engines. The
   character-range walk is the engine's own and stays.
 
+- **Display pages** (pdfTeX, LuaTeX; `--no-display-pages` turns them off). The first output after a key used to wait
+  for an early finish (LuaTeX ~50 ms of it: `pdf_finish_file` walks each OpenType font's whole character range, which
+  luaotfload's private-use glyphs stretch to ~1M slots; narrowing the range from outside isn't possible without
+  losing the fonts' used marks or changing typesetting). Now, at the run's first page after the edit, libtau writes
+  what the engine wrote for that page (`TAU_PAGE_PREVIEW`); `tau-tdl page` makes the last finished PDF with that page
+  drawing the new content stream (an incremental update; all pages' resources), and tau-live sends it as an early
+  `pdf` event with `display: true`; the finish follows as before. Only when it draws the same: every (font, code) of
+  the page must be drawn somewhere in the finished PDF (so its font subsets have the glyph), every resource it names
+  must be there, no inline image; else no display page. `uni.py display`: every display page against the run's
+  finished page at 288 dpi, 44/44 (LuaLaTeX) and 42/42 (pdfLaTeX) with 0 px differing, including keys with
+  characters new to the document; a key needing a glyph the subsets lacked was refused. Typing, key → first output p50:
+  **LuaLaTeX 70 → 19 ms, pdfLaTeX 34 → 11 ms**.
+- `from_page` in `run` and `pdf` events was always 0; it is now the pages shipped before the resume snapshot.
+
 ## Results (TeX Live 2026, M-series Mac, 2026-11-07)
 
 Papers: paper-a (32 pages, one column, review-mode line numbers) and paper-b (the corpus's arXiv 2103.00020, 48 pages, two columns). "Stock" is TeX Live's

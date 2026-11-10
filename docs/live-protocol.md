@@ -94,6 +94,13 @@ this file (not a prefetch). Shown as progress in the pane's status line.
 - `log`: the run's `.log` so far (Overleaf's log; on a final PDF, the whole of it).
 - `edit_us`: from reading the first edit of `applied` to this PDF written; `finish_us`: the finish alone.
 
+**Display pages on tau-live** (pdfTeX, LuaTeX; verified in `clients/universal/driver/tau-live.c`): a `pdf` event with
+`"display":true` comes before the run's first finished output: `path` is the last finished PDF with page `from_page`
+drawing the new run's page (an incremental update), every other page as it was; `pages` is `from_page` + 1 (pages after it in the file are old ones, as for any early
+output); no
+`synctex` or `log`. It draws exactly what the finished page will (checked in `uni.py display`); the finished output
+follows in a normal `pdf` event.
+
 **XeTeX on tau-live** (verified in `clients/universal/driver/tau-live.c`): `path` is the run's `.xdv`. With
 `tau-pdfmx` beside tau-live (and no `--no-pdfmx`), tau-live converts the pages that changed and the event carries:
 

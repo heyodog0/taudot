@@ -167,6 +167,12 @@ static char **eng_argv;
 static int msg_r = -1, msg_w = -1, life_r = -1, life_w = -1;
 static long snapshot_ms = 20;  // as pdftex-live --serve
 static long first_sparse_ms = 200;  // a first run with no .aux (spawn_engine)
+// Display pages (pdf engines): the run's first page after an edit, drawn on the last finished output (tau-tdl page)
+static int display_pages = 1;
+static char last_exact[4600];  // the newest finished PDF, and its page count
+static int last_exact_pages;
+static int pdf_out_seq = -1, pdf_out_run = -1;  // the last pdf event's (a display page after it is of no use)
+static int display_seq = -1;  // the edit whose display page was asked for
 static char **park_argv;              // the engine's command line in the parked form (--park, --parked)
 static char park_sig[32], park_sock[1024], parked_sock[1024];
 static uint64_t fnv1a(uint64_t h, const void *p, size_t n) {
@@ -174,6 +180,7 @@ static uint64_t fnv1a(uint64_t h, const void *p, size_t n) {
   return h;
 }
 static const char *job_stem(void);
+static const char *out_ext(void);
 static int exists(const char *p);
 static int finish_every = 0, max_snaps = 256, hook = 0;
 static long dense = 300;
@@ -616,6 +623,7 @@ static void spawn_engine(void) {
   env[k++] = e1, env[k++] = e2, env[k++] = e3, env[k++] = e4, env[k++] = e5, env[k++] = e6, env[k++] = e7;
   if (finish_every) env[k++] = "TAU_FINISH=every";
   if (e8[0]) env[k++] = e8;
+  if (display_pages && hook && !strcmp(out_ext(), "pdf")) env[k++] = "TAU_PAGE_PREVIEW=1";
   env[k] = NULL;
   char logp[4096];
   snprintf(logp, sizeof logp, "%s/engine.out", tdir);
@@ -666,7 +674,7 @@ static struct { int seq; char rel[512]; long end; int line; } pass;
 static pid_t reader = -1;
 static int reader_in = -1, reader_out = -1;
 static char tdl_bin[2048];
-typedef struct { char *head; int seq; int64_t t_sent; int pdf; } reader_job;
+typedef struct { char *head; int seq; int64_t t_sent; int pdf; int page; } reader_job;  // (page: a display page)
 static reader_job jobs[16];
 static int njobs;
 static int npreviews;
@@ -826,6 +834,7 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
     fflush(dbg);
   }
   run_open = 1;
+  from_page = s->pages;  // (pages shipped before the snapshot the run resumes from: unchanged)
   emit("{\"ev\":\"run\",\"seq\":%d,\"run\":%d,\"applied\":%d,\"why\":\"%s\",\"from_page\":%d,\"snapshot\":%d,"
        "\"snapshots\":%d}",
        seq, run_no, applied_at_run, why, from_page, s->pid, nsnaps);
@@ -899,6 +908,7 @@ static const char *job_stem(void) {
 static int exists(const char *p) { return access(p, F_OK) == 0; }
 
 static void emit_pdf(const char *tag, int s, pid_t pid, int pages, int final, int64_t t) {
+  pdf_out_seq = s, pdf_out_run = run_no;
   char d[4096], pdf[4600], sx[4600], lg[4600];
   snprintf(d, sizeof d, "%s/%s-%d-%d", tdir, tag, s, pid);
   snprintf(pdf, sizeof pdf, "%s/%s.%s", d, job_stem(), out_ext());
@@ -992,6 +1002,10 @@ static void emit_pdf(const char *tag, int s, pid_t pid, int pages, int final, in
     char req[4700];
     int rn = snprintf(req, sizeof req, "warmpdf\t%s\n", pdf);
     if (rn < (int)sizeof req && write(reader_in, req, rn) == rn) jobs[njobs++] = (reader_job){NULL, -1, now_us(), 1};
+  }
+  if (!strcmp(out_ext(), "pdf") && exists(pdf) && pages > 0) {
+    snprintf(last_exact, sizeof last_exact, "%s", pdf);
+    last_exact_pages = pages;
   }
   if (sx_slot >= 0 && hook && para) {  // its SyncTeX, read now rather than when the next pass is waiting on it
     int64_t t0 = now_us();
@@ -1510,7 +1524,15 @@ static void reader_answer(const char *l) {
   reader_job j = jobs[0];
   memmove(jobs, jobs + 1, --njobs * sizeof *jobs);
   if (dbg) fprintf(dbg, "reader answer: job seq %d (now %d) %s, %lld us after sending: %.120s\n", j.seq, seq,
-                   j.head ? "para" : "warm", (long long)(now_us() - j.t_sent), l), fflush(dbg);
+                   j.page ? "page" : j.head ? "para" : "warm", (long long)(now_us() - j.t_sent), l), fflush(dbg);
+  if (j.page) {  // a display page: out as an early output, unless this run's own output came first
+    if (strstr(l, "\"ok\":true") && j.seq == seq && !(pdf_out_seq == seq && pdf_out_run == run_no)) {
+      fprintf(EVO, "%s,\"edit_us\":%lld}\n", j.head, (long long)(now_us() - t_apply));
+      fflush(EVO);
+    }
+    free(j.head);
+    return;
+  }
   if (!strstr(l, "\"ok\":true")) {
     if (dbg) fprintf(dbg, "reader: %s\n", l), fflush(dbg);
     free(j.head);
@@ -1595,6 +1617,33 @@ static void on_msg(char *line) {
   if (sscanf(line, "p %d %d %d %lld", &a, &b, &c, &t) == 4) {
     if (a == runner) pages_now = c;
     return;
+  }
+  {
+    char pp[2048];
+    if (sscanf(line, "P %d %d %d %2047s", &a, &b, &c, pp) == 4) {  // a page's data: maybe a display page
+      if (dbg && b == seq && display_seq != seq)
+        fprintf(dbg, "display? runner %d (P from %d) page %d from_page %d exact %d pages, pdf out %d/%d (run %d)\n",
+                runner, a, c, from_page, last_exact_pages, pdf_out_seq, pdf_out_run, run_no), fflush(dbg);
+      if (display_pages && b == seq && a == runner && display_seq != seq && c - 1 == from_page && last_exact[0] &&
+          c <= last_exact_pages && reader_in >= 0 && njobs < 16 && !(pdf_out_seq == seq && pdf_out_run == run_no) &&
+          !strcmp(out_ext(), "pdf")) {
+        display_seq = seq;
+        char outp[4300], req[16384];
+        snprintf(outp, sizeof outp, "%s/display-%d.pdf", tdir, seq % 4);
+        int rn = snprintf(req, sizeof req, "page\t%s\t%d\t%s\t%s\n", last_exact, c - 1, pp, outp);
+        if (rn < (int)sizeof req && write(reader_in, req, rn) == rn) {
+          char *head = NULL;
+          size_t hn = 0;
+          FILE *h = open_memstream(&head, &hn);
+          fprintf(h, "{\"ev\":\"pdf\",\"seq\":%d,\"run\":%d,\"applied\":%d,\"pages\":%d,\"final\":false,"
+                  "\"from_page\":%d,\"display\":true,\"path\":", seq, run_no, applied_at_run, c, from_page);  // (pages: through this one)
+          jstr(h, outp, strlen(outp));
+          fclose(h);
+          jobs[njobs++] = (reader_job){head, seq, now_us(), 1, 1};
+        }
+      }
+      return;
+    }
   }
   if (sscanf(line, "F %d %d %d %lld", &a, &b, &c, &t) == 4) {
     if (b == seq && nfins < 256) fins[nfins++] = a;
@@ -1850,6 +1899,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--no-para")) para = 0;
     else if (!strcmp(argv[i], "--no-pdfmx")) use_pdfmx = 0;
     else if (!strcmp(argv[i], "--no-presize")) lua_presize = 0;
+    else if (!strcmp(argv[i], "--no-display-pages")) display_pages = 0;
     else if (!strcmp(argv[i], "--first-snapshot-ms") && i + 1 < argc) first_sparse_ms = atol(argv[++i]);
     else if (!strcmp(argv[i], "--park") && i + 1 < argc) snprintf(park_sock, sizeof park_sock, "%s", argv[++i]);
     else if (!strcmp(argv[i], "--parked") && i + 1 < argc) snprintf(parked_sock, sizeof parked_sock, "%s", argv[++i]);
