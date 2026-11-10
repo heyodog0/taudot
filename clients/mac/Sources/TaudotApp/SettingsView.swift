@@ -243,19 +243,47 @@ struct NumberField: View {
   let down: () -> Void
   var body: some View {
     HStack(spacing: 8) {
-      HStack(spacing: 6) {
-        Text(text).font(.system(size: 13.5).monospacedDigit()).frame(minWidth: 34, alignment: .trailing)
-        VStack(spacing: 0) {
-          Button(action: up) { Image(systemName: "chevron.up").font(.system(size: 8, weight: .bold)).frame(width: 14, height: 10) }
-          Button(action: down) { Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).frame(width: 14, height: 10) }
-        }
-        .buttonStyle(.plain)
+      // − value +: two full-height buttons (32 × 30 pt targets), not a stepper's 10 pt chevrons
+      HStack(spacing: 0) {
+        StepButton(p: p, symbol: "minus", help: "Smaller", action: down)
+        Rectangle().fill(p.rim.opacity(0.8)).frame(width: 1, height: 16)
+        Text(text).font(.system(size: 13.5).monospacedDigit()).frame(minWidth: 40)
+        Rectangle().fill(p.rim.opacity(0.8)).frame(width: 1, height: 16)
+        StepButton(p: p, symbol: "plus", help: "Bigger", action: up)
       }
-      .padding(.horizontal, 8).frame(height: 28)
+      .frame(height: 30)
       .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(p.search))
       .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(p.rim.opacity(0.8), lineWidth: 1))
+      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
       Text(unit).foregroundStyle(p.secondary).font(.system(size: 13))
     }
+  }
+}
+
+/// One of NumberField's − / + buttons: the whole 32 × 30 pt cell takes the click; hover and press tint it.
+struct StepButton: View {
+  let p: SettingsPalette
+  let symbol: String
+  let help: String
+  let action: () -> Void
+  @State private var hover = false
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(p.text)
+        .frame(width: 32, height: 30).contentShape(Rectangle())
+    }
+    .buttonStyle(StepButtonStyle(p: p, hover: hover))
+    .onHover { hover = $0 }
+    .help(help)
+    .accessibilityLabel(help)
+  }
+}
+
+struct StepButtonStyle: ButtonStyle {
+  let p: SettingsPalette
+  let hover: Bool
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label.background(p.text.opacity(configuration.isPressed ? 0.14 : hover ? 0.06 : 0))
   }
 }
 
