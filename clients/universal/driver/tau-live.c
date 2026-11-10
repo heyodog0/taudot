@@ -178,8 +178,12 @@ static int display_seq = -1;  // the edit whose display page went out (or was gi
 // page after the resume point before it read the edited line, or the run resumed pages before the edit (those are
 // unchanged); up to DISPLAY_TRIES pages
 static int disp_wait = -1;  // the edit whose page request is with the reader
-static int disp_next_c;     // a later page shipped meanwhile (its number; 0: none), and its data
-static char disp_next_path[2048];
+// The pages shipped and not yet asked about, in order (every one: the display page is the first that changed, and the
+// pages before it in the display PDF must be unchanged). Held while the edit's paragraph pass runs: the preview first.
+static int dq_seq = -1, dq_n, dq_at;
+static int dq_c[64];
+static char dq_path[64][2048];
+static void display_pump(void);
 enum { DISPLAY_TRIES = 64 };  // (the resume snapshot may be pages before the edit: they are spaced on long documents)
 static char **park_argv;              // the engine's command line in the parked form (--park, --parked)
 static char park_sig[32], park_sock[1024], parked_sock[1024];
@@ -1532,7 +1536,6 @@ static void para_lines(const char *line, int s, int lines, int pieces, const cha
 // A display page: page C (1-based) of this run, its data at PP, over the last finished PDF (tau-tdl `page`)
 static void display_ask(int c, const char *pp)
 {
-  disp_next_c = 0;
   if (reader_in < 0 || njobs >= 16) { display_seq = seq; return; }
   char outp[4300], req[16384];
   snprintf(outp, sizeof outp, "%s/display-%d.pdf", tdir, seq % 4);
@@ -1547,6 +1550,16 @@ static void display_ask(int c, const char *pp)
   fclose(h);
   jobs[njobs++] = (reader_job){head, seq, now_us(), 1, 1};
   disp_wait = seq;
+}
+
+// The next queued page to the reader: one at a time, and not while the edit's paragraph pass is running (the pass and
+// its reader request come first; a `page` request queued in the reader ahead of the pass's would delay the preview)
+static void display_pump(void)
+{
+  if (dq_seq != seq || dq_at >= dq_n || display_seq == seq || disp_wait == seq) return;
+  if (pass.seq == seq && pass_out_seq != seq && now_us() - t_apply < 50000) return;  // (a pass that never ends: 50 ms)
+  int k = dq_at++;
+  display_ask(dq_c[k], dq_path[k]);
 }
 
 // An answer from the reader: the oldest request's event goes out
@@ -1564,7 +1577,7 @@ static void reader_answer(const char *l) {
       fflush(EVO);
       display_seq = seq;
     } else if (fresh && strstr(l, "\"error\":\"same\"")) {  // that page didn't change: the next one shipped
-      if (disp_next_c) display_ask(disp_next_c, disp_next_path);
+      display_pump();
     } else if (j.seq == seq) {
       display_seq = seq;
     }
@@ -1665,8 +1678,11 @@ static void on_msg(char *line) {
       if (display_pages && b == seq && a == runner && display_seq != seq && c - 1 >= from_page && last_exact[0] &&
           !(pdf_out_seq == seq && pdf_out_run == run_no) && !strcmp(out_ext(), "pdf")) {
         if (c - 1 >= from_page + DISPLAY_TRIES || c > last_exact_pages) display_seq = seq;  // (too far: the finish)
-        else if (disp_wait == seq) disp_next_c = c, snprintf(disp_next_path, sizeof disp_next_path, "%s", pp);
-        else display_ask(c, pp);
+        else {
+          if (dq_seq != seq) dq_seq = seq, dq_n = dq_at = 0;
+          if (dq_n < 64) dq_c[dq_n] = c, snprintf(dq_path[dq_n], sizeof dq_path[0], "%s", pp), dq_n++;
+          display_pump();
+        }
       }
       return;
     }
@@ -2112,8 +2128,9 @@ int main(int argc, char **argv) {
   for (;;) {
     while (waitpid(-1, NULL, WNOHANG) > 0) {}
     if (ndoomed && (pass.seq != seq || (pass_out_seq == seq && !njobs) || now_us() - doomed_at > 50000)) kill_doomed();
+    display_pump();  // (display pages held while the pass ran: after its reader request)
     struct pollfd pf[4] = {{0, POLLIN, 0}, {msg_r, POLLIN, 0}, {reader_out, POLLIN, 0}, {pdfmx_out, POLLIN, 0}};
-    if (poll(pf, 4, ndoomed ? 10 : 200) < 0 && errno != EINTR) die("poll");  // (negative fds are skipped)
+    if (poll(pf, 4, ndoomed || (dq_seq == seq && dq_at < dq_n && display_seq != seq) ? 10 : 200) < 0 && errno != EINTR) die("poll");  // (negative fds are skipped)
     if (pdfmx_out >= 0 && (pf[3].revents & (POLLIN | POLLHUP))) {
       static char xbuf[4096];
       static size_t xlen;
