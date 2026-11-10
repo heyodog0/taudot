@@ -667,3 +667,23 @@ then show an old page before the display page). Interleaved, same load (3–8), 
 At this load the two are within noise; the bench's regression needs a loaded machine to show, where the hold keeps
 the reader off the cores during the pass. `uni.py display` after the change: 40/40 (1512.03385, paper-b pdfLaTeX and
 LuaLaTeX), 29/40 synth-300, all 0 px, novel-glyph keys refused.
+
+## List items: the preview stood 25 pt left (2026-11-10, editfix item 8)
+
+The user saw the PDF jitter while typing in a long `\item` (universal pdfLaTeX). Off screen (the app's pane, every
+frame of the page composited from its layers: `EditfixJitterTests.swift`), each key moved the item's lines sideways
+twice: the preview drew them 24.9 pt left of the page's, and the display page put them back. The pass takes its lines
+off with `\lastbox`, which drops each line's shift (a list's indent comes from `\parshape`, as a shift of every line
+box), and shipped them at the text's left edge (`\moveright\dimen0`). `uni.py paragraph` never had a list item.
+
+Now the driver passes the old lines' left edge from SyncTeX (`\taudotxb`, sp less 1in, beside `\taudotyb`) and the
+pass ships its lines there (`\moveright\dimexpr\taudotxb sp-\hoffset`): the engine rounds positions as on the page,
+the reader is unchanged. Old lines that don't share one left edge (a hanging indent) get no preview (`none`/`shape`).
+`uni.py paragraph` on a list-heavy document (14 sections of three long `\item`s and a nested `enumerate` item; 24
+edits): exact previews placed at 0 px, before → after: pdfLaTeX 4/17 (worst 44,063 px) → 17/17; LuaLaTeX 7/7 and
+XeLaTeX 7/7 (baselines) after. synth-10: 9/9 at 0 px, as before.
+
+The app side of the same report (`LiveTex.stale`, `retirePara`): tau-live's first-run finisher PDF could land after
+the run's finished PDF and `done` and put the older page back (and keep SyncTeX from installing); and the preview
+was taken down on the edit's second PDF (`changed` []), before the display page's tiles were up, so the old text
+showed for a frame at every key.

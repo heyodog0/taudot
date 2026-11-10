@@ -736,6 +736,7 @@ final class Trash: @unchecked Sendable {
     }
     exitedProc = nil
     proc = p
+    shownRun = nil  // a new driver counts its compiles from 0
     stdinPipe = i
     sent = 0
     if let goalPage { send(["goal", goalPage]) }
@@ -882,6 +883,7 @@ final class Trash: @unchecked Sendable {
         onNote?("\(label): can't read \(m["path"] as? String ?? "?")")
         return
       }
+      if stale(pdf, final: m["final"] as? Bool ?? false, xdv: (m["path"] as? String)?.hasSuffix(".xdv") == true) { return }
       shown(pdf, final: m["final"] as? Bool ?? false, m)
     case "bibtex", "done":
       // the kept .blg only stands in until this driver has sent one
@@ -899,6 +901,25 @@ final class Trash: @unchecked Sendable {
       onNote?(what == "offline" ? "offline: \(msg)" : "\(label): \(msg)")
     default: break
     }
+  }
+
+  /// The newest compile shown (`seq`, `run`) and whether its final PDF was: older PDFs are stale.
+  private var shownRun: (seq: Int, run: Int, final: Bool)?
+
+  /// A PDF older than what's on screen (item 8): from an earlier compile or rerun, or a run's early or display PDF
+  /// once its finished one is up. tau-live's first-run finisher writes the goal page while the run goes on, and its
+  /// PDF can land after the run's finished PDF and `done`; shown, it put the older page back over the newer one (the
+  /// pane flickered back) and its report, after `done`, kept SyncTeX from installing. XeTeX's converted pages are
+  /// never dropped: tau-live counts them as the client's.
+  private func stale(_ pdf: LivePDF, final isFinal: Bool, xdv: Bool) -> Bool {
+    let now = (pdf.seq, pdf.run)
+    if !xdv, let s = shownRun, now < (s.seq, s.run) || (now == (s.seq, s.run) && s.final && !isFinal) {
+      Trash([pdf]).empty(on: loadQ)
+      return true
+    }
+    if let s = shownRun, now == (s.seq, s.run) { shownRun = (now.0, now.1, s.final || isFinal) }
+    else if shownRun.map({ now > ($0.seq, $0.run) }) ?? true { shownRun = (now.0, now.1, isFinal) }
+    return false
   }
 
   /// A finished PDF: its pages replace the shown ones they cover; the changed ones are reported.

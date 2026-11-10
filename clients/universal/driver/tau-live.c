@@ -681,6 +681,16 @@ static out_rec outs[8];
 static int nouts;
 static sx_index sxs[8];
 static void old_lines(sx_index **xp, sx_para *op, out_rec **srcp);
+// The paragraph's old lines all start at the same x (a list item's are all indented alike; a hanging indent's aren't)
+static int same_left(const sx_index *x, const sx_para *o) {
+  const sx_rec *r1 = &x->r[o->first];
+  for (int i = o->first + 1, k = 1; i < x->n && k < o->n; i++)
+    if (x->r[i].parent == r1->parent) {
+      if (x->r[i].h != r1->h) return 0;
+      k++;
+    }
+  return 1;
+}
 // The pass in flight: what it typesets, for its event
 static struct { int seq; char rel[512]; long end; int line; } pass;
 // The reader (tau-tdl serve): one process, requests in order, one answer line each
@@ -780,8 +790,12 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
     pass.end = para_end(t, ch[0].k);
     pass.line = line_of(t, pass.end);
     // the pass ships its lines where the old ones are on their page (same page origin, so the engine rounds their
-    // positions as on the exact page, and the overlay needs no offset): the old first baseline, from SyncTeX
-    char yb[64] = "";
+    // positions as on the exact page, and the overlay needs no offset): the old first baseline, from SyncTeX, and the
+    // old lines' left edge. Across, because the pass takes its lines off with \lastbox, which drops each line's
+    // shift (a list item's indent, from \parshape): shipped at the text's left edge, a list item's preview stood
+    // 25 pt left of the page's lines, and the paragraph jumped sideways at every key (item 8). Lines shifted by
+    // different amounts (a hanging indent, a shaped paragraph) get no left edge, and no preview (para_lines).
+    char yb[64] = "", xb[64] = "";
     {
       sx_index *x;
       sx_para o;
@@ -790,6 +804,7 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
       if (src && o.found == 1) {
         double u = x->unit > 0 ? x->unit : 1;
         snprintf(yb, sizeof yb, "%ld", (long)(x->r[o.first].v * u) - 4736286L);
+        if (same_left(x, &o)) snprintf(xb, sizeof xb, "%ld", (long)(x->r[o.first].h * u) - 4736286L);
       }
     }
     // LaTeX's own output routine still handles its float penalties (below -10000); a page break ships at natural
@@ -797,8 +812,8 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
     // at the pass's own break (\taudotpg defined: the paragraph is over) only its last \prevgraf lines are shipped,
     // taken off with \lastbox, through the primitive \shipout; if anything but lines, glue and penalties is in the
     // way (a footnote's insert, a mark, a whatsit) the page so far ships instead, as at a break inside the paragraph
-    fprintf(f, "prefix \\gdef\\taudotg{}\\gdef\\taudotown{0}\\gdef\\taudotn{0}\\gdef\\taudotyb{%s}"
-               "\\toks255=\\expandafter{\\the\\output}\\output={\\taudotout}%%\n", yb);
+    fprintf(f, "prefix \\gdef\\taudotg{}\\gdef\\taudotown{0}\\gdef\\taudotn{0}\\gdef\\taudotyb{%s}\\gdef\\taudotxb{%s}"
+               "\\toks255=\\expandafter{\\the\\output}\\output={\\taudotout}%%\n", yb, xb);
     fprintf(f, "flush \\taudotflush%%\n");
     int has_text = 0;
     {  // the paragraph's new text from the resume point, so the pass needn't reread the file
@@ -1467,6 +1482,8 @@ static void para_lines(const char *line, int s, int lines, int pieces, const cha
   if (!src) return para_none(s, "noanchor", lines, pieces, bin);
   if (o.found == -1) return para_none(s, "split", lines, pieces, bin);
   if (o.found == -2) return para_none(s, "segment", lines, pieces, bin);
+  // lines indented by different amounts: the pass shipped them all at the text's left edge (see \taudotxb)
+  if (!same_left(x, &o)) return para_none(s, "shape", lines, pieces, bin);
   const sx_rec *r1 = &x->r[o.first], *rn = r1;
   for (int i = o.first + 1, k = 1; i < x->n && k < o.n; i++)
     if (x->r[i].parent == r1->parent) rn = &x->r[i], k++;
@@ -2022,12 +2039,14 @@ int main(int argc, char **argv) {
         "\\advance\\count255-1 \\else\\global\\let\\taudotok=F\\count255=0 \\fi\\repeat"
         // the lines' geometry for the driver: first baseline below the shipped page's top (less 1in), the span from
         // the first line's top to the last one's bottom, the first line's height (sp)
-        // shipped down to \taudotyb (the old first baseline, sp) when the driver knows it
+        // shipped down to \taudotyb (the old first baseline, sp) and across to \taudotxb (the old lines' left edge, sp:
+        // \lastbox dropped their shift) when the driver knows them
         "\\if T\\taudotok\\xdef\\taudotk{\\ifx\\taudotyb\\empty 0pt\\else"
         "\\the\\dimexpr\\taudotyb sp-\\voffset-\\skip0-\\dimen2\\relax\\fi}"
         "\\xdef\\taudotg{-g\\number\\dimexpr\\voffset+\\taudotk+\\skip0+\\dimen2\\relax x"
         "\\number\\dimexpr\\ht2+\\dp2-\\skip0\\relax x\\number\\dimen2}\\fi}\\taudotmark{2}\\taudotx"
-        "\\if T\\taudotok\\csname tex_shipout:D\\endcsname\\vbox{\\kern\\taudotk\\moveright\\dimen0\\box2}\\taudotmark{3}"
+        "\\if T\\taudotok\\csname tex_shipout:D\\endcsname\\vbox{\\kern\\taudotk\\moveright"
+        "\\ifx\\taudotxb\\empty\\dimen0\\else\\dimexpr\\taudotxb sp-\\hoffset\\relax\\fi\\box2}\\taudotmark{3}"
         "\\else\\shipout\\vbox{\\moveright\\dimen0\\vbox{\\unvbox0\\unvbox2}}\\fi\\taudotpad\\taudotmark{5}}"
         "\\def\\taudotpage{\\taudotx\\shipout\\vbox{\\moveright\\dimen0\\vbox{\\unvbox255}}}"
         "\\def\\taudotout{\\ifnum\\outputpenalty<-10000 \\the\\toks255 \\else"
