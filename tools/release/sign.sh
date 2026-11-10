@@ -19,8 +19,18 @@ n=0
 find "$app/Contents" -type f \( -perm -u+x -o -name '*.dylib' -o -name '*.so' \) -not -path '*.framework/*' -print0 \
   | xargs -0 file | grep 'Mach-O' | sed 's/ (for architecture.*//; s/:.*//' | sort -u | grep -v "/Contents/MacOS/taudot-app$" > "${TMPDIR:-/tmp}/taudot-sign.$$" || true
 while IFS= read -r f; do
-  # shellcheck disable=SC2086
-  codesign $opts "$f" 2>&1 | grep -v 'replacing existing signature' || true
+  case "$f" in
+    */Contents/Resources/universal/bin/pdftex|*/Contents/Resources/universal/bin/xetex|*/Contents/Resources/universal/bin/luahbtex)
+      # universal's engines: tau-live loads libtau into them (DYLD_INSERT_LIBRARIES); their own entitlements, which
+      # replace the app's (with an identity: the hardened runtime too; ad-hoc: embedded, so a build can be checked)
+      if [ "$id" = - ]; then eopts="--force --sign - --entitlements $here/entitlements-engines.plist"
+      else eopts="--force --sign $id --options runtime --timestamp --entitlements $here/entitlements-engines.plist"; fi
+      # shellcheck disable=SC2086
+      codesign $eopts "$f" 2>&1 | grep -v 'replacing existing signature' || true ;;
+    *)
+      # shellcheck disable=SC2086
+      codesign $opts "$f" 2>&1 | grep -v 'replacing existing signature' || true ;;
+  esac
   n=$((n + 1))
 done < "${TMPDIR:-/tmp}/taudot-sign.$$"
 rm -f "${TMPDIR:-/tmp}/taudot-sign.$$"

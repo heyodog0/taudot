@@ -346,7 +346,7 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
         let c = columns[ci];
         let indented = parindent > 0.0 && l.x0 <= c.left + parindent + 0.01 && l.x0 > c.left + parindent - if microtype { 0.4 * body_size } else { 0.01 };
         let follows = prev.is_some_and(|(pg, pc, py)| pg == l.page && pc == ci && ((py - l.y) - baselineskip).abs() < 0.05);
-        let continues_open = open.as_ref().is_some_and(|p| !p.ends_short) && follows && !indented && item[j].is_none();
+        let continues_open = open.as_ref().is_some_and(|p| !p.ends_short && p.hang == 0.0) && follows && !indented && item[j].is_none();
         // An indented line right after a full line of a flush paragraph: a hanging indent (a bibliography entry).
         let hangs = indented && follows && open.as_ref().is_some_and(|p| !p.ends_short && p.start == Start::Flush && (p.lines.len() == 1 || p.hang > 0.0));
         if continues_open || hangs {
@@ -448,8 +448,13 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
             let indented = mark.is_none() && pind > 0.0 && near(l.x0, c.left + pind);
             let follows = prev.is_some_and(|(pg, pc, py)| pg == l.page && pc == ci && ((py - l.y) - bskip).abs() < 0.05);
             let full = (l.x1 - c.right).abs() < 0.02 || (l.x1 > c.right && l.x1 < c.right + 0.3 * s);
-            if open.as_ref().is_some_and(|p| !p.ends_short) && follows && !indented && mark.is_none() {
+            // As in the body: an indented line after a full line of a flush paragraph is a hanging indent.
+            let hangs = indented && follows && open.as_ref().is_some_and(|p| !p.ends_short && p.start == Start::Flush && p.label == 0 && (p.lines.len() == 1 || p.hang > 0.0));
+            if (open.as_ref().is_some_and(|p| !p.ends_short && p.hang == 0.0) && follows && !indented && mark.is_none()) || hangs {
                 let p = open.as_mut().unwrap();
+                if hangs {
+                    p.hang = l.x0 - c.left;
+                }
                 p.ends_short = !full;
                 p.lines.push(Line { left: c.left, right: c.right, ..l.clone() });
             } else {

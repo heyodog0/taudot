@@ -23,6 +23,9 @@ pub struct TexFont {
     pub mapline: String,
     /// The NFSS font that loads this TFM (for runs that let LaTeX and microtype set fonts up).
     pub nfss: Option<crate::texmf::Nfss>,
+    /// PDF code → the TFM char TeX ends up with (after ligatures), and the TFM's kerns between those chars (pt).
+    pub tchar: HashMap<u32, u32>,
+    pub kerns: HashMap<(u32, u32), f64>,
 }
 
 pub fn colkey(left: f64, right: f64) -> i64 {
@@ -128,6 +131,8 @@ pub fn candidates(tx: &mut Texmf, f: &Font, size_bp: f64, used: &[u32]) -> Vec<T
                 quad: p(6),
                 mapline: mapline.clone(),
                 nfss: tx.nfss_of(&tfm_name, pt),
+                tchar: map.clone(),
+                kerns: tfm.kerns.iter().map(|(&k, &v)| (k, v * pt)).collect(),
             });
         }
     }
@@ -184,6 +189,8 @@ pub struct Params {
     pub labelsep_adj: i64,
     /// Hanging indent after the first line (sp), 0 for none.
     pub hang_sp: i64,
+    /// \newblock's shrink is −.07em (some venue styles) instead of .07em.
+    pub newblock_neg: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -205,7 +212,7 @@ pub struct Hyp {
 
 impl Hyp {
     pub fn left_of(&self, left_bp: f64, right_bp: f64) -> i64 {
-        *self.lefts.get(&colkey(left_bp, right_bp)).unwrap_or(&sp(left_bp))
+        *self.lefts.get(&colkey(left_bp, right_bp)).unwrap_or(&sp(left_bp)) + self.params.left_sp
     }
 }
 
@@ -368,7 +375,7 @@ impl<'a> Gen<'a> {
                 items.push(Item { font, code, sep, drop, gap, sf: None, pre, boxed: boxed && span.is_none() && !(li == 0 && gi < p.label), math, skip });
             }
             let start = items.len() - l.glyphs.len();
-            self.space_factors(&mut items[start..], hyp, main_font, |it| (it.font, it.code, it.sep, it.gap), |it, v| it.sf = v);
+            self.space_factors(&mut items[start..], hyp, main_font, p.hang > 0.0 || p.label > 0, |it| (it.font, it.code, it.sep, it.gap), |it, v| it.sf = v);
         }
         // Citations: natbib and LaTeX's \cite put a control space after the commas and semicolons inside the
         // brackets (space factor 1000), not the 1250/1500 a typed space gets. A bracket span counts as a citation
@@ -474,6 +481,12 @@ impl<'a> Gen<'a> {
                     Some(6) => {
                         let _ = write!(s, "{ESC},");
                     }
+                    Some(7) => {
+                        let _ = write!(s, " {ESC}hskip.11em plus.33em minus{}.07em\u{2}\u{3}", if hyp.params.newblock_neg { "-" } else { "" });
+                    }
+                    Some(8) => {
+                        let _ = write!(s, "{ESC} {ESC}hskip.11em plus.33em minus{}.07em\u{2}\u{3}", if hyp.params.newblock_neg { "-" } else { "" });
+                    }
                     Some(v) => {
                         let _ = write!(s, "{ESC}spacefactor{v}\u{2}\u{3} ");
                     }
@@ -538,6 +551,19 @@ impl<'a> Gen<'a> {
                 let _ = write!(s, "{ESC}csname leftprotrusion{ESC}endcsname ");
             }
             let codes = f.input.get(&it.code).ok_or_else(|| format!("unmapped glyph {} in {}", it.code, f.tfm))?;
+            // A TFM kern the original doesn't show (the source broke it, e.g. with a macro or `{}` between the
+            // letters): an empty group keeps TeX from kerning.
+            if i > 0 && it.sep == 0 && it.math.is_none() {
+                let q = &items[i - 1];
+                if q.font == it.font && q.code != u32::MAX && !q.skip && !q.drop && q.boxed == it.boxed {
+                    if let (Some(&a), Some(&b)) = (f.tchar.get(&q.code), f.tchar.get(&it.code)) {
+                        let k = f.kerns.get(&(a, b)).copied().unwrap_or(0.0) * 72.0 / 72.27;
+                        if k.abs() > 0.1 && it.gap.abs() < k.abs() / 2.0 {
+                            s.push_str("\u{2}\u{3}");
+                        }
+                    }
+                }
+            }
             for &c in codes {
                 let ch = char::from_u32(c).unwrap_or('?');
                 if (33..127).contains(&c) {
@@ -648,7 +674,8 @@ pub fn para_page(body: &str, p: &Para, hyp: &Hyp, sel: &[(usize, usize)]) -> Str
     s.push_str("\\PSship\\vbox{");
     // An empty page-mode literal before each line ends the text object, so each line starts afresh (see line_place).
     for i in 0..p.lines.len() + 4 {
-        let l = line_place(p, hyp, i);
+        // \lastbox drops a line's shift (TeX §1080), so a hanging indent is added back here.
+        let l = line_place(p, hyp, i) + if i > 0 { hyp.params.hang_sp } else { 0 };
         let _ = write!(s, "\\ifnum\\count254>{i} \\kern14pt\\moveright{l}sp\\hbox{{\\pdfliteral page{{q Q}}\\box\\numexpr200+\\count254-{i}\\relax}}\\fi\n");
     }
     s.push_str("}\n\\endgroup\n");
@@ -742,7 +769,7 @@ impl<'a> Gen<'a> {
 
     /// Mark spaces whose width shows a space factor other than TeX's default for the text (`\ `, `\@`, `~`).
     /// Each line's glue ratio is solved from its ordinary spaces (factor 1000) in its main font.
-    fn space_factors<T>(&self, items: &mut [T], hyp: &Hyp, main_font: usize, get: impl Fn(&T) -> (usize, u32, u8, f64), mut set: impl FnMut(&mut T, Option<u32>)) {
+    fn space_factors<T>(&self, items: &mut [T], hyp: &Hyp, main_font: usize, bib: bool, get: impl Fn(&T) -> (usize, u32, u8, f64), mut set: impl FnMut(&mut T, Option<u32>)) {
         if hyp.params.french {
             return;
         }
@@ -755,6 +782,8 @@ impl<'a> Gen<'a> {
         let mut typed: Vec<u32> = vec![];
         let mut gaps: Vec<(usize, u32, f64)> = vec![];
         let mut others: Vec<(usize, f64)> = vec![];
+        // Ratios from ordinary spaces between two glyphs of one other font (a line set mostly in italics).
+        let mut other_r: Vec<f64> = vec![];
         for i in 0..items.len() {
             let (font, code, sep, gap) = get(&items[i]);
             if sep == 1 && i > 0 {
@@ -763,6 +792,12 @@ impl<'a> Gen<'a> {
                     gaps.push((i, self.default_sf(&typed), gap));
                 } else {
                     others.push((i, gap));
+                    if left == font && self.default_sf(&typed) == 1000 {
+                        if let Some(f) = tf(font).filter(|f| f.space[1] > 0.0) {
+                            let k = 72.0 / 72.27;
+                            other_r.push(if gap >= f.space[0] * k { (gap - f.space[0] * k) / (f.space[1] * k) } else { (gap - f.space[0] * k) / (f.space[2] * k).max(1e-9) });
+                        }
+                    }
                 }
                 typed.clear();
             }
@@ -773,12 +808,17 @@ impl<'a> Gen<'a> {
             }
         }
         let mut normal: Vec<f64> = gaps.iter().filter(|g| g.1 == 1000 || g.1 == 999).map(|g| g.2).collect();
-        if normal.is_empty() || y <= 0.0 {
+        if y <= 0.0 || (normal.is_empty() && other_r.is_empty()) {
             return;
         }
         normal.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let g0 = normal[normal.len() / 2];
-        let r = if g0 >= w { (g0 - w) / y } else if z > 0.0 { (g0 - w) / z } else { 0.0 };
+        other_r.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let r = if normal.is_empty() {
+            other_r[other_r.len() / 2]
+        } else {
+            let g0 = normal[normal.len() / 2];
+            if g0 >= w { (g0 - w) / y } else if z > 0.0 { (g0 - w) / z } else { 0.0 }
+        };
         let pred = |sf: f64| -> f64 {
             let extra = if sf >= 2000.0 { x } else { 0.0 };
             w + extra + if r >= 0.0 { r * y * sf / 1000.0 } else { r * z * 1000.0 / sf }
@@ -811,6 +851,17 @@ impl<'a> Gen<'a> {
                 let e = (if c == 2 { 2.0 * pred(1000.0) } else { pred(c as f64) } - g).abs();
                 if e + 0.005 < best.1 {
                     best = (c, e);
+                }
+            }
+            // \newblock (bibliographies): the space after a block's final period, then \hskip .11em plus .33em.
+            // 7: that space with its default factor, 8: with factor 1000 (bibliographies set \sfcode`\.=1000).
+            if bib && d >= 2000 {
+                let nb = 0.11 * quad + if r >= 0.0 { r * 0.33 * quad } else { r * 0.07 * quad };
+                for (c, base) in [(7u32, pred(d as f64)), (8, pred(1000.0))] {
+                    let e = (base + nb - g).abs();
+                    if e + 0.005 < best.1 {
+                        best = (c, e);
+                    }
                 }
             }
             if best.0 != d {

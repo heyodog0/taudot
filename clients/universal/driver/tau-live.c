@@ -22,6 +22,8 @@
 #include <string.h>
 #include <sys/resource.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -143,15 +145,42 @@ typedef struct {
 typedef struct {
   char *rel;
   char *data;
-  size_t len;
+  size_t len, cap;
+  int dirty;  // the clone's copy is behind: written by flush_texts, after the warm pass is on its way
+  long lc_pos;  // a known line start: offset lc_pos is on line lc_line (kept across edits, so typing counts little)
+  int lc_line;
 } text;
+// The line of offset END (1-based), counted from the nearest known point
+static int line_of(text *t, long end) {
+  if (end > (long)t->len) end = (long)t->len;
+  if (t->lc_line < 1 || t->lc_pos > (long)t->len) t->lc_pos = 0, t->lc_line = 1;
+  long p = t->lc_pos;
+  int l = t->lc_line;
+  if (end >= p) { for (; p < end; p++) l += t->data[p] == '\n'; }
+  else { for (; p > end; p--) l -= t->data[p - 1] == '\n'; }
+  t->lc_pos = end, t->lc_line = l;
+  return l;
+}
 
 static char dir[2048], work[2048], tdir[2048], outdir[2048], lib[2048], mainf[1024];
 static char **eng_argv;
 static int msg_r = -1, msg_w = -1, life_r = -1, life_w = -1;
 static long snapshot_ms = 20;  // as pdftex-live --serve
 static long first_sparse_ms = 200;  // a first run with no .aux (spawn_engine)
+// Display pages (pdf engines): the run's first page after an edit, drawn on the last finished output (tau-tdl page)
+static int display_pages = 1;
+static char last_exact[4600];  // the newest finished PDF, and its page count
+static int last_exact_pages;
+static int pdf_out_seq = -1, pdf_out_run = -1;  // the last pdf event's (a display page after it is of no use)
+static int display_seq = -1;  // the edit whose display page was asked for
+static char **park_argv;              // the engine's command line in the parked form (--park, --parked)
+static char park_sig[32], park_sock[1024], parked_sock[1024];
+static uint64_t fnv1a(uint64_t h, const void *p, size_t n) {
+  for (size_t i = 0; i < n; i++) h = (h ^ ((const unsigned char *)p)[i]) * 1099511628211ULL;
+  return h;
+}
 static const char *job_stem(void);
+static const char *out_ext(void);
 static int exists(const char *p);
 static int finish_every = 0, max_snaps = 256, hook = 0;
 static long dense = 300;
@@ -399,7 +428,9 @@ static text *get_text(const char *rel) {
   text *t = &texts[ntexts++];
   t->rel = strdup(rel);
   t->data = NULL;
-  t->len = 0;
+  t->len = t->cap = 0;
+  t->dirty = 0;
+  t->lc_pos = 0, t->lc_line = 1;
   char p[4096];
   snprintf(p, sizeof p, "%s/%s", work, rel);
   FILE *f = fopen(p, "rb");
@@ -408,6 +439,7 @@ static text *get_text(const char *rel) {
     t->len = ftell(f);
     fseek(f, 0, SEEK_SET);
     t->data = malloc(t->len + 1);
+    t->cap = t->len + 1;
     t->len = fread(t->data, 1, t->len, f);
     fclose(f);
   }
@@ -464,6 +496,30 @@ static long snap_extent(snap *s, const char *rel) {
   return 0;
 }
 
+// Processes an edit supersedes (snapshots past the resume point, the old runner and finishers, stopped), killed once
+// the paragraph preview is out: tearing down dozens of large processes (a long document has many) while the warm pass
+// wakes and the reader writes held both up by ms (wake 1.4 ms, reader 6 ms at 300 pages). Parked or stopped, they
+// cost nothing meanwhile.
+static pid_t doomed[8192];
+static int ndoomed;
+static int64_t doomed_at;
+static void kill_doomed(void) {
+  for (int i = 0; i < ndoomed; i++) kill(doomed[i], SIGKILL);
+  ndoomed = 0;
+}
+static void doom(pid_t p) {
+  if (p <= 0) return;
+  if (ndoomed == (int)(sizeof doomed / sizeof *doomed)) kill_doomed();
+  if (!ndoomed) doomed_at = now_us();
+  doomed[ndoomed++] = p;
+}
+static void free_snap_later(snap *s) {
+  doom(s->pid);
+  if (s->warm > 0) doom(s->warm);
+  for (int i = 0; i < s->n; i++) free(s->e[i].rel);
+  free(s->e);
+  free(s->cur);
+}
 static void free_snap(snap *s) {
   if (s->warm > 0) kill(s->warm, SIGKILL);
   for (int i = 0; i < s->n; i++) free(s->e[i].rel);
@@ -477,11 +533,55 @@ static void kill_fins(void) {
 }
 
 static void kill_all(void) {
+  kill_doomed();
   kill_fins();
   if (runner > 0) kill(runner, SIGKILL);
   for (int i = 0; i < nsnaps; i++) { kill(snaps[i].pid, SIGKILL); free_snap(&snaps[i]); }
   nsnaps = 0;
   runner = -1;
+}
+
+// A session's engine forked from a parked one (tau-live --park): the session's environment (its TAU_ variables), the
+// work directory and the main file's name go over the socket with the message pipe, the lifeline and the log. -1: no
+// parked engine there, or one started differently (its signature): the caller spawns as usual.
+static pid_t from_parked(char **env, const char *logp) {
+  int s = socket(AF_UNIX, SOCK_STREAM, 0);
+  struct sockaddr_un a = {0};
+  a.sun_family = AF_UNIX;
+  snprintf(a.sun_path, sizeof a.sun_path, "%s", parked_sock);
+  if (s < 0 || connect(s, (struct sockaddr *)&a, sizeof a)) { if (s >= 0) close(s); return -1; }
+  char mn[4300];
+  snprintf(mn, sizeof mn, "%s/main-name", tdir);
+  char line[1100];
+  int ll = snprintf(line, sizeof line, "%s\n", mainf);
+  write_file(mn, line, ll);
+  static char req[1 << 15];
+  size_t n = (size_t)snprintf(req, sizeof req, "sig %s\ncwd %s\nTAU_MAIN_NAME=%s\n", park_sig, work, mn);
+  for (int i = 0; env[i]; i++)
+    if (!strncmp(env[i], "TAU_", 4) && strncmp(env[i], "TAU_FD=", 7) && strncmp(env[i], "TAU_LIFE=", 9) && n < sizeof req)
+      n += (size_t)snprintf(req + n, sizeof req - n, "%s\n", env[i]);
+  if (n >= sizeof req - 1) { close(s); return -1; }
+  req[n++] = 0;
+  int lg = open(logp, O_WRONLY | O_CREAT | O_APPEND, 0644);
+  int fdv[3] = {msg_w, life_r, lg};
+  struct msghdr m = {0};
+  struct iovec io = {req, n};
+  char cbuf[CMSG_SPACE(sizeof fdv)];
+  memset(cbuf, 0, sizeof cbuf);
+  m.msg_iov = &io, m.msg_iovlen = 1, m.msg_control = cbuf, m.msg_controllen = sizeof cbuf;
+  struct cmsghdr *h = CMSG_FIRSTHDR(&m);
+  h->cmsg_level = SOL_SOCKET, h->cmsg_type = SCM_RIGHTS, h->cmsg_len = CMSG_LEN(sizeof fdv);
+  memcpy(CMSG_DATA(h), fdv, sizeof fdv);
+  ssize_t w = sendmsg(s, &m, 0);
+  close(lg);
+  pid_t pid = -1;
+  if (w == (ssize_t)n) {
+    char b[32] = {0};
+    ssize_t r = read(s, b, sizeof b - 1);
+    if (r > 0) pid = atoi(b);
+  }
+  close(s);
+  return pid > 0 ? pid : -1;
 }
 
 static void spawn_engine(void) {
@@ -523,17 +623,24 @@ static void spawn_engine(void) {
   env[k++] = e1, env[k++] = e2, env[k++] = e3, env[k++] = e4, env[k++] = e5, env[k++] = e6, env[k++] = e7;
   if (finish_every) env[k++] = "TAU_FINISH=every";
   if (e8[0]) env[k++] = e8;
+  if (display_pages && hook && !strcmp(out_ext(), "pdf")) env[k++] = "TAU_PAGE_PREVIEW=1";
   env[k] = NULL;
-  posix_spawn_file_actions_t fa;
-  posix_spawn_file_actions_init(&fa);
   char logp[4096];
   snprintf(logp, sizeof logp, "%s/engine.out", tdir);
-  posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
-  posix_spawn_file_actions_addopen(&fa, 1, logp, O_WRONLY | O_CREAT | O_APPEND, 0644);
-  posix_spawn_file_actions_adddup2(&fa, 1, 2);
-  posix_spawn_file_actions_addchdir(&fa, work);
-  if (posix_spawn(&root, eng_argv[0], &fa, NULL, eng_argv, env)) die("spawn engine");
-  posix_spawn_file_actions_destroy(&fa);
+  pid_t pk = parked_sock[0] ? from_parked(env, logp) : -1;
+  if (pk > 0) {
+    root = pk;
+  } else {
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
+    posix_spawn_file_actions_addopen(&fa, 1, logp, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    posix_spawn_file_actions_addchdir(&fa, work);
+    if (posix_spawn(&root, eng_argv[0], &fa, NULL, eng_argv, env)) die("spawn engine");
+    posix_spawn_file_actions_destroy(&fa);
+  }
+  if (dbg) fprintf(dbg, "%lld engine %d %s\n", (long long)now_us(), root, pk > 0 ? "from the parked engine" : "spawned"), fflush(dbg);
   free(env);
   runner = root;
   run_open = 1;
@@ -560,13 +667,14 @@ typedef struct { char path[4600], sx[4600]; int applied; } out_rec;
 static out_rec outs[8];
 static int nouts;
 static sx_index sxs[8];
+static void old_lines(sx_index **xp, sx_para *op, out_rec **srcp);
 // The pass in flight: what it typesets, for its event
 static struct { int seq; char rel[512]; long end; int line; } pass;
 // The reader (tau-tdl serve): one process, requests in order, one answer line each
 static pid_t reader = -1;
 static int reader_in = -1, reader_out = -1;
 static char tdl_bin[2048];
-typedef struct { char *head; int seq; int64_t t_sent; int pdf; } reader_job;
+typedef struct { char *head; int seq; int64_t t_sent; int pdf; int page; } reader_job;  // (page: a display page)
 static reader_job jobs[16];
 static int njobs;
 static int npreviews;
@@ -608,6 +716,7 @@ typedef struct {
 } change;
 
 static void drop_deferred(void);
+static void flush_texts(void);
 static void apply_run(change *ch, int nch, const char *why, int rerun);
 static void apply(change *ch, int nch, const char *why) { apply_run(ch, nch, why, 0); }
 static void apply_run(change *ch, int nch, const char *why, int rerun) {
@@ -616,7 +725,8 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
   drop_deferred();
   if (!rerun) applied_at_run = applied;
   t_apply = now_us();
-  kill_fins();
+  for (int i = 0; i < nfins; i++) { kill(fins[i], SIGSTOP); doom(fins[i]); }  // (stopped now, killed after the
+  nfins = 0;                                                                    // preview: kill_doomed)
   int best = -1;
   for (int i = nsnaps - 1; i >= 0 && best < 0; i--) {
     int ok = 1;
@@ -625,20 +735,25 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
     if (ok) best = i;
   }
   if (best < 0) {
+    flush_texts();
     spawn_engine();
     emit("{\"ev\":\"run\",\"seq\":%d,\"run\":%d,\"applied\":%d,\"why\":\"%s\",\"from_page\":0,\"fresh\":true}", seq,
          run_no, applied_at_run, why);
     return;
   }
-  if (runner > 0) kill(runner, SIGKILL);
+  if (runner > 0) { kill(runner, SIGSTOP); doom(runner); }
   runner = -1;
   long next_ext = best + 1 < nsnaps && nch ? snap_extent(&snaps[best + 1], ch[0].rel) : -1;
-  for (int i = best + 1; i < nsnaps; i++) { kill(snaps[i].pid, SIGKILL); free_snap(&snaps[i]); }
+  for (int i = best + 1; i < nsnaps; i++) free_snap_later(&snaps[i]);  // (killed once the pass is out: kill_doomed)
   nsnaps = best + 1;
   snap *s = &snaps[best];
   char p[4096];
   // (a pass from far back would typeset pages before the paragraph: slower than the exact page, and not the
   // paragraph's own lines if a float or page break comes between; the next key resumes at the edited line)
+  if (dbg && para && hook && !rerun && nch == 1 &&
+      !(s->cur && !strcmp(s->cur, ch[0].rel) && s->cur_pos <= ch[0].k && ch[0].k - s->cur_pos < 4096 && s->pages > 0))
+    fprintf(dbg, "no pass: snapshot in %s at %ld, edit at %ld, pages %d\n", s->cur ? s->cur : "-", s->cur_pos, ch[0].k,
+            s->pages), fflush(dbg);
   if (para && hook && !rerun && nch == 1 && s->cur && !strcmp(s->cur, ch[0].rel) && s->cur_pos <= ch[0].k &&
       ch[0].k - s->cur_pos < 4096 && s->pages > 0) {  // (before the first page: font map, title page)
     text *t = get_text(ch[0].rel);
@@ -650,23 +765,39 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
     pass.seq = seq;
     snprintf(pass.rel, sizeof pass.rel, "%s", ch[0].rel);
     pass.end = para_end(t, ch[0].k);
-    pass.line = 1;
-    for (long i = 0; i < pass.end && (size_t)i < t->len; i++) pass.line += t->data[i] == '\n';
+    pass.line = line_of(t, pass.end);
+    // the pass ships its lines where the old ones are on their page (same page origin, so the engine rounds their
+    // positions as on the exact page, and the overlay needs no offset): the old first baseline, from SyncTeX
+    char yb[64] = "";
+    {
+      sx_index *x;
+      sx_para o;
+      out_rec *src;
+      old_lines(&x, &o, &src);
+      if (src && o.found == 1) {
+        double u = x->unit > 0 ? x->unit : 1;
+        snprintf(yb, sizeof yb, "%ld", (long)(x->r[o.first].v * u) - 4736286L);
+      }
+    }
     // LaTeX's own output routine still handles its float penalties (below -10000); a page break ships at natural
     // height through LaTeX's \shipout (its hooks define what the page's \write nodes expand to; no headers)
     // at the pass's own break (\taudotpg defined: the paragraph is over) only its last \prevgraf lines are shipped,
     // taken off with \lastbox, through the primitive \shipout; if anything but lines, glue and penalties is in the
     // way (a footnote's insert, a mark, a whatsit) the page so far ships instead, as at a break inside the paragraph
-    fprintf(f, "prefix \\gdef\\taudotg{}\\gdef\\taudotown{0}\\gdef\\taudotn{0}\\toks255=\\expandafter{\\the\\output}\\output={\\taudotout}%%\n");
+    fprintf(f, "prefix \\gdef\\taudotg{}\\gdef\\taudotown{0}\\gdef\\taudotn{0}\\gdef\\taudotyb{%s}"
+               "\\toks255=\\expandafter{\\the\\output}\\output={\\taudotout}%%\n", yb);
     fprintf(f, "flush \\taudotflush%%\n");
+    int has_text = 0;
     {  // the paragraph's new text from the resume point, so the pass needn't reread the file
       long E = para_end(t, ch[0].k), P = s->cur_pos;
       if (P >= 0 && E >= P && E - P < 32768) {
+        has_text = 1;
         fprintf(f, "text %ld %ld\n--\n", P, E - P);
         fwrite(t->data + P, 1, E - P, f);
       }
     }
     fclose(f);
+    if (warm > 0 && !has_text) flush_texts();  // (it rereads the file from the clone: write it first)
     if (warm > 0) {  // the warm pass starts now; the snapshot parks a new one when this one exits
       char fifo[4200];
       snprintf(fifo, sizeof fifo, "%s/fifo-%d", tdir, warm);
@@ -677,6 +808,7 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
       s->warm = 0;
     }
   }
+  flush_texts();  // (the runner reloads the changed files from the clone)
   snprintf(p, sizeof p, "%s/ctl-%d", tdir, s->pid);
   FILE *f = fopen(p, "w");
   fprintf(f, "seq %d\n", seq);
@@ -702,11 +834,23 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
     fflush(dbg);
   }
   run_open = 1;
+  from_page = s->pages;  // (pages shipped before the snapshot the run resumes from: unchanged)
   emit("{\"ev\":\"run\",\"seq\":%d,\"run\":%d,\"applied\":%d,\"why\":\"%s\",\"from_page\":%d,\"snapshot\":%d,"
        "\"snapshots\":%d}",
        seq, run_no, applied_at_run, why, from_page, s->pid, nsnaps);
 }
 
+// The engine's processes reload changed files from the clone: write them there (only the exact runner and fresh
+// starts read them; a warm pass gets its text in its orders)
+static void flush_texts(void) {
+  for (int i = 0; i < ntexts; i++)
+    if (texts[i].dirty) {
+      char p[4096];
+      snprintf(p, sizeof p, "%s/%s", work, texts[i].rel);
+      write_file(p, texts[i].data, texts[i].len);
+      texts[i].dirty = 0;
+    }
+}
 static void set_text(const char *rel, char *data, size_t len, const char *why) {
   text *t = get_text(rel);
   size_t k = 0;
@@ -715,11 +859,35 @@ static void set_text(const char *rel, char *data, size_t len, const char *why) {
   if (k == m && t->len == len) { free(data); return; }
   free(t->data);
   t->data = data;
-  t->len = len;
-  char p[4096];
-  snprintf(p, sizeof p, "%s/%s", work, rel);
-  write_file(p, data, len);
+  t->len = t->cap = len;
+  t->dirty = 1;
+  t->lc_pos = 0, t->lc_line = 1;
   change c = {(char *)rel, (long)k};
+  apply(&c, 1, why);
+}
+// An edit at a known place: in place, no comparison of the whole text (it cost the file's length on every key)
+static void edit_text(const char *rel, size_t pos, size_t del, const char *ins, size_t n, const char *why) {
+  text *t = get_text(rel);
+  if (!del && !n) return;
+  size_t len = t->len - del + n;
+  if (len + 1 > t->cap) {
+    t->cap = len + 1 + len / 4;
+    t->data = realloc(t->data, t->cap);
+  }
+  if ((long)pos < t->lc_pos) {  // (the known line point moves with the text after the edit)
+    if ((long)(pos + del) > t->lc_pos) t->lc_pos = 0, t->lc_line = 1;
+    else {
+      int nl = 0;
+      for (size_t i = 0; i < del; i++) nl -= t->data[pos + i] == '\n';
+      for (size_t i = 0; i < n; i++) nl += ins[i] == '\n';
+      t->lc_pos += (long)n - (long)del, t->lc_line += nl;
+    }
+  }
+  memmove(t->data + pos + n, t->data + pos + del, t->len - pos - del);
+  memcpy(t->data + pos, ins, n);
+  t->len = len;
+  t->dirty = 1;
+  change c = {(char *)rel, (long)pos};
   apply(&c, 1, why);
 }
 
@@ -740,6 +908,7 @@ static const char *job_stem(void) {
 static int exists(const char *p) { return access(p, F_OK) == 0; }
 
 static void emit_pdf(const char *tag, int s, pid_t pid, int pages, int final, int64_t t) {
+  pdf_out_seq = s, pdf_out_run = run_no;
   char d[4096], pdf[4600], sx[4600], lg[4600];
   snprintf(d, sizeof d, "%s/%s-%d-%d", tdir, tag, s, pid);
   snprintf(pdf, sizeof pdf, "%s/%s.%s", d, job_stem(), out_ext());
@@ -834,6 +1003,10 @@ static void emit_pdf(const char *tag, int s, pid_t pid, int pages, int final, in
     int rn = snprintf(req, sizeof req, "warmpdf\t%s\n", pdf);
     if (rn < (int)sizeof req && write(reader_in, req, rn) == rn) jobs[njobs++] = (reader_job){NULL, -1, now_us(), 1};
   }
+  if (!strcmp(out_ext(), "pdf") && exists(pdf) && pages > 0) {
+    snprintf(last_exact, sizeof last_exact, "%s", pdf);
+    last_exact_pages = pages;
+  }
   if (sx_slot >= 0 && hook && para) {  // its SyncTeX, read now rather than when the next pass is waiting on it
     int64_t t0 = now_us();
     sx_load(&sxs[sx_slot], outs[sx_slot].sx);
@@ -892,6 +1065,29 @@ static char *bib_lines(void) {
     free(a);
   }
   return outb;
+}
+
+// latexmk's -bibtex-cond: BibTeX only when every database \bibdata names is there (a project may ship only its .bbl,
+// as arXiv sources do: BibTeX would replace it with an empty one)
+static int bib_files_exist(const char *lines) {
+  int any = 0;
+  for (const char *l = strstr(lines, "\\bibdata{"); l; l = strstr(l + 1, "\\bibdata{")) {
+    const char *s = l + 9, *e = strchr(s, '}');
+    if (!e) return 0;
+    while (s < e) {
+      const char *c = memchr(s, ',', e - s);
+      if (!c) c = e;
+      char name[1024], p[4300], p2[4400];
+      snprintf(name, sizeof name, "%.*s", (int)(c - s), s);
+      snprintf(p, sizeof p, "%s/%s", work, name);
+      snprintf(p2, sizeof p2, "%s.bib", p);
+      if (!*name || (!exists(p2) && !(strlen(name) > 4 && !strcmp(name + strlen(name) - 4, ".bib") && exists(p))))
+        return 0;
+      any = 1;
+      s = c + 1;
+    }
+  }
+  return any;
 }
 
 static unsigned long bib_hash(void) {  // every .bib in the project (FNV-1a over names and contents)
@@ -1045,7 +1241,7 @@ static int run_tools(rchange *ch, int max, int n) {
   } else if (bibtex_bin[0]) {
     char *lines = bib_lines();
     unsigned long h = bib_hash();
-    int has_bibdata = strstr(lines, "\\bibdata{") != NULL;
+    int has_bibdata = bib_files_exist(lines);
     if (has_bibdata && (!bib_state || strcmp(lines, bib_state) || h != bib_hash_last)) {
       code = run_tool(bibtex_bin, stem), ran_bib = 1, strcat(tools, "bibtex");
       free(bib_state), bib_state = lines, bib_hash_last = h;
@@ -1191,7 +1387,34 @@ static void drop_deferred(void) {
 // docs/live-protocol.md `para`, as the patched pdfTeX gives it: state, page, the lines as a TDL (path) and as a
 // one-page PDF (overlay, pdfTeX/LuaTeX), erase rects. The old lines' place comes from the newest output's SyncTeX.
 
+// The paragraph's old lines: the newest output whose SyncTeX has them (the paragraph's \par line, pass.line, in that
+// output's text)
+static void old_lines(sx_index **xp, sx_para *op, out_rec **srcp) {
+  sx_index *x = NULL;
+  sx_para o = {0};
+  out_rec *src = NULL;
+  for (int k = 0; k < 8 && k < nouts && !src; k++) {    int slot = (nouts - 1 - k) % 8;
+    out_rec *r = &outs[slot];
+    int L = pass.line, ok = 1;
+    for (int i = 0; i < nerecs && i < 1024; i++) {
+      edit_rec *e = &erecs[(nerecs - 1 - i) % 1024];
+      if (e->applied <= r->applied) break;
+      if (strcmp(e->rel, pass.rel) || e->pos >= pass.end) continue;
+      if (e->nl == INT_MIN) { ok = 0; break; }
+      L -= e->nl;
+    }
+    if (!ok || !sx_load(&sxs[slot], r->sx)) continue;
+    o = sx_find(&sxs[slot], pass.rel, L);
+    if (dbg) fprintf(dbg, "para anchor: %s line %d (now %d) in %s: %d records, found %d\n", pass.rel, L, pass.line, r->sx,
+                     sxs[slot].n, o.found), fflush(dbg);
+    if (o.found) { x = &sxs[slot], src = r; }
+  }
+  *xp = x, *op = o, *srcp = src;
+}
+
+static int pass_out_seq = -1;  // the last edit whose pass has finished (its Q or its end)
 static void para_none(int s, const char *why, int lines, int pieces, const char *bin) {
+  pass_out_seq = s;
   fprintf(stdout, "{\"ev\":\"para\",\"go\":%d,\"seq\":%d,\"applied\":%d,\"file\":", s, s, applied_at_run);
   jstr(stdout, pass.rel, strlen(pass.rel));
   fprintf(stdout, ",\"state\":\"none\",\"why\":\"%s\",\"lines\":%d,\"pieces\":%d", why, lines, pieces);
@@ -1203,6 +1426,7 @@ static void para_none(int s, const char *why, int lines, int pieces, const char 
 static const double SP_BP = 72.0 / 72.27 / 65536.0;
 
 static void para_lines(const char *line, int s, int lines, int pieces, const char *bin, int64_t t_q) {
+  pass_out_seq = s;
   int own = 1, geo = 0;
   long gb = 0, gs = 0, gh = 0;
   long long tstart = 0;
@@ -1221,27 +1445,10 @@ static void para_lines(const char *line, int s, int lines, int pieces, const cha
   if (!own) return para_none(s, "insert", lines, pieces, bin);  // in a box: a float, a caption, a minipage
   if (pieces > 1) return para_none(s, "split", lines, pieces, bin);  // the new lines cross a page or column
   if (!geo || lines <= 0) return para_none(s, lines <= 0 ? "end" : "insert", lines, pieces, bin);  // (insert, mark)
-  // the old lines: the newest output whose SyncTeX has them (the paragraph's \par line in that output's text)
   sx_index *x = NULL;
   sx_para o = {0};
   out_rec *src = NULL;
-  for (int k = 0; k < 8 && k < nouts && !src; k++) {
-    int slot = (nouts - 1 - k) % 8;
-    out_rec *r = &outs[slot];
-    int L = pass.line, ok = 1;
-    for (int i = 0; i < nerecs && i < 1024; i++) {
-      edit_rec *e = &erecs[(nerecs - 1 - i) % 1024];
-      if (e->applied <= r->applied) break;
-      if (strcmp(e->rel, pass.rel) || e->pos >= pass.end) continue;
-      if (e->nl == INT_MIN) { ok = 0; break; }
-      L -= e->nl;
-    }
-    if (!ok || !sx_load(&sxs[slot], r->sx)) continue;
-    o = sx_find(&sxs[slot], pass.rel, L);
-    if (dbg) fprintf(dbg, "para anchor: %s line %d (now %d) in %s: %d records, found %d\n", pass.rel, L, pass.line, r->sx,
-                     sxs[slot].n, o.found), fflush(dbg);
-    if (o.found) { x = &sxs[slot], src = r; }
-  }
+  old_lines(&x, &o, &src);
   if (!src) return para_none(s, "noanchor", lines, pieces, bin);
   if (o.found == -1) return para_none(s, "split", lines, pieces, bin);
   if (o.found == -2) return para_none(s, "segment", lines, pieces, bin);
@@ -1316,6 +1523,16 @@ static void reader_answer(const char *l) {
   if (!njobs) return;
   reader_job j = jobs[0];
   memmove(jobs, jobs + 1, --njobs * sizeof *jobs);
+  if (dbg) fprintf(dbg, "reader answer: job seq %d (now %d) %s, %lld us after sending: %.120s\n", j.seq, seq,
+                   j.page ? "page" : j.head ? "para" : "warm", (long long)(now_us() - j.t_sent), l), fflush(dbg);
+  if (j.page) {  // a display page: out as an early output, unless this run's own output came first
+    if (strstr(l, "\"ok\":true") && j.seq == seq && !(pdf_out_seq == seq && pdf_out_run == run_no)) {
+      fprintf(EVO, "%s,\"edit_us\":%lld}\n", j.head, (long long)(now_us() - t_apply));
+      fflush(EVO);
+    }
+    free(j.head);
+    return;
+  }
   if (!strstr(l, "\"ok\":true")) {
     if (dbg) fprintf(dbg, "reader: %s\n", l), fflush(dbg);
     free(j.head);
@@ -1401,6 +1618,33 @@ static void on_msg(char *line) {
     if (a == runner) pages_now = c;
     return;
   }
+  {
+    char pp[2048];
+    if (sscanf(line, "P %d %d %d %2047s", &a, &b, &c, pp) == 4) {  // a page's data: maybe a display page
+      if (dbg && b == seq && display_seq != seq)
+        fprintf(dbg, "display? runner %d (P from %d) page %d from_page %d exact %d pages, pdf out %d/%d (run %d)\n",
+                runner, a, c, from_page, last_exact_pages, pdf_out_seq, pdf_out_run, run_no), fflush(dbg);
+      if (display_pages && b == seq && a == runner && display_seq != seq && c - 1 == from_page && last_exact[0] &&
+          c <= last_exact_pages && reader_in >= 0 && njobs < 16 && !(pdf_out_seq == seq && pdf_out_run == run_no) &&
+          !strcmp(out_ext(), "pdf")) {
+        display_seq = seq;
+        char outp[4300], req[16384];
+        snprintf(outp, sizeof outp, "%s/display-%d.pdf", tdir, seq % 4);
+        int rn = snprintf(req, sizeof req, "page\t%s\t%d\t%s\t%s\n", last_exact, c - 1, pp, outp);
+        if (rn < (int)sizeof req && write(reader_in, req, rn) == rn) {
+          char *head = NULL;
+          size_t hn = 0;
+          FILE *h = open_memstream(&head, &hn);
+          fprintf(h, "{\"ev\":\"pdf\",\"seq\":%d,\"run\":%d,\"applied\":%d,\"pages\":%d,\"final\":false,"
+                  "\"from_page\":%d,\"display\":true,\"path\":", seq, run_no, applied_at_run, c, from_page);  // (pages: through this one)
+          jstr(h, outp, strlen(outp));
+          fclose(h);
+          jobs[njobs++] = (reader_job){head, seq, now_us(), 1, 1};
+        }
+      }
+      return;
+    }
+  }
   if (sscanf(line, "F %d %d %d %lld", &a, &b, &c, &t) == 4) {
     if (b == seq && nfins < 256) fins[nfins++] = a;
     t_fin_start[a & 0xffff] = t;
@@ -1473,11 +1717,8 @@ static void on_cmd(char *line) {
       for (size_t i = 0; i < v[4].n; i++) nl += v[4].s[i] == '\n';
       note_edit(v[1].s, (long)pos, nl);
     }
-    char *d = malloc(len + 1);
-    memcpy(d, t->data, pos);
-    memcpy(d + pos, v[4].s, v[4].n);
-    memcpy(d + pos + v[4].n, t->data + pos + del, t->len - pos - del);
-    set_text(v[1].s, d, len, "edit");
+    (void)len;
+    edit_text(v[1].s, pos, del, v[4].s, v[4].n, "edit");
   } else if (!strcmp(c, "open") && n == 3 && v[1].is_str && v[2].is_str) {
     applied++;
     note_edit(v[1].s, 0, INT_MIN);  // (lines unknown: older outputs can't place this file's paragraphs)
@@ -1536,6 +1777,101 @@ static void on_cmd(char *line) {
   for (int i = 0; i < n; i++) free(v[i].s);
 }
 
+// tau-live --park SOCKET --engine PATH [options]: an engine kept just past its format load, listening on SOCKET (see
+// libtau's park_engine) until stdin closes; a new one every TAU_PARK_RENEW seconds (300), so that TeX's \time and
+// \today, set when an engine starts, stay current. Events: {"ev":"parked","pid","socket","us"} each time one is ready.
+static pid_t spawn_parked(void) {
+  int n = 0;
+  while (environ[n]) n++;
+  char **env = calloc(n + 16, sizeof *env);
+  int k = 0;
+  for (int i = 0; i < n; i++)
+    if (strncmp(environ[i], "TAU_", 4) && strncmp(environ[i], "DYLD_INSERT_LIBRARIES=", 22)) env[k++] = environ[i];
+  static char e[8][4300];
+  snprintf(e[0], sizeof e[0], "TAU_PROJECT=%s", work);
+  snprintf(e[1], sizeof e[1], "TAU_OUT=%s", tdir);
+  snprintf(e[2], sizeof e[2], "TAU_FD=%d", msg_w);
+  snprintf(e[3], sizeof e[3], "TAU_LIFE=%d", life_r);
+  snprintf(e[4], sizeof e[4], "DYLD_INSERT_LIBRARIES=%s", lib);
+  snprintf(e[5], sizeof e[5], "TAU_PARK=%s", park_sock);
+  snprintf(e[6], sizeof e[6], "TAU_PARK_SIG=%s", park_sig);
+  for (int i = 0; i < 7; i++) env[k++] = e[i];
+  for (int i = 0; i < n; i++)  // (variables the engine reads itself, as a session's would have them)
+    if (!strncmp(environ[i], "TAU_WARM_", 9) || !strncmp(environ[i], "TAU_PHASES=", 11) ||
+        !strncmp(environ[i], "TAU_TLROOT=", 11) || !strncmp(environ[i], "TAU_FETCH=", 10))
+      env[k++] = environ[i];
+  env[k] = NULL;
+  posix_spawn_file_actions_t fa;
+  posix_spawn_file_actions_init(&fa);
+  char logp[4300];
+  snprintf(logp, sizeof logp, "%s/engine.out", tdir);
+  posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
+  posix_spawn_file_actions_addopen(&fa, 1, logp, O_WRONLY | O_CREAT | O_APPEND, 0644);
+  posix_spawn_file_actions_adddup2(&fa, 1, 2);
+  posix_spawn_file_actions_addchdir(&fa, work);
+  pid_t z = -1;
+  if (posix_spawn(&z, park_argv[0], &fa, NULL, park_argv, env)) z = -1;
+  posix_spawn_file_actions_destroy(&fa);
+  free(env);
+  return z;
+}
+static int park_loop(void) {
+  const char *rs = getenv("TAU_PARK_RENEW");
+  int64_t renew = (rs ? atol(rs) : 300) * 1000000LL, started = 0;
+  pid_t z = -1;
+  char mb[4096];
+  size_t ml = 0;
+  for (;;) {
+    if (z <= 0) {
+      static int quick;  // (one that dies at once, again and again: give up)
+      if (started && now_us() - started < 2000000 && ++quick > 5) {
+        emit("{\"ev\":\"error\",\"what\":\"park\",\"message\":\"the parked engine keeps exiting (see %s/engine.out)\"}", tdir);
+        break;
+      }
+      z = spawn_parked();
+      started = now_us();
+      if (z <= 0) die("spawn the parked engine");
+    }
+    struct pollfd pf[2] = {{0, POLLIN, 0}, {msg_r, POLLIN, 0}};
+    if (poll(pf, 2, 1000) < 0 && errno != EINTR) die("poll");
+    if (pf[0].revents & (POLLIN | POLLHUP)) {
+      char b[256];
+      if (read(0, b, sizeof b) <= 0) break;
+    }
+    if (pf[1].revents & POLLIN) {
+      ssize_t r = read(msg_r, mb + ml, sizeof mb - ml - 1);
+      if (r > 0) {
+        ml += r;
+        char *s = mb, *nl;
+        while ((nl = memchr(s, '\n', mb + ml - s))) {
+          *nl = 0;
+          int zp;
+          long long t;
+          if (sscanf(s, "Z %d %lld", &zp, &t) == 2) {
+            fprintf(stdout, "{\"ev\":\"parked\",\"pid\":%d,\"socket\":", zp);
+            jstr(stdout, park_sock, strlen(park_sock));
+            fprintf(stdout, ",\"us\":%lld}\n", (long long)(t - started));
+            fflush(stdout);
+          }
+          s = nl + 1;
+        }
+        ml = mb + ml - s;
+        memmove(mb, s, ml);
+      }
+    }
+    if (waitpid(z, NULL, WNOHANG) == z) z = -1;  // (it died: another)
+    else if (now_us() - started > renew) { kill(z, SIGKILL); waitpid(z, NULL, 0); z = -1; }
+  }
+  if (z > 0) { kill(z, SIGKILL); waitpid(z, NULL, 0); }
+  unlink(park_sock);
+  if (strstr(outdir, "/tau-park-")) {  // (the scratch directory --park made)
+    char cmd[2200];
+    snprintf(cmd, sizeof cmd, "rm -rf '%s'", outdir);
+    if (system(cmd)) {}
+  }
+  return 0;
+}
+
 // ---------------------------------------------------------------------------------------------------- main
 
 int main(int argc, char **argv) {
@@ -1563,9 +1899,32 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--no-para")) para = 0;
     else if (!strcmp(argv[i], "--no-pdfmx")) use_pdfmx = 0;
     else if (!strcmp(argv[i], "--no-presize")) lua_presize = 0;
+    else if (!strcmp(argv[i], "--no-display-pages")) display_pages = 0;
     else if (!strcmp(argv[i], "--first-snapshot-ms") && i + 1 < argc) first_sparse_ms = atol(argv[++i]);
+    else if (!strcmp(argv[i], "--park") && i + 1 < argc) snprintf(park_sock, sizeof park_sock, "%s", argv[++i]);
+    else if (!strcmp(argv[i], "--parked") && i + 1 < argc) snprintf(parked_sock, sizeof parked_sock, "%s", argv[++i]);
     else if (!strcmp(argv[i], "--dense") && i + 1 < argc) dense = atol(argv[++i]);
     else { fprintf(stderr, "tau-live: unknown option %s\n", argv[i]); return 2; }
+  }
+  static char *pk_args[4];
+  if ((park_sock[0] && strlen(park_sock) >= sizeof(((struct sockaddr_un *)0)->sun_path)) ||
+      (parked_sock[0] && strlen(parked_sock) >= sizeof(((struct sockaddr_un *)0)->sun_path))) {
+    fprintf(stderr, "tau-live: socket path too long (a Unix socket's is at most 103 bytes)\n");
+    return 2;
+  }
+  if (park_sock[0] && argc - i == 0 && engine_path) {  // --park needs no project: an empty one in a scratch directory
+    static char tmpl[1100];
+    const char *td = getenv("TMPDIR");
+    snprintf(tmpl, sizeof tmpl, "%s/tau-park-XXXXXX", td && *td ? td : "/tmp");
+    if (!mkdtemp(tmpl)) die("mkdtemp");
+    static char emp[1200];
+    snprintf(emp, sizeof emp, "%s/empty", tmpl);
+    mkdir(emp, 0755);
+    pk_args[0] = emp, pk_args[1] = "main.tex", pk_args[2] = tmpl;
+    char **nv = calloc(argc + 4, sizeof *nv);
+    memcpy(nv, argv, argc * sizeof *nv);
+    nv[argc] = pk_args[0], nv[argc + 1] = pk_args[1], nv[argc + 2] = pk_args[2];
+    argv = nv, argc += 3;
   }
   if (argc - i == 3 && engine_path) {  // pdftex-live's form: --engine PATH DIR MAIN OUT (the app's live driver)
     static char *a[8];
@@ -1620,9 +1979,12 @@ int main(int argc, char **argv) {
         "\\advance\\count255-1 \\else\\global\\let\\taudotok=F\\count255=0 \\fi\\repeat"
         // the lines' geometry for the driver: first baseline below the shipped page's top (less 1in), the span from
         // the first line's top to the last one's bottom, the first line's height (sp)
-        "\\if T\\taudotok\\xdef\\taudotg{-g\\number\\dimexpr\\voffset+\\skip0+\\dimen2\\relax x"
+        // shipped down to \taudotyb (the old first baseline, sp) when the driver knows it
+        "\\if T\\taudotok\\xdef\\taudotk{\\ifx\\taudotyb\\empty 0pt\\else"
+        "\\the\\dimexpr\\taudotyb sp-\\voffset-\\skip0-\\dimen2\\relax\\fi}"
+        "\\xdef\\taudotg{-g\\number\\dimexpr\\voffset+\\taudotk+\\skip0+\\dimen2\\relax x"
         "\\number\\dimexpr\\ht2+\\dp2-\\skip0\\relax x\\number\\dimen2}\\fi}\\taudotmark{2}\\taudotx"
-        "\\if T\\taudotok\\csname tex_shipout:D\\endcsname\\vbox{\\moveright\\dimen0\\box2}\\taudotmark{3}"
+        "\\if T\\taudotok\\csname tex_shipout:D\\endcsname\\vbox{\\kern\\taudotk\\moveright\\dimen0\\box2}\\taudotmark{3}"
         "\\else\\shipout\\vbox{\\moveright\\dimen0\\vbox{\\unvbox0\\unvbox2}}\\fi\\taudotpad\\taudotmark{5}}"
         "\\def\\taudotpage{\\taudotx\\shipout\\vbox{\\moveright\\dimen0\\vbox{\\unvbox255}}}"
         "\\def\\taudotout{\\ifnum\\outputpenalty<-10000 \\the\\toks255 \\else"
@@ -1652,8 +2014,32 @@ int main(int argc, char **argv) {
              "%s\\def\\taudotsig#1{%s}\\AddToHook{shipout/after}{\\taudotsig{ship/\\the\\ReadonlyShipoutCounter}}"
              "%s%s%s\\csname @@input\\endcsname %s", presize, sig, pass_macros, pad,
              getenv("TAU_PHASES") ? "\\def\\taudotmark#1{\\taudotsig{t/#1}}" : "\\def\\taudotmark#1{}", a[n - 1]);
+    // the parked form (tau-live --park, and sessions that fork from it): the main file's name read at run time (\space
+    // ends the name, as the end of the line does after a literal one)
+    static char injp[24576];
+    snprintf(injp, sizeof injp,
+             "%s\\def\\taudotsig#1{%s}\\AddToHook{shipout/after}{\\taudotsig{ship/\\the\\ReadonlyShipoutCounter}}"
+             "%s%s%s{\\endlinechar=-1 \\openin15=/.taudot/main.tex \\global\\readline15 to\\taudotmain"
+             "\\closein15}%s\\csname @@input\\endcsname\\taudotmain\\space", presize, sig, pass_macros, pad,
+             getenv("TAU_PHASES") ? "\\def\\taudotmark#1{\\taudotsig{t/#1}}" : "\\def\\taudotmark#1{}",
+             getenv("TAU_ALIAS_DEBUG") ? "\\immediate\\write16{TAUMAIN[\\taudotmain]}" : "");
     a[n - 1] = inj;
     eng_argv = a;
+    park_argv = calloc(n + 1, sizeof *park_argv);
+    memcpy(park_argv, a, n * sizeof *a);
+    park_argv[n - 1] = injp;
+    // what a parked engine was started with: a session forks from it only if all of it is the same
+    uint64_t h = 14695981039346656037ULL;
+    for (int k = 0; k < n; k++) h = fnv1a(fnv1a(h, park_argv[k], strlen(park_argv[k])), "\x01", 1);
+    h = fnv1a(h, lib, strlen(lib));
+    static const char *keys[] = {"TEXMFCNF", "TEXFORMATS", "TEXINPUTS", "TAU_TLROOT", "TEXSTORE_ROOT", "TEXSTORE_URL",
+                                 "TEXSTORE_IMAGE", "TAU_FETCH", "SOURCE_DATE_EPOCH", "FORCE_SOURCE_DATE", "TAU_WARM_QOS",
+                                 "TAU_WARM_TOUCH", "TAU_WARM_PIPE", "TAU_PHASES", NULL};
+    for (int k = 0; keys[k]; k++) {
+      const char *v = getenv(keys[k]);
+      h = fnv1a(fnv1a(h, keys[k], strlen(keys[k])), v ? v : "\x02", v ? strlen(v) + 1 : 1);
+    }
+    snprintf(park_sig, sizeof park_sig, "%016llx", (unsigned long long)h);
   }
   snprintf(work, sizeof work, "%s/work", outdir);
   snprintf(tdir, sizeof tdir, "%s/t", outdir);
@@ -1678,6 +2064,7 @@ int main(int argc, char **argv) {
   fcntl(life_w, F_SETFD, FD_CLOEXEC);
   signal(SIGPIPE, SIG_IGN);
   if (getenv("TAU_LIVE_LOG")) dbg = fopen(getenv("TAU_LIVE_LOG"), "w");
+  if (park_sock[0]) return park_loop();
   restore_state();
   if (hook && para) reader_start();  // (the paragraph preview's reader, ready before the first pass)
   if (use_pdfmx && !strcmp(out_ext(), "xdv")) pdfmx_start();  // (warms kpathsea while the engine starts)
@@ -1697,8 +2084,9 @@ int main(int argc, char **argv) {
   size_t ilen = 0, mlen = 0;
   for (;;) {
     while (waitpid(-1, NULL, WNOHANG) > 0) {}
+    if (ndoomed && (pass.seq != seq || (pass_out_seq == seq && !njobs) || now_us() - doomed_at > 50000)) kill_doomed();
     struct pollfd pf[4] = {{0, POLLIN, 0}, {msg_r, POLLIN, 0}, {reader_out, POLLIN, 0}, {pdfmx_out, POLLIN, 0}};
-    if (poll(pf, 4, 200) < 0 && errno != EINTR) die("poll");  // (negative fds are skipped)
+    if (poll(pf, 4, ndoomed ? 10 : 200) < 0 && errno != EINTR) die("poll");  // (negative fds are skipped)
     if (pdfmx_out >= 0 && (pf[3].revents & (POLLIN | POLLHUP))) {
       static char xbuf[4096];
       static size_t xlen;

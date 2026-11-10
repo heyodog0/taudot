@@ -260,7 +260,7 @@ def finish(engine, src, main, n=10, seed=2):
     live.send("goal", 0)  # the patched driver: finish at the first page past the edit (tau-live always does)
     pdfs = []
     while True:
-        ev = live.until(lambda e: e["ev"] in ("pdf", "done"))
+        ev = live.until(lambda e: e["ev"] in ("pdf", "done") and not e.get("display"))
         if ev["ev"] == "done":
             break
         if not ev["final"]:
@@ -290,9 +290,9 @@ def finish(engine, src, main, n=10, seed=2):
         text = text[:pos] + ins.encode() + text[pos + dl:]
         live.send("change", main, pos, dl, ins)
         run = newer_run(live)
-        first = live.until(lambda e: e["ev"] in ("pdf", "done") and e.get("seq") == run["seq"])
+        first = live.until(lambda e: e["ev"] in ("pdf", "done") and e.get("seq") == run["seq"] and not e.get("display"))
         if first["ev"] == "done":
-            first = [e for e in live.events if e["ev"] == "pdf" and e["seq"] == run["seq"]][-1]
+            first = [e for e in live.events if e["ev"] == "pdf" and e["seq"] == run["seq"] and not e.get("display")][-1]
         got = f"{out}/edit-{i}.{ext}"
         shutil.copy(first["path"], got)
         live.until(lambda e: e["ev"] == "done" and e["seq"] == run["seq"]) if live.events[-1]["ev"] != "done" else None
@@ -400,10 +400,12 @@ def paragraph(engine, src, main, n=20, seed=4):
             place[ev["state"]] += 1
             if ev["state"] == "exact" and pdf:
                 import pixels
-                nd, tot = pixels.event_check(ev, done["path"])
+                nd, tot, fo = pixels.event_check(ev, done["path"])
                 place["px0"] += nd == 0
                 place["worst"] = max(place["worst"], nd)
-                placed = f"; event {ev['state']} page {ev['page']}: {nd} px differ of {tot} in the new lines' rect"
+                place["foreign"] = place.get("foreign", 0) + (fo > 0)
+                placed = (f"; event {ev['state']} page {ev['page']}: {nd} px differ of {tot} in the new lines' rect"
+                          + (f" (and {fo} px of other ink in it)" if fo else ""))
             elif ev["state"] == "exact":  # XeTeX: the list's glyph baselines on the exact page's lines
                 import tdl as tdlr
                 import xdv
@@ -425,6 +427,11 @@ def paragraph(engine, src, main, n=20, seed=4):
         if not blob:
             stats["box"] += 1
             print(f"  edit {i:2d} @{pos:6d} no overlay (no page: a box, a float, a caption) {ev['us'] / 1000:.1f} ms{placed}")
+            continue
+        if ev.get("state") == "none" and ev.get("why") == "insert":  # the lines weren't the page's last (a float, a
+            stats["box"] += 1  # footnote): what the pass shipped is the page so far; the app gets no overlay
+            print(f"  edit {i:2d} @{pos:6d} no overlay (the lines weren't the last thing on the page) "
+                  f"{ev['us'] / 1000:.1f} ms{placed}")
             continue
         shipped = ev.get("pieces", 1)
         if shipped > 1:  # a page break inside the paragraph: the overlay would be provisional
@@ -462,7 +469,7 @@ def paragraph(engine, src, main, n=20, seed=4):
             content = b"".join(c for c in para.streams(blob) if b"BT" in c)
             base_ys = [y for y, r in ours[-n_:]]
             x0 = min(x for y, r in ours[-n_:] for dy_, x, f, s_, o in r)
-            d, vis, tot = pixels.diff(done["path"], hit[0], content, hit[1][0], hit[1][1], base_ys, x0)
+            d, vis, tot, fo = pixels.diff(done["path"], hit[0], content, hit[1][0], hit[1][1], base_ys, x0)
             # where pixels differ: the largest difference in line positions (start x, baseline) as printed
             dx_, dy_ = hit[1]
             delta = 0.0
@@ -505,7 +512,8 @@ def paragraph(engine, src, main, n=20, seed=4):
     ev_us = [e["us"] / 1000 for e in evs if e.get("state") != "none"]
     print(f"  events: exact {place['exact']}, provisional {place['provisional']}, none {place['none']}; exact ones placed "
           f"{'with 0 px differing' if pdf else 'on the exact baselines'}: {place['px0']}/{place['exact']} "
-          f"(worst {place['worst']}); edit -> event p50 {statistics.median(ev_us or [0]):.1f} ms")
+          f"(worst {place['worst']}; {place.get('foreign', 0)} with other ink in the rect); edit -> event p50 "
+          f"{statistics.median(ev_us or [0]):.1f} ms")
     if tdlstats:
         ok_ = [d for d, u in tdlstats if d is not None]
         print(f"  reader (overlay PDF + TDL FIGURE): placed {len(ok_)}/{len(tdlstats)}, 0 px differing in "
@@ -572,6 +580,13 @@ DERIVED = (".aux", ".bbl", ".blg", ".out", ".toc", ".lof", ".lot", ".log", ".pdf
 _bib_last = {}
 
 
+def bib_files_exist(d, aux):
+    """latexmk's -bibtex-cond: BibTeX only when every database \\bibdata names is in the project."""
+    names = [n for m in re.finditer(rb"\\bibdata\{([^}]*)\}", aux) for n in m.group(1).decode().split(",")]
+    return bool(names) and all(os.path.exists(f"{d}/{n}.bib") or (n.endswith(".bib") and os.path.exists(f"{d}/{n}"))
+                               for n in names)
+
+
 def stock_rule(engine, d, main):
     """Stock runs as latexmk would: BibTeX when the bib lines change, reruns until the .aux stops changing."""
     st = stem(main)
@@ -580,7 +595,7 @@ def stock_rule(engine, d, main):
         run_stock(engine, d, main)
         a = open(f"{d}/{st}.aux", "rb").read() if os.path.exists(f"{d}/{st}.aux") else b""
         bl = b"\n".join(l for l in a.split(b"\n") if l.startswith((b"\\citation", b"\\bibdata", b"\\bibstyle")))
-        bib = b"\\bibdata" in a and bl != _bib_last.get(d)
+        bib = b"\\bibdata" in a and bl != _bib_last.get(d) and bib_files_exist(d, a)
         if bib:
             bbl = f"{d}/{st}.bbl"
             before = open(bbl, "rb").read() if os.path.exists(bbl) else None
@@ -602,8 +617,9 @@ def rule(engine, src, main):
     name = os.path.basename(os.path.abspath(src))
     clean = f"{WORK}/rule-{name}-src"
     copy(src, clean)
+    shipped_bbl = not any(f.endswith(".bib") for f in os.listdir(clean))  # (arXiv sources: the .bbl is the source)
     for f in os.listdir(clean):
-        if f.endswith(DERIVED):
+        if f.endswith(DERIVED) and not (shipped_bbl and f.endswith(".bbl")):
             os.remove(f"{clean}/{f}")
     # the reference
     ref = f"{WORK}/rule-{name}-ref"
@@ -648,8 +664,9 @@ def serve(engine, src, main):
     name = os.path.basename(os.path.abspath(src))
     clean = f"{WORK}/serve-{name}-src"
     copy(src, clean)
+    shipped_bbl = not any(f.endswith(".bib") for f in os.listdir(clean))  # (arXiv sources: the .bbl is the source)
     for f in os.listdir(clean):
-        if f.endswith(DERIVED):
+        if f.endswith(DERIVED) and not (shipped_bbl and f.endswith(".bbl")):
             os.remove(f"{clean}/{f}")
     state = f"{WORK}/serve-state"
     shutil.rmtree(state, ignore_errors=True)
@@ -861,6 +878,179 @@ def bigopen(engine, src, main):
     return ok
 
 
+def bblonly(engine, src, main):
+    """A project that ships its .bbl and no .bib (arXiv sources): opened with no .aux, tau-live must not run BibTeX
+    (it would replace the .bbl with an empty one), every citation resolves, and the output equals stock runs."""
+    name = os.path.basename(os.path.abspath(src))
+    clean = f"{WORK}/bbl-{name}-src"
+    copy(src, clean)
+    if any(f.endswith(".bib") for f in os.listdir(clean)):
+        sys.exit(f"{src} has a .bib: this check needs a project with only its .bbl")
+    st = stem(main)
+    for f in os.listdir(clean):
+        if f.endswith(DERIVED) and not f.endswith(".bbl"):
+            os.remove(f"{clean}/{f}")
+    bbl = open(f"{clean}/{st}.bbl", "rb").read()
+    out = f"{WORK}/bbl-out"
+    shutil.rmtree(out, ignore_errors=True)
+    env = dict(os.environ)
+    env.pop("TAU_FETCH", None)
+    lv = Live.__new__(Live)
+    lv.events = []
+    lv.p = subprocess.Popen([f"{UBIN}/tau-live", "--serve", "--engine", f"{UBIN}/{ENGINES[engine][0][0]}", clean, main,
+                             out], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
+    done = lv.until(lambda e: e["ev"] == "done", timeout=300)
+    lv.p.stdin.close()
+    lv.p.wait(20)
+    tools = [e.get("tool") for e in lv.events if e["ev"] == "bibtex"]
+    ran = any("bibtex" in (t or "") for t in tools)
+    kept = open(f"{out}/work/{st}.bbl", "rb").read() == bbl
+    log = open(done["log"], "rb").read() if done.get("log") else b""
+    undefined = len(re.findall(rb"Citation `[^']*' (?:on page \d+ )?undefined", log))
+    ref = f"{WORK}/bbl-ref"
+    copy(clean, ref)
+    stock_rule(engine, ref, main)
+    ext = ENGINES[engine][1]
+    same = same_output(engine, open(done["path"], "rb").read(), open(f"{ref}/{st}.{ext}", "rb").read())
+    ok = not ran and kept and undefined == 0 and same
+    print(f"bblonly {engine} {name}: BibTeX {'RAN' if ran else 'not run'}, .bbl {'kept' if kept else 'CHANGED'}, "
+          f"undefined citations {undefined}, output {'identical' if same else 'DIFFERENT'} to stock "
+          f"({done['runs']} runs): {'ok' if ok else 'FAILED'}")
+    return ok
+
+
+def parked(engine, src, main, n=3):
+    """The parked engine (tau-live --park): N sessions forked from it open SRC (no .aux) and settle; each output equals
+    an unparked session's byte for byte; open -> done for both; and a session started differently (another TEXINPUTS)
+    is spawned as usual."""
+    name = os.path.basename(os.path.abspath(src))
+    clean = f"{WORK}/park-{name}-src"
+    copy(src, clean)
+    shipped_bbl = not any(f.endswith(".bib") for f in os.listdir(clean))
+    for f in os.listdir(clean):
+        if f.endswith(DERIVED) and not (shipped_bbl and f.endswith(".bbl")):
+            os.remove(f"{clean}/{f}")
+    sock = f"{os.environ.get('TMPDIR', '/tmp')}/tau-park-test-{engine}.sock"  # (a Unix socket's path: <= 103 bytes)
+    env = dict(os.environ)
+    env.pop("TAU_FETCH", None)
+    eng = f"{UBIN}/{ENGINES[engine][0][0]}"
+    pk = subprocess.Popen([f"{UBIN}/tau-live", "--park", sock, "--serve", "--engine", eng], stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, text=True, env=env)
+    print(f"  parked: {pk.stdout.readline().strip()}")
+
+    def session(opts, env2):
+        out = f"{WORK}/park-out"
+        shutil.rmtree(out, ignore_errors=True)
+        log = f"{WORK}/park-live.log"
+        t0 = time.monotonic()
+        lv = Live.__new__(Live)
+        lv.events = []
+        lv.p = subprocess.Popen([f"{UBIN}/tau-live", *opts, "--serve", "--engine", eng, clean, main, out],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+                                env=dict(env2, TAU_LIVE_LOG=log))
+        done = lv.until(lambda e: e["ev"] == "done", timeout=600)
+        ms = (time.monotonic() - t0) * 1000
+        data = open(done["path"], "rb").read()
+        lv.p.stdin.close()
+        lv.p.wait(20)
+        how = "parked" if "from the parked engine" in open(log).read() else "spawned"
+        return data, ms, how
+
+    ref, ms_ref, _ = session([], env)
+    ok, times = True, []
+    for k in range(n):
+        data, ms, how = session(["--parked", sock], env)
+        same = data == ref
+        ok &= same and how == "parked"
+        times.append(ms)
+        print(f"  session {k}: {how}, open -> done {ms:.0f} ms, output {'identical' if same else 'DIFFERENT'}")
+    _, ms_o, how = session(["--parked", sock], dict(env, TEXINPUTS=".:"))
+    ok &= how == "spawned"
+    print(f"  started differently (TEXINPUTS): {how}")
+    pk.stdin.close()
+    pk.wait(20)
+    print(f"parked {engine} {name}: unparked {ms_ref:.0f} ms, parked p50 {statistics.median(times):.0f} ms: "
+          f"{'ok' if ok else 'FAILED'}")
+    return ok
+
+
+def display(engine, src, main, n=40, seed=3):
+    """Display pages (tau-tdl page): typing as in `typing`, then keys bringing characters the document doesn't use.
+    Each display page against the same run's finished output, page for page, drawn at 288 dpi (every pixel counts);
+    a key whose page needs a glyph the last finished output lacks must get no display page."""
+    import pixels
+    name = os.path.basename(os.path.abspath(src))
+    base = settle(engine, src, main, name)
+    out = f"{WORK}/d-out"
+    shutil.rmtree(out, ignore_errors=True)
+    rng = random.Random(seed)
+    text = open(f"{base}/{main}", "rb").read()
+    lo = text.find(b"\\begin{document}")
+    live = Live(engine, base, main, out, "--hook")
+    live.send("goal", 0)
+    live.until(lambda e: e["ev"] == "done")
+    pos = [m.end() for m in re.finditer(rb"[a-z]{4,}\. ", text[lo:])]
+    keys = list("Typing goes here, one key at a time. ") * (n // 37 + 1)
+    novel = ["\\textsuperscript{\\textcircled{z}}", "\\L{}\\o{}\\ae{}", "$\\aleph\\wp$"]
+    checked = same = shown = refused_ok = 0
+    worst = 0
+    t_disp, t_first = [], []
+
+    def key(p, ch, expect_refusal=False):
+        nonlocal checked, same, shown, refused_ok, worst
+        live.send("change", main, p, 0, ch)
+        run = newer_run(live)
+        done = live.until(lambda e: e["ev"] == "done" and e["seq"] == run["seq"])
+        evs = [e for e in live.events if e["ev"] == "pdf" and e["seq"] == run["seq"]]
+        disp = [e for e in evs if e.get("display")]
+        real = [e for e in evs if not e.get("display")]
+        if evs:
+            t_first.append(evs[0]["edit_us"] / 1000)
+        if expect_refusal and not disp:
+            refused_ok += 1
+            return len(ch)
+        if not disp or not real:
+            return len(ch)
+        d = disp[0]
+        shown += 1
+        t_disp.append(d["edit_us"] / 1000)
+        k = d["from_page"]
+        ref = next((e for e in real if e["pages"] > k), done if done.get("path") else None)
+        if not ref:
+            return len(ch)
+        a, b = open(d["path"], "rb").read(), open(ref["path"], "rb").read()
+        H = pixels.page_height(b, k)
+        import pikepdf
+        with pikepdf.open(ref["path"]) as doc:
+            w = float(doc.pages[k].mediabox[2])
+        ra = pixels.render(a, k, (0, 0, w, H))[0]
+        rb = pixels.render(b, k, (0, 0, w, H))[0]
+        diff = sum(1 for i in range(0, len(ra), 4) if ra[i:i + 3] != rb[i:i + 3])
+        checked += 1
+        same += diff == 0
+        worst = max(worst, diff)
+        return len(ch)
+
+    for spot in range(n // 20):
+        p = lo + rng.choice(pos)
+        for i in range(20):
+            time.sleep(0.12)
+            p += key(p, keys[spot * 20 + i])
+    # characters the document may not draw yet: no display page when the font subsets lack them, else (the glyph is
+    # drawn somewhere already) a page that draws identically
+    novel += ["\\symbol{\"2603}", "\\symbol{\"0416}\\symbol{\"03A8}"] if engine != "pdflatex" else []
+    for c in novel:
+        p = lo + rng.choice(pos)
+        key(p, " " + c + " ", expect_refusal=True)
+    live.close()
+    print(f"display {engine} {name}: {shown} display pages for {n} keys; {same}/{checked} draw identically to the "
+          f"run's finished page (288 dpi, worst {worst} px); keys with new characters: {refused_ok}/{len(novel)} refused, the others checked above")
+    if t_disp:
+        print(f"  edit -> display page p50 {statistics.median(t_disp):.1f} ms; edit -> first output p50 "
+              f"{statistics.median(t_first):.1f} ms")
+    return same == checked and refused_ok > 0
+
+
 if __name__ == "__main__":
     if sys.argv[1:2] == ["serve"]:
         serve(*sys.argv[2:5])
@@ -872,6 +1062,12 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["paragraph"]:
         paragraph(*sys.argv[2:5], *(int(x) for x in sys.argv[5:6]))
         sys.exit(0)
+    if sys.argv[1:2] == ["display"]:
+        sys.exit(0 if display(*sys.argv[2:5]) else 1)
+    if sys.argv[1:2] == ["parked"]:
+        sys.exit(0 if parked(*sys.argv[2:5]) else 1)
+    if sys.argv[1:2] == ["bblonly"]:
+        sys.exit(0 if bblonly(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["bigopen"]:
         sys.exit(0 if bigopen(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["xpdf"]:
