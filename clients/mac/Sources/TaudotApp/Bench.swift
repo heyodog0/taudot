@@ -1043,10 +1043,49 @@ import TaudotShared
       check(ed.current == "main.tex", "… and back to main.tex")
     }
     await nativeIssues(ed)
+    await copyPaste(ed)   // last: its paste and undo are edits the issue checks above would see
     let t0 = CACurrentMediaTime()
     let ok = await p.shutdown()
     check(ok && CACurrentMediaTime() - t0 < 1, "closing doesn't ask or wait")
     finish()
+  }
+
+  /// ⌘C / ⌘V: the app's Edit menu has Copy and Paste on those keys, sent to the first responder, and in the native
+  /// editor they copy the selection and paste it at the caret (then the paste is undone with ⌘Z, through the menu too).
+  func copyPaste(_ ed: NativeEditor) async {
+    func item(_ key: String) -> NSMenuItem? {
+      func find(_ m: NSMenu) -> NSMenuItem? {
+        for i in m.items {
+          if let s = i.submenu, let f = find(s) { return f }
+          if i.keyEquivalent == key && i.keyEquivalentModifierMask == .command && i.action != nil { return i }
+        }
+        return nil
+      }
+      return NSApp.mainMenu.flatMap(find)
+    }
+    let tv = ed.view.textView
+    guard let copy = item("c"), let paste = item("v"), let undo = item("z") else {
+      check(false, "the Edit menu has ⌘C, ⌘V and ⌘Z (\(item("c") != nil), \(item("v") != nil), \(item("z") != nil))"); return
+    }
+    p.window.makeFirstResponder(tv)
+    let s = tv.string as NSString
+    let word = s.range(of: "\\begin{document}")
+    guard word.location != NSNotFound else { check(false, "copy/paste: no \\begin{document} to copy"); return }
+    let before = tv.string
+    tv.setSelectedRange(word)
+    NSPasteboard.general.clearContents()
+    let copied = p.window.firstResponder?.tryToPerform(copy.action!, with: copy) ?? false
+    let got = NSPasteboard.general.string(forType: .string)
+    check(copied && got == "\\begin{document}", "⌘C copies the selection (\(copied), \(got ?? "nil"))")
+    tv.setSelectedRange(NSRange(location: NSMaxRange(word), length: 0))
+    let pasted = p.window.firstResponder?.tryToPerform(paste.action!, with: paste) ?? false
+    await sleep(0.2)
+    check(pasted && tv.string.contains("\\begin{document}\\begin{document}"), "⌘V pastes at the caret (\(pasted))")
+    _ = p.window.firstResponder?.tryToPerform(undo.action!, with: undo)
+    await sleep(0.3)
+    check(tv.string == before, "⌘Z undoes the paste")
+    tv.setSelectedRange(NSRange(location: (tv.string as NSString).length, length: 0))   // off the lines the next checks move onto
+    await sleep(0.2)
   }
 
   /// SyncTeX both ways, as in Neovim mode: a double-click on the PDF puts the caret on that source line, and a

@@ -178,10 +178,20 @@ Compat.migrateDefaults()
     file.addItem(withTitle: "Open Folder…", action: #selector(openPanel), keyEquivalent: "o")
     file.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
     fileItem.submenu = file
-    // Edit ▸ Find (the find bar, Find.swift). Only Find here: the editors keep their own copy, paste and undo.
+    // Edit: the standard items, sent to the first responder. The native editor (an NSTextView) gets ⌘Z ⌘C ⌘V ⌘X ⌘A
+    // only through these. Neovim's view implements none of them, so there they're disabled and the keys reach Neovim
+    // as <D-…> (EditorView+Input). Then Find (the find bar, Find.swift).
     let editItem = NSMenuItem()
     main.addItem(editItem)
     let edit = NSMenu(title: "Edit")
+    edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+    edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+    edit.addItem(.separator())
+    edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+    edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+    edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+    edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+    edit.addItem(.separator())
     let findItem = NSMenuItem(title: "Find", action: nil, keyEquivalent: "")
     let findMenu = NSMenu(title: "Find")
     findMenu.addItem(withTitle: "Find…", action: #selector(ProjectWindow.findShow(_:)), keyEquivalent: "f")
