@@ -1,5 +1,5 @@
 #!/bin/sh
-# The Claude pane in the real app (TAUDOT_CLAUDECHECK), with a fake `claude` that prints a line and echoes its
+# The Claude pane in the real app (TAUDOT_CLAUDECHECK), with a fake `claude` that prints 200 lines and echoes its
 # input: ⌘J start / hide / show (same job), the focus cycle and zoom, ⌘L's @file#La-b at the prompt without Return,
 # Esc Esc; then a run without claude (the install note). taudot-app (CONFIG=debug|release) on a COPY of FILE.tex,
 # mock engine, in the background. Exit 1 on a FAIL.
@@ -10,7 +10,7 @@ MAC=$(cd "$HERE/.." && pwd)
 REPO=$(cd "$MAC/../.." && pwd)
 . "$HERE/shell_lib.sh"
 W=$(mktemp -d); mkdir -p "$W/proj" "$W/bin"; cp "$1" "$W/proj/main.tex"
-printf '#!/bin/sh\necho "fake claude: ready in $(basename "$PWD")"\nexec cat\n' > "$W/bin/fake-claude"; chmod +x "$W/bin/fake-claude"
+printf '#!/bin/sh\nseq 1 200\necho "fake claude: ready in $(basename "$PWD")"\nexec cat\n' > "$W/bin/fake-claude"; chmod +x "$W/bin/fake-claude"
 ES=/tmp/txs-claude$$.sock
 deno run -A "$REPO/clients/mock-engine/main.ts" --folder "$W/proj" --socket "$ES" >"$W/mock.log" 2>&1 &
 MOCK=$!; started $MOCK

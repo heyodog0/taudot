@@ -20,6 +20,7 @@ import TaudotShared
     nvim = try Neovim(args: [], cwd: folder, env: env)
     view = EditorView(nvim: nvim, frame: NSRect(x: 0, y: 0, width: 600, height: 240))
     view.focused = false
+    view.typingResumesTerminal = true
     nvim.onExit = { [weak self] in self?.exited = true; self?.onExit?() }
   }
 
