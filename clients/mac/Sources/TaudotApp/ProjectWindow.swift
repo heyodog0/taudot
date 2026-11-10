@@ -459,7 +459,9 @@ import TaudotShared
       if path.isEmpty { self.pdf.clearMark(); self.pdf.hideCaret(); return }  // the cursor left the .tex files
       if self.pdf.view.isHidden && args.count > 2 && args[2].bool == true { self.setPane(self.pdf.view, hidden: false) }
       let deliberate = args.count > 4 ? args[4].bool == true : (args.count > 2 && args[2].bool == true)
-      self.pdf.cursorMoved(path: path, line: line, column: args.count > 3 ? args[3].int : nil, deliberate: deliberate)
+      // (a double-click's mark fades by itself: args[5])
+      self.pdf.cursorMoved(path: path, line: line, column: args.count > 3 ? args[3].int : nil, deliberate: deliberate,
+                           fades: args.count > 5 && args[5].bool == true)
     }
     // Editor → PDF: the cursor dot, on every move and key (`taudot_app_caret path line byte-col line-text sent-at`;
     // placed at the exact letter from txp-render's glyphs).
@@ -1047,7 +1049,7 @@ local function word_start(text, col)
   while i > 1 and text:sub(i - 1, i - 1):match('[%w\\128-\\255]') do i = i - 1 end
   return i - 1
 end
-function M.cursor(force, insert)
+function M.cursor(force, insert, click)
   local name = api.nvim_buf_get_name(0)
   if not name:match('%.tex$') then
     -- not a .tex buffer: the PDF's mark goes (once)
@@ -1062,7 +1064,7 @@ function M.cursor(force, insert)
   if key == last and not deliberate then return end
   M.deliberate = false
   last = key
-  vim.rpcnotify(chan, 'taudot_app_cursor', rel(name), line, force == true, col, deliberate)
+  vim.rpcnotify(chan, 'taudot_app_cursor', rel(name), line, force == true, col, deliberate, click == true)
 end
 local timer = uv.new_timer()
 local g = api.nvim_create_augroup('taudot_app', { clear = true })
@@ -1079,9 +1081,10 @@ api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'BufEnter' }, { group =
   timer:stop()
   timer:start(150, 0, vim.schedule_wrap(function() M.cursor(false, insert) end))
 end })
--- A double-click selects the word, as usual, and shows it in the PDF (a deliberate jump: the highlight goes there).
+-- A double-click selects the word, as usual, and shows it in the PDF (a deliberate jump: the highlight goes there,
+-- and fades by itself, as a click in the PDF's does).
 if vim.fn.maparg('<2-LeftMouse>', 'n') == '' then
-  vim.keymap.set('n', '<2-LeftMouse>', "<2-LeftMouse><Cmd>lua require('taudot.app').cursor(true)<CR>",
+  vim.keymap.set('n', '<2-LeftMouse>', "<2-LeftMouse><Cmd>lua require('taudot.app').cursor(true, false, true)<CR>",
     { desc = 'Taudot: select the word and show it in the PDF' })
 end
 if vim.fn.maparg('<leader>av', 'n') == '' then
