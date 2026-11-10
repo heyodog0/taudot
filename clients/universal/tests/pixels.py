@@ -34,6 +34,23 @@ def pass_pdf(exact_path, page_index, content, dx, dy):
     return out.getvalue()
 
 
+def other_pdf(exact_path, page_index, content):
+    """The exact PDF with page PAGE_INDEX drawing CONTENT: the page without the paragraph's lines (their text shows
+    emptied), so what remains in a rect is the page's other ink (a table or figure reaching into the column)."""
+    pdf = pikepdf.open(exact_path)
+    page = pdf.pages[page_index]
+    page.obj["/Contents"] = pdf.make_stream(content)
+    if "/Annots" in page.obj:
+        del page.obj["/Annots"]
+    out = io.BytesIO()
+    pdf.save(out)
+    return out.getvalue()
+
+
+def inked(rgba, i):
+    return rgba[i:i + 3] != b"\xff\xff\xff"
+
+
 def render(pdf_bytes, page_index, rect):
     """RGBA bytes of RECT (x0, y0, x1, y1 in PDF points) of a page, at SCALE, on white."""
     data = NSData.dataWithBytes_length_(pdf_bytes, len(pdf_bytes))
@@ -63,7 +80,7 @@ def ink_right(rgba, w, h, left_px):
     return right
 
 
-def diff(exact_path, page_index, content, dx, dy, baselines, x_start):
+def diff(exact_path, page_index, content, dx, dy, baselines, x_start, other=None):
     """(differing pixels, visibly differing pixels (> 64 in a channel), pixels compared). BASELINES and X_START
     are in the pass's coordinates; the band runs from 3 pt below the last baseline to 7.5 pt above the first."""
     with open(exact_path, "rb") as f:
@@ -77,6 +94,9 @@ def diff(exact_path, page_index, content, dx, dy, baselines, x_start):
     right = left + (ink_right(a, w, h, 0) + 1) / SCALE + 2
     a, w, h = render(mine, page_index, (left, bottom, right, top))
     b, _, _ = render(exact, page_index, (left, bottom, right, top))
+    # OTHER (the page's content without the paragraph's lines): where it has ink, a differing pixel is the page's other
+    # ink (alone, or over the paragraph's glyphs), not the paragraph
+    o = render(other, page_index, (left, bottom, right, top))[0] if other else None
     n = vis = foreign = 0
     import os
     dump = os.environ.get("PIX_DUMP")
@@ -90,8 +110,8 @@ def diff(exact_path, page_index, content, dx, dy, baselines, x_start):
     for i in range(0, len(a), 4):
         d = max(abs(a[i] - b[i]), abs(a[i + 1] - b[i + 1]), abs(a[i + 2] - b[i + 2]))
         if d:
-            if a[i] == a[i + 1] == a[i + 2] == 255:  # the pass draws nothing here: the page's other ink (a figure,
-                foreign += 1                          # a table from the next column), not the paragraph
+            if a[i] == a[i + 1] == a[i + 2] == 255 or (o and inked(o, i)):  # the pass draws nothing here, or the
+                foreign += 1  # page has other ink here (a figure, a table from the next column): not the paragraph
                 continue
             n += 1
             vis += d > 64
@@ -105,7 +125,7 @@ def page_height(pdf_bytes, page_index):
     return r.origin.y + r.size.height
 
 
-def event_check(ev, exact_path):
+def event_check(ev, exact_path, other=None):
     """A para event as the app draws it: the overlay's page (at origin) against the exact page, over the new
     lines' erase rect. Differing pixels (no tolerance)."""
     ov = open(ev["overlay"], "rb").read()
@@ -116,6 +136,7 @@ def event_check(ev, exact_path):
     a, w, h = render(ov, 0, (x0 - ox, H - y1 + oy, x1 - ox, H - y0 + oy))
     b, _, _ = render(ex, ev["page"], (x0, H - y1, x1, H - y0))
     # (pixels where the overlay draws nothing and the page has ink: other content in the rect, counted apart)
+    o = render(other, ev["page"], (x0, H - y1, x1, H - y0))[0] if other else None
     diff = [i for i in range(0, len(a), 4) if a[i:i + 3] != b[i:i + 3]]
-    foreign = sum(1 for i in diff if a[i:i + 3] == b"\xff\xff\xff")
+    foreign = sum(1 for i in diff if a[i:i + 3] == b"\xff\xff\xff" or (o and inked(o, i)))
     return len(diff) - foreign, w * h, foreign

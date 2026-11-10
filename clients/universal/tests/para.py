@@ -31,14 +31,19 @@ def streams(b):
 TOK = re.compile(rb"\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]*>|\[|\]|/[^\s/\[\]()<>]+|[-+]?\d*\.?\d+|[A-Za-z'\"*]+")
 
 
-def pdf_runs(content):
-    """(y, x, font, size, operand) for every text show, positions from the text line matrix and the CTM's offset."""
+def pdf_runs(content, spans=False):
+    """(y, x, font, size, operand) for every text show, positions from the text line matrix and the CTM's offset.
+    SPANS: each also with the byte span (start, end) of its operand in CONTENT."""
     runs, stack, arr, depth = [], [], [], 0
     lx = ly = 0.0
     font, size = b"", 0.0
     cm = [(0.0, 0.0)]
-    for t in TOK.findall(content):
+    starts, arr_start = [], 0
+    for m in TOK.finditer(content):
+        t = m.group(0)
         if t == b"[":
+            if depth == 0:
+                arr_start = m.start()
             depth += 1
             arr.append(t)
             continue
@@ -47,6 +52,7 @@ def pdf_runs(content):
             arr.append(t)
             if depth == 0:
                 stack.append(b"".join(arr))
+                starts.append((arr_start, m.end()))
                 arr = []
             continue
         if depth:
@@ -72,10 +78,12 @@ def pdf_runs(content):
                 cm.pop()
             elif op in (b"TJ", b"Tj") and stack:
                 ox, oy = cm[-1]
-                runs.append((round(ly + oy, 4), round(lx + ox, 4), font, size, stack[-1]))
-            stack = []
+                r = (round(ly + oy, 4), round(lx + ox, 4), font, size, stack[-1])
+                runs.append(r + (starts[-1],) if spans else r)
+            stack, starts = [], []
         else:
             stack.append(t)
+            starts.append((m.start(), m.end()))
     return runs
 
 
@@ -200,7 +208,7 @@ def lines(runs, pdf=True):
         if not out or abs(y - out[-1][2]) > gap:
             out.append([y, [], y])
         out[-1][2] = y
-        out[-1][1].append((round(y - out[-1][0], 2), x, f, s, o))
+        out[-1][1].append((round(y - out[-1][0], 4), x, f, s, o))  # (4: y + dy gives the run's own baseline back)
     return [(y, sorted(r, key=lambda t: (t[0], t[1]))) for y, r, _ in out]
 
 
