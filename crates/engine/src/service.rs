@@ -263,6 +263,25 @@ fn plan(
     }
 }
 
+/// A file's SHA-256 in hex: the running engine records its own binary's at start (`engine.json`'s `exe_sha256`).
+pub fn file_sha256(p: &Path) -> Option<String> {
+    use sha2::{Digest, Sha256};
+    let mut f = std::fs::File::open(p).ok()?;
+    let mut h = Sha256::new();
+    std::io::copy(&mut f, &mut h).ok()?;
+    Some(format!("{:x}", h.finalize()))
+}
+
+/// An update that copied in the same engine binary (only the app changed) needs no restart: the running engine
+/// recorded its binary's hash at start.
+fn same_engine(home: &Path, exe: &Path) -> bool {
+    let running = std::fs::read_to_string(home.join("engine.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .and_then(|v| v["exe_sha256"].as_str().map(str::to_owned));
+    running.is_some() && running == file_sha256(exe)
+}
+
 /// The binary's change time (ctime: set when the file was made on this disk, so an update's copy is newer than an
 /// engine started before it, whatever mtime the archive kept).
 fn changed(p: &Path) -> Option<std::time::SystemTime> {
@@ -276,7 +295,11 @@ async fn ensure(home: &Path, label: &str, plist_file: &Path, target: &str, exe: 
     let sock = home.join("engine.sock");
     let socket_made = std::fs::symlink_metadata(&sock).ok().and_then(|m| m.modified().ok());
     let answers = tokio::net::UnixStream::connect(&sock).await.is_ok();
-    match plan(text.as_deref(), exe, loaded(target), changed(exe), socket_made, answers) {
+    let mut p = plan(text.as_deref(), exe, loaded(target), changed(exe), socket_made, answers);
+    if p == Plan::Restart && same_engine(home, exe) {
+        p = Plan::Nothing;
+    }
+    match p {
         Plan::Install => {
             install(home, label, plist_file, target, exe).await?;
             Ok(if text.is_some() { "repointed" } else { "installed" })
@@ -415,5 +438,22 @@ mod tests {
         assert_eq!(plan(Some(&here), exe, true, Some(t1), Some(t2), false), Plan::Start);
         let odd = plist("l", Path::new("/A & B/Taudot.app/Contents/MacOS/taudot"), Path::new("/h"));
         assert_eq!(plist_exe(&odd).as_deref(), Some(Path::new("/A & B/Taudot.app/Contents/MacOS/taudot")));
+    }
+
+    #[test]
+    fn same_engine_binary_needs_no_restart() {
+        let home = std::env::temp_dir().join(format!("taudot-same-engine-{}", std::process::id()));
+        std::fs::create_dir_all(&home).unwrap();
+        let exe = home.join("taudot");
+        std::fs::write(&exe, b"engine v1").unwrap();
+        assert!(!same_engine(&home, &exe), "no engine.json: restart");
+        let rec = |h: Option<String>| std::fs::write(home.join("engine.json"), serde_json::json!({ "exe_sha256": h }).to_string()).unwrap();
+        rec(file_sha256(&exe));
+        assert!(same_engine(&home, &exe));
+        std::fs::write(&exe, b"engine v2").unwrap();
+        assert!(!same_engine(&home, &exe), "a new binary restarts");
+        rec(None);
+        assert!(!same_engine(&home, &exe), "an older engine that recorded no hash restarts");
+        std::fs::remove_dir_all(&home).unwrap();
     }
 }

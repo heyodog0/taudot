@@ -572,8 +572,8 @@ import TaudotShared
     check(seq == [0, 1, 0], "⌘] with the PDF hidden: \(seq)")
     await press("3")
     check(visible == "SNP" && focused == 2, "⌘3 shows and focuses the PDF (\(visible), \(focused))")
-    await press("0")
-    check(visible == "-NP", "⌘0 hides the sidebar (\(visible))")
+    await press("s", [.command, .control])
+    check(visible == "-NP", "⌃⌘S hides the sidebar (\(visible))")
     await press("1")
     check(visible == "SNP" && focused == 0, "⌘1 shows and focuses it (\(visible), \(focused))")
     await press("\\", [.command, .shift])
@@ -583,7 +583,7 @@ import TaudotShared
           "⇧⌘E shows the sidebar's Files tab (\(visible), \(focused), \(p.sidebar.tab))")
     check((p.window.firstResponder as? NSView)?.isDescendant(of: p.sidebar.files) == true,
           "the file tree takes the keys (\(String(describing: p.window.firstResponder)))")
-    await press("0")
+    await press("s", [.command, .control])
     await press("m", [.command, .shift])
     check(visible == "SNP" && focused == 0 && p.sidebar.tab == .comments && p.sidebar.commentsVisible,
           "⇧⌘M shows the hidden sidebar on Comments (\(visible), \(focused), \(p.sidebar.tab))")
@@ -675,11 +675,11 @@ import TaudotShared
     check(visible == "SNP" && zip(w1, w2).allSatisfy { abs($0 - $1) <= 1 }, "⌘E again restores \(visible) \(w2.map(Int.init))")
     await press("3"); await press("e")
     check(visible == "--P" && p.pdf.view.frame.width >= p.split.bounds.width - 2 * p.split.dividerThickness - 0.5, "⌘E zooms the PDF (\(visible))")
-    await press("0")
+    await press("s", [.command, .control])
     let w3 = p.widths()
     check(visible == "-NP" && abs(w3[2] - w1[2]) <= 1 && p.zoom == nil,
-          "⌘0 while zoomed: the layout comes back, then the sidebar toggles (\(visible) \(w3.map(Int.init)))")
-    await press("0")
+          "⌃⌘S while zoomed: the layout comes back, then the sidebar toggles (\(visible) \(w3.map(Int.init)))")
+    await press("s", [.command, .control])
     await press("2"); await press("e")
     await press("1")
     let w4 = p.widths()
@@ -705,11 +705,11 @@ import TaudotShared
     await scrollPath()
     // Split animations, frame by frame.
     await press("1")
-    await capture("⌘0 hides the focused sidebar: the line slides to Neovim with the split", "0")
+    await capture("⌃⌘S hides the focused sidebar: the line slides to Neovim with the split", "s", [.command, .control])
     check(focused == 1 && visible == "-NP", "… Neovim has the keys (\(focused), \(visible))")
-    await capture("⌘0 shows it without taking the focus: the line rides on Neovim's shrinking frame", "0")
+    await capture("⌃⌘S shows it without taking the focus: the line rides on Neovim's shrinking frame", "s", [.command, .control])
     check(focused == 1 && visible == "SNP", "… focus stays on Neovim (\(focused))")
-    await press("0")
+    await press("s", [.command, .control])
     await capture("⌘1 shows and focuses it: the line slides onto it as it opens", "1")
     await capture("⌘\\ hides the PDF while the sidebar is focused: the line stays on it", "\\")
     await press("\\")
@@ -740,13 +740,13 @@ import TaudotShared
     let wE2 = p.widths()
     check(visible == "SNP" && focused == 2 && zip(wE, wE2).allSatisfy { abs($0 - $1) <= 1 },
           "⌥⌘\\ again shows it at its width, focus stays (\(wE.map(Int.init)) → \(wE2.map(Int.init)))")
-    await press("\\", [.command, .option]); await press("0")
+    await press("\\", [.command, .option]); await press("s", [.command, .control])
     check(visible == "--P", "only the PDF left (\(visible))")
     await press("\\")
     check(visible == "--P", "⌘\\ on the last pane does nothing (\(visible))")
     await press("2")
     check(visible == "-NP" && focused == 1 && p.window.firstResponder === p.editor, "⌘2 brings the editor back and focuses it (\(visible))")
-    await press("0")
+    await press("s", [.command, .control])
     let gridCols = p.editor.cols
     check(gridCols > 40, "Neovim kept a real grid through the hide (\(gridCols) columns)")
     check(lineWrong.isEmpty, "the line is on the focused pane after every one of \(lineSteps) keys \(lineWrong)")
@@ -794,8 +794,99 @@ import TaudotShared
   func count(_ s: String, in t: String) -> Int { t.components(separatedBy: s).count - 1 }
   var fr: NSResponder? { p.window.firstResponder }
 
+  /// The terminal's mode, top line and line count (Claude's Neovim).
+  func term() async -> (mode: String, top: Int, last: Int) {
+    let a = (try? await p.claude?.nvim.execLua("return { vim.api.nvim_get_mode().mode, vim.fn.line('w0'), vim.fn.line('$') }", []))?.array ?? []
+    return (a.first?.string ?? "", a.count > 1 ? a[1].int ?? 0 : 0, a.count > 2 ? a[2].int ?? 0 : 0)
+  }
+
+  /// A scroll event over the Claude pane: trackpad (`pixels`, a phase) or a mouse-wheel notch (`lines`).
+  func scrollClaude(pixels: Double = 0, phase: Int64 = 0, lines: Int32 = 0) {
+    guard let v = p.claude?.view, let w = v.window else { return }
+    let e = lines != 0 ? CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: lines, wheel2: 0, wheel3: 0)
+      : CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: Int32(pixels.rounded()), wheel2: 0, wheel3: 0)
+    guard let e else { return }
+    if lines == 0 {
+      e.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+      e.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
+      e.setDoubleValueField(.scrollWheelEventPointDeltaAxis1, value: pixels)
+      e.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: pixels)
+    }
+    let mid = w.convertPoint(toScreen: v.convert(NSPoint(x: v.bounds.midX, y: v.bounds.midY), to: nil))
+    e.location = CGPoint(x: mid.x, y: NSScreen.screens.first!.frame.height - mid.y)
+    if let ns = NSEvent(cgEvent: e) { v.scrollWheel(with: ns) }
+  }
+
+  func keyClaude(_ chars: String, code: UInt16 = 0) {
+    guard let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                   windowNumber: p.window.windowNumber, context: nil, characters: chars, charactersIgnoringModifiers: chars,
+                                   isARepeat: false, keyCode: code) else { return }
+    p.claude?.view.keyDown(with: e)
+  }
+
+  /// Bug 6 (editfix): the pane scrolls back through claude's output (trackpad, then a wheel notch), and typing goes
+  /// back to the prompt, the key reaching claude.
+  func scrollBack(_ where_: String, word: String) async {
+    p.focus(pane: 3)
+    await sleep(0.2)
+    let bottom = await term()
+    scrollClaude(pixels: 0, phase: 128)
+    scrollClaude(pixels: 40, phase: 1)
+    for _ in 0..<4 { await sleep(1.0 / 60); scrollClaude(pixels: 40, phase: 2) }
+    scrollClaude(pixels: 0, phase: 4)
+    await sleep(0.8)  // (the gesture settled: its last rows asked of Neovim and answered)
+    let up = await term()
+    check(up.mode == "nt" && up.top < bottom.top - 3, "\(where_): a trackpad scroll goes back through claude's output (mode \(bottom.mode) → \(up.mode), top line \(bottom.top) → \(up.top) of \(up.last))")
+    scrollClaude(lines: 3)
+    await sleep(0.4)
+    let more = await term()
+    check(more.top < up.top, "\(where_): … and a wheel notch further (top line \(up.top) → \(more.top))")
+    for c in word { keyClaude(String(c)) }
+    keyClaude("\r", code: 36)
+    // (counted across the terminal's own wraps: the prompt may hold earlier text, which makes the line wrap)
+    func flat() async -> String { await text().replacingOccurrences(of: "\n", with: "") }
+    var t = await flat()
+    for _ in 0..<40 where count(word, in: t) < 2 { await sleep(0.05); t = await flat() }
+    let back = await term()
+    check(back.mode == "t" && back.top >= bottom.top && count(word, in: t) >= 2,
+          "\(where_): typing goes back to the prompt and reaches claude (mode \(back.mode), top line \(back.top), '\(word)' ×\(count(word, in: t)))")
+  }
+
+  /// Item 7 (editfix): claude behind tau-attach, in Rex. TAUDOT_CLAUDECHECK_REX = "start" (a Rex server of the
+  /// test's own, TAUDOT_REX_SERVER: claude starts in a block; its pid goes to TAUDOT_CLAUDECHECK_PIDFILE), "reopen"
+  /// (the same claude, attached again, with what Rex typed into it: TAUDOT_CLAUDECHECK_EXPECT), "down" (no Rex server
+  /// answers: started here).
+  func rexRun(_ mode: String) async {
+    let env = ProcessInfo.processInfo.environment
+    await press("j")
+    check(await waitText("fake claude: ready"), "\(mode): claude shows in the pane (\(await text().suffix(80).debugDescription))")
+    let how = p.claude?.session?.how
+    let pid = await p.claude?.claudePid()
+    let pidFile = env["TAUDOT_CLAUDECHECK_PIDFILE"].map { URL(fileURLWithPath: $0) }
+    switch mode {
+    case "start":
+      check(how == .rex && pid != nil, "start: claude runs in the project's Rex session (\(how?.rawValue ?? "none"), pid \(pid.map(String.init) ?? "-"))")
+      if let pid, let pidFile { try? "\(pid)".write(to: pidFile, atomically: true, encoding: .utf8) }
+      p.focus(pane: 3)
+      for c in "frompane" { keyClaude(String(c)) }
+      keyClaude("\r", code: 36)
+      var t = await text()
+      for _ in 0..<40 where count("frompane", in: t) < 2 { await sleep(0.05); t = await text() }
+      check(count("frompane", in: t) >= 2, "start: keys reach claude through tau-attach")
+    case "reopen":
+      let before = pidFile.flatMap { try? String(contentsOf: $0, encoding: .utf8) }.flatMap { Int($0) }
+      check(how == .running && pid != nil && pid == before, "reopen: attached to the same claude (\(how?.rawValue ?? "none"), pid \(before.map(String.init) ?? "-") → \(pid.map(String.init) ?? "-"))")
+      if let want = env["TAUDOT_CLAUDECHECK_EXPECT"] {
+        check(await waitText(want), "reopen: the pane shows what was typed into the Rex block ('\(want)')")
+      }
+    default:
+      check(how == .local && pid != nil, "down: no Rex server answers, so claude starts here (\(how?.rawValue ?? "none"))")
+    }
+  }
+
   func run() async {
     defer { finish() }
+    if let mode = ProcessInfo.processInfo.environment["TAUDOT_CLAUDECHECK_REX"] { await rexRun(mode); return }
     if ProcessInfo.processInfo.environment["TAUDOT_CLAUDECHECK_MISSING"] != nil {
       await press("j")
       check(await waitText("isn't on PATH"), "no claude: the pane says how to install it (\(await text().prefix(120)))")
@@ -804,6 +895,7 @@ import TaudotShared
     await press("j")
     check(p.claudeShown && p.focusedPane == 3 && fr === p.claude?.view, "⌘J opens the pane and focuses it")
     check(await waitText("fake claude: ready"), "claude runs in the project folder's terminal")
+    await scrollBack("floating", word: "floatword")
     let job = await p.claude?.job()
     check(job != nil, "a terminal job (\(String(describing: job)))")
     // Floating (the default): a glass panel over the editor column, bottom centre, ~70% wide, ~40% high.
@@ -944,6 +1036,7 @@ import TaudotShared
           "double-click on the strip docks it (height \(Int(dh)), still focused)")
     let job3 = await p.claude?.job()
     check(job3?.pid == job?.pid, "… same session")
+    await scrollBack("docked", word: "dockword")
     p.focus(pane: 1); await press("e")
     check(!p.claudeShown, "docked: ⌘E on Neovim hides it"); await press("e")
     p.setClaudeFloating(nil)
@@ -1019,15 +1112,21 @@ import TaudotShared
             "… the window, status bar, issues strip and Claude panel follow (\(dark ? "dark" : "light"))")
     }
     NSApp.appearance = nil
-    // a real re-style (a bigger font) keeps the top line too
+    // a real re-style (a bigger font) keeps the same source position at the top: the character at the top edge
+    // before is on the row at the top edge after. (Not the row's first character: when the text rewraps, that
+    // position may land mid-row.)
     let yA = clip.bounds.origin.y
-    let firstA = ed.view.textView.characterIndexForInsertion(at: NSPoint(x: 40, y: clip.bounds.minY + 4))
+    let firstA = ed.view.textView.characterIndexForInsertion(at: NSPoint(x: 40, y: clip.bounds.minY + 1))
     var bigger = ed.view.style
     bigger.fontSize += 2
     p.keepingTop(of: ed.view) { ed.view.apply(style: bigger) }
     await sleep(0.8)
-    let firstB = ed.view.textView.characterIndexForInsertion(at: NSPoint(x: 40, y: clip.bounds.minY + 4))
-    check(abs(firstB - firstA) <= 2, "a bigger font keeps the line at the top (first char \(firstA) → \(firstB), top \(Int(yA)) → \(Int(clip.bounds.origin.y)))")
+    let firstB = ed.view.textView.characterIndexForInsertion(at: NSPoint(x: 40, y: clip.bounds.minY + 1))
+    // its caret (the row below the line spacing) spans the top edge
+    let caret = clip.convert(p.window.convertFromScreen(ed.view.textView.firstRect(forCharacterRange: NSRange(location: firstA, length: 0), actualRange: nil)), from: nil)
+    let edge = clip.bounds.minY + 1
+    let onTopRow = caret.minY <= edge + ed.view.style.lineSpacing + 0.5 && caret.maxY > edge - 0.5
+    check(onTopRow, "a bigger font keeps the same source position at the top (char \(firstA) on the top row: its row \(Int(caret.minY))–\(Int(caret.maxY)), view top \(Int(clip.bounds.minY)); top row now starts at \(firstB); scrolled \(Int(yA)) → \(Int(clip.bounds.origin.y)))")
     if ProcessInfo.processInfo.environment["TAUDOT_NO_PDF"] == nil, ProcessInfo.processInfo.environment["TAUDOT_NATIVECHECK_NOSYNC"] == nil { await sync(ed) }
     // Opening each style file from the Files sidebar's path (review.open, as a click does), then back to main.tex.
     let styles = ((try? FileManager.default.contentsOfDirectory(atPath: p.folder.path)) ?? []).filter { $0.hasSuffix(".sty") || $0.hasSuffix(".cls") || $0.hasSuffix(".bst") }.sorted()
@@ -1043,10 +1142,49 @@ import TaudotShared
       check(ed.current == "main.tex", "… and back to main.tex")
     }
     await nativeIssues(ed)
+    await copyPaste(ed)   // last: its paste and undo are edits the issue checks above would see
     let t0 = CACurrentMediaTime()
     let ok = await p.shutdown()
     check(ok && CACurrentMediaTime() - t0 < 1, "closing doesn't ask or wait")
     finish()
+  }
+
+  /// ⌘C / ⌘V: the app's Edit menu has Copy and Paste on those keys, sent to the first responder, and in the native
+  /// editor they copy the selection and paste it at the caret (then the paste is undone with ⌘Z, through the menu too).
+  func copyPaste(_ ed: NativeEditor) async {
+    func item(_ key: String) -> NSMenuItem? {
+      func find(_ m: NSMenu) -> NSMenuItem? {
+        for i in m.items {
+          if let s = i.submenu, let f = find(s) { return f }
+          if i.keyEquivalent == key && i.keyEquivalentModifierMask == .command && i.action != nil { return i }
+        }
+        return nil
+      }
+      return NSApp.mainMenu.flatMap(find)
+    }
+    let tv = ed.view.textView
+    guard let copy = item("c"), let paste = item("v"), let undo = item("z") else {
+      check(false, "the Edit menu has ⌘C, ⌘V and ⌘Z (\(item("c") != nil), \(item("v") != nil), \(item("z") != nil))"); return
+    }
+    p.window.makeFirstResponder(tv)
+    let s = tv.string as NSString
+    let word = s.range(of: "\\begin{document}")
+    guard word.location != NSNotFound else { check(false, "copy/paste: no \\begin{document} to copy"); return }
+    let before = tv.string
+    tv.setSelectedRange(word)
+    NSPasteboard.general.clearContents()
+    let copied = p.window.firstResponder?.tryToPerform(copy.action!, with: copy) ?? false
+    let got = NSPasteboard.general.string(forType: .string)
+    check(copied && got == "\\begin{document}", "⌘C copies the selection (\(copied), \(got ?? "nil"))")
+    tv.setSelectedRange(NSRange(location: NSMaxRange(word), length: 0))
+    let pasted = p.window.firstResponder?.tryToPerform(paste.action!, with: paste) ?? false
+    await sleep(0.2)
+    check(pasted && tv.string.contains("\\begin{document}\\begin{document}"), "⌘V pastes at the caret (\(pasted))")
+    _ = p.window.firstResponder?.tryToPerform(undo.action!, with: undo)
+    await sleep(0.3)
+    check(tv.string == before, "⌘Z undoes the paste")
+    tv.setSelectedRange(NSRange(location: (tv.string as NSString).length, length: 0))   // off the lines the next checks move onto
+    await sleep(0.2)
   }
 
   /// SyncTeX both ways, as in Neovim mode: a double-click on the PDF puts the caret on that source line, and a

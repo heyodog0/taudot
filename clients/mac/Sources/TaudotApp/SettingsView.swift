@@ -18,7 +18,7 @@ typealias SettingsPalette = TaudotPalette
 let settingsTiles: [SettingsSection: (Color, Color)] = [
   .appearance: (Color(taudot: 0x2fbf9f), Color(taudot: 0x0f5a5c)), .editor: (Color(taudot: 0xe2ff8a), Color(taudot: 0x8fcf3a)),
   .pdf: (Color(taudot: 0x6fd3c0), Color(taudot: 0x1f8f86)), .comments: (Color(taudot: 0x2a8a8c), Color(taudot: 0x0c4752)),
-  .account: (Color(taudot: 0x9fb3b0), Color(taudot: 0x56706d)),
+  .claude: (Color(taudot: 0x8fe0c8), Color(taudot: 0x2f8f7a)), .account: (Color(taudot: 0x9fb3b0), Color(taudot: 0x56706d)),
 ]
 
 // MARK: - the window
@@ -114,6 +114,7 @@ struct SettingsView: View {
           case .editor: EditorPage(model: model, p: p)
           case .pdf: PDFPage(model: model, p: p)
           case .comments: CommentsPage(model: model, p: p)
+          case .claude: ClaudePage(model: model, p: p)
           case .account: AccountPage(p: p)
           }
         }
@@ -243,19 +244,47 @@ struct NumberField: View {
   let down: () -> Void
   var body: some View {
     HStack(spacing: 8) {
-      HStack(spacing: 6) {
-        Text(text).font(.system(size: 13.5).monospacedDigit()).frame(minWidth: 34, alignment: .trailing)
-        VStack(spacing: 0) {
-          Button(action: up) { Image(systemName: "chevron.up").font(.system(size: 8, weight: .bold)).frame(width: 14, height: 10) }
-          Button(action: down) { Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).frame(width: 14, height: 10) }
-        }
-        .buttonStyle(.plain)
+      // − value +: two full-height buttons (32 × 30 pt targets), not a stepper's 10 pt chevrons
+      HStack(spacing: 0) {
+        StepButton(p: p, symbol: "minus", help: "Smaller", action: down)
+        Rectangle().fill(p.rim.opacity(0.8)).frame(width: 1, height: 16)
+        Text(text).font(.system(size: 13.5).monospacedDigit()).frame(minWidth: 40)
+        Rectangle().fill(p.rim.opacity(0.8)).frame(width: 1, height: 16)
+        StepButton(p: p, symbol: "plus", help: "Bigger", action: up)
       }
-      .padding(.horizontal, 8).frame(height: 28)
+      .frame(height: 30)
       .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(p.search))
       .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(p.rim.opacity(0.8), lineWidth: 1))
+      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
       Text(unit).foregroundStyle(p.secondary).font(.system(size: 13))
     }
+  }
+}
+
+/// One of NumberField's − / + buttons: the whole 32 × 30 pt cell takes the click; hover and press tint it.
+struct StepButton: View {
+  let p: SettingsPalette
+  let symbol: String
+  let help: String
+  let action: () -> Void
+  @State private var hover = false
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(p.text)
+        .frame(width: 32, height: 30).contentShape(Rectangle())
+    }
+    .buttonStyle(StepButtonStyle(p: p, hover: hover))
+    .onHover { hover = $0 }
+    .help(help)
+    .accessibilityLabel(help)
+  }
+}
+
+struct StepButtonStyle: ButtonStyle {
+  let p: SettingsPalette
+  let hover: Bool
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label.background(p.text.opacity(configuration.isPressed ? 0.14 : hover ? 0.06 : 0))
   }
 }
 
@@ -487,12 +516,68 @@ struct PDFPage: View {
     }
     Heading(title: "Typesetting")
     Card(p: p) {
-      Row(p: p, label: "pdfLaTeX projects on pdfTeX",
-          note: "The PDF Overleaf would make, line for line. Off: every project on TeXpresso (XeTeX), as before. Applies when a project opens.",
-          last: true) {
-        Switch(p: p, on: Binding(get: { pdfEngine != "texpresso" }, set: { pdfEngine = $0 ? "auto" : "texpresso" }))
+      Row(p: p, label: "Typeset live",
+          note: "The PDF Overleaf would make, line for line, from TeX Live's own engines. Off: every project on TeXpresso, as before.") {
+        Switch(p: p, on: Binding(get: { pdfEngine != "texpresso" }, set: { pdfEngine = $0 ? "auto" : "texpresso"; universalChanged() }))
+      }
+      Row(p: p, label: "XeLaTeX and LuaLaTeX on universal",
+          note: "Stock XeTeX and LuaTeX, run live. Off: those projects on TeXpresso.") {
+        Switch(p: p, on: Binding(get: { uniUnicode }, set: { uniUnicode = $0; universalChanged() }))
+          .disabled(pdfEngine == "texpresso")
+      }
+      Row(p: p, label: "pdfLaTeX on universal too",
+          note: "Stock pdfTeX, run live. Off: Taudot's patched pdfTeX.", last: true) {
+        Switch(p: p, on: Binding(get: { uniPdf }, set: { uniPdf = $0; universalChanged() }))
+          .disabled(pdfEngine == "texpresso")
       }
     }
+    if let folder = project.folder {
+      Heading(title: "This project")
+      Card(p: p) {
+        Row(p: p, label: "Engine",
+            note: "\(folder.lastPathComponent). From Overleaf: the project's Compiler setting. \(project.running.map { "Now: \($0)." } ?? "")",
+            last: true) {
+          let own = UniversalSettings.engine(for: folder)
+          let fromOverleaf = "From Overleaf" + (project.engine.map { " (\($0.title))" } ?? "")
+          Popup(p: p, value: own?.title ?? fromOverleaf) {
+            Button(fromOverleaf) { setEngine(nil, folder) }
+            ForEach(TexEngine.allCases, id: \.self) { e in Button(e.title) { setEngine(e, folder) } }
+          }
+        }
+      }
+    }
+  }
+
+  @AppStorage(UniversalSettings.unicodeKey) private var uniUnicode = true
+  @AppStorage(UniversalSettings.pdflatexKey) private var uniPdf = true
+  @StateObject private var project = CurrentProjectModel()
+
+  private func universalChanged() { NotificationCenter.default.post(name: UniversalSettings.changed, object: nil) }
+  private func setEngine(_ e: TexEngine?, _ folder: URL) {
+    UniversalSettings.setEngine(e, for: folder)
+    project.refresh()
+    universalChanged()
+  }
+}
+
+/// `CurrentProject` for SwiftUI: the project Settings ▸ PDF talks about, refreshed when it changes.
+@MainActor final class CurrentProjectModel: ObservableObject {
+  @Published private(set) var folder: URL?
+  @Published private(set) var engine: TexEngine?
+  @Published private(set) var running: String?
+  @Published private var tick = 0
+  private var token: NSObjectProtocol?
+  init() {
+    refresh()
+    token = NotificationCenter.default.addObserver(forName: CurrentProject.changed, object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated { self?.refresh() }
+    }
+  }
+  func refresh() {
+    folder = CurrentProject.folder
+    engine = CurrentProject.projectEngine
+    running = CurrentProject.running
+    tick += 1
   }
 }
 
@@ -527,6 +612,21 @@ struct PagePreview: View {
 }
 
 // MARK: - Comments
+
+struct ClaudePage: View {
+  @ObservedObject var model: SettingsModel
+  let p: SettingsPalette
+  var body: some View {
+    Heading(title: "The Claude pane")
+    Card(p: p) {
+      Row(p: p, label: "Run in Rex",
+          note: "Claude runs in the project's Rex session, so it shows in Rex and on your other Macs too. Off, or without Rex, Taudot runs it. Either way it keeps going after Taudot quits.",
+          last: true) {
+        Switch(p: p, on: model.bind({ $0.claudeInRex }, { $0.claudeInRex = $1 }))
+      }
+    }
+  }
+}
 
 struct CommentsPage: View {
   @ObservedObject var model: SettingsModel

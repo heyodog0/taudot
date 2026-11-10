@@ -137,6 +137,33 @@ The text analysed grows from 21 765 to 25 330 of the corpus's 47 635 text lines;
 +3 194. Most new one-line "paragraphs" are table cells and figure labels in small type (they fail, as they
 should). 1.56 s per page.
 
+### 7. Broken kerns, paragraph geometry, bibliographies (2026-11-09)
+
+| all sizes | proven | of | % |
+|---|---|---|---|
+| paragraphs | 2 839 | 7 437 | 38.2 |
+| paragraphs of 2+ lines | 1 932 | 4 118 | 46.9 |
+| lines | 13 132 | 25 347 | 51.8 |
+| words | 132 881 | 253 380 | 52.4 |
+
+The largest unproven block was multi-line paragraphs off by one TJ unit (551 paragraphs, 3 405 lines), mostly
+on the first line. Fixes:
+
+- **Kerns the source broke.** A TFM kern that the PDF doesn't show (`BERT{}:` from a macro) is typed as `{}`
+  between the letters (TFM kern programs are now parsed).
+- **Per-paragraph geometry.** A paragraph still one unit off after the residual search gets its own hsize/left
+  search (hsize alone and the ridge, 16 sp steps over ±640 sp, then 1 sp), then the residuals are searched again.
+  Indented blocks get their geometry derived, not calibrated, and are off by a few hundred sp.
+- **Bibliographies.** The smaller-size pass now groups hanging-indent entries (it split each entry into lines).
+  A hanging line's shift is put back when shipping (`\lastbox` drops it: no hanging paragraph could be proven
+  before). `\newblock` glue (`\hskip .11em plus .33em`, after a factor-1000 space since bibliographies set
+  `\sfcode`\.=1000`) is inferred in bibliography paragraphs, and a line set mostly in italics takes its glue
+  ratio from the italic spaces.
+
+Paragraph counts fall (8 871 → 7 437) because bibliography lines are grouped into entries. A single line can no
+longer be "proven" alone, so a few papers lose lines. 1.76 s per page. `kind` (main, block, item, foot, small)
+is now reported per paragraph.
+
 ### Baselines (prior art, not run here)
 
 - **go-pdfkit/latex** (BSD-3, Go, 2026): heuristic PDF → LaTeX for TeX PDFs, 275 arXiv papers: 99.6 % compile,

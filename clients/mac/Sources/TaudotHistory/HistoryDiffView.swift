@@ -29,6 +29,8 @@ import TaudotShared
   /// The change the arrows last moved to.
   public private(set) var current: Int?
   static let barHeight: CGFloat = 44
+  /// The file name keeps at least this much of the bar; below it the counts hide.
+  static let minTitleWidth: CGFloat = 120
 
   public override init(frame: NSRect) {
     let tv = DiffTextView(frame: NSRect(x: 0, y: 0, width: frame.width, height: frame.height))
@@ -121,7 +123,9 @@ import TaudotShared
     prevButton.frame = NSRect(x: nextButton.frame.minX - 26, y: (h - 24) / 2, width: 24, height: 24)
     counts.sizeToFit()
     counts.frame.origin = NSPoint(x: prevButton.frame.minX - counts.frame.width - 10, y: ((h - counts.frame.height) / 2).rounded())
-    let tw = max(40, counts.frame.minX - 16 - 16)
+    // A narrow pane: the counts give way before the file name does (they never overlap it).
+    counts.isHidden = counts.frame.minX - 16 - 16 < Self.minTitleWidth
+    let tw = max(0, (counts.isHidden ? prevButton.frame.minX - 10 : counts.frame.minX) - 16 - 16)
     title.frame = NSRect(x: 16, y: 6, width: tw, height: 17)
     subtitle.frame = NSRect(x: 16, y: 23, width: tw, height: 15)
     scroll.frame = NSRect(x: 0, y: h, width: bounds.width, height: max(0, bounds.height - h))

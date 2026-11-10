@@ -40,7 +40,9 @@ import TaudotShared
   /// A jump asked for before SyncTeX was in: replayed as it was asked (deliberate or a cursor follow).
   private(set) var pendingJump: (path: String, line: Int, column: Int?, deliberate: Bool)?
   /// What TeXpresso was sent, per path relative to the folder, as UTF-8 (columns are byte offsets in a line).
-  private var sources: [String: [UInt8]] = [:]
+  private var sources: [String: [UInt8]] = [:] { didSet { sourceLinesCache.removeAll() } }
+  /// `sources` split into lines, made on first use after a change (the issues list asks for many lines per log).
+  private var sourceLinesCache: [String: [String]] = [:]
   private var syncGen = 0
   /// The report generation whose SyncTeX is installed: an older one's, slower to come, never replaces it.
   private var syncInstalled = 0
@@ -50,6 +52,8 @@ import TaudotShared
   private var jumpSeq = 0
   /// The source line the deliberate highlight is for.
   var markFor: (path: String, line: Int)?
+  /// Bumped by every new mark: a click's fade from before it is stale.
+  var clickFadeGen = 0
   /// For benches: the last cross-reference followed (its key and where its label is).
   public private(set) var lastRef: (key: String, path: String, line: Int)?
   /// The latest jump's word search has ended (found or not).
@@ -188,13 +192,13 @@ import TaudotShared
     showCache(folder: folder, main: main)
     let mainText = try? String(contentsOf: folder.appendingPathComponent(main), encoding: .utf8)
     if engineSocket == nil {
-      startTypesetter(EngineChoice.choose(compiler: nil, image: nil, mainText: mainText))
+      startTypesetter(choose(compiler: nil, image: nil, mainText: mainText))
     } else {
       // the project's compiler and TeX Live image come with project.open; a slow or absent engine: the source decides
       DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
         MainActor.assumeIsolated {
           guard let self, self.folder == folder, self.txp == nil else { return }
-          self.startTypesetter(EngineChoice.choose(compiler: nil, image: nil, mainText: mainText))
+          self.startTypesetter(self.choose(compiler: nil, image: nil, mainText: mainText))
         }
       }
     }
@@ -204,7 +208,9 @@ import TaudotShared
       f.onEdit = { [weak self] path in if self?.held.contains(path) == false { self?.edited() } }
       f.onProject = { [weak self] compiler, image in
         guard let self else { return }
-        let c = EngineChoice.choose(compiler: compiler.isEmpty ? nil : compiler, image: image, mainText: mainText)
+        self.overleafCompiler = compiler.isEmpty ? nil : compiler
+        self.lastImage = image
+        let c = self.choose(compiler: compiler.isEmpty ? nil : compiler, image: image, mainText: mainText)
         self.check("project: compiler \(compiler) image \(image) → \(c)")
         self.engineChosen(c)  // the docs are opened (again) right after this
       }
@@ -237,25 +243,103 @@ import TaudotShared
     txp?.stop()
     requested = choice
     var choice = choice
-    if case .live(let year) = choice, let why = LiveTexPaths.missing(year) {
-      onStatus?("pdfTeX: \(why); typesetting with TeXpresso")
-      choice = .texpresso
-    }
+    // (tests' typesetters stand in for universal, not for a missing pdfTeX year)
+    let (c, notes) = makeTypesetter == nil ? Self.runnable(choice) : Self.runnable(choice, universalMissing: { _ in nil })
+    choice = c
+    for n in notes { onStatus?(n) }
+    defer { publishProject() }
     let t: any Typesetter
     if let make = makeTypesetter { install(make(choice), choice: choice); return }
+    let cache = cacheOff ? nil : PageCache.dir(folder, root: cacheRoot)
     switch choice {
-    case .texpresso: t = Txp(main: folder.appendingPathComponent(main), bibCache: cacheOff ? nil : PageCache.dir(folder, root: cacheRoot))
+    case .texpresso: t = Txp(main: folder.appendingPathComponent(main), bibCache: cache)
     case .live(let year):
-      t = LiveTex(main: folder.appendingPathComponent(main), year: year,
-                  state: cacheOff ? nil : PageCache.dir(folder, root: cacheRoot).appendingPathComponent("live-\(year)"))
+      t = LiveTex(main: folder.appendingPathComponent(main), year: year, state: cache?.appendingPathComponent("live-\(year)"))
+    case .universal(let e):
+      t = LiveTex(main: folder.appendingPathComponent(main), year: UniversalPaths.year,
+                  state: cache?.appendingPathComponent("universal-\(e.rawValue)"), universal: e)
     }
     install(t, choice: choice)
+  }
+
+  /// What runs when `choice` can't: universal pdfLaTeX falls back to the patched pdfTeX, universal XeLaTeX/LuaLaTeX
+  /// to TeXpresso, a missing patched pdfTeX year to TeXpresso; with the status lines saying so.
+  static func runnable(_ choice: EngineChoice, universalMissing: (TexEngine) -> String? = { UniversalPaths.missing($0) },
+                       liveMissing: (String) -> String? = { LiveTexPaths.missing($0) }) -> (EngineChoice, [String]) {
+    var choice = choice, notes: [String] = []
+    if case .universal(let e) = choice, let why = universalMissing(e) {
+      choice = e == .pdflatex ? .live(year: EngineChoice.years[0]) : .texpresso
+      notes.append("universal: \(why); typesetting with \(e == .pdflatex ? "pdfTeX" : "TeXpresso")")
+    }
+    if case .live(let year) = choice, let why = liveMissing(year) {
+      notes.append("pdfTeX: \(why); typesetting with TeXpresso")
+      choice = .texpresso
+    }
+    return (choice, notes)
+  }
+
+  /// Settings' universal switches (tests set their own: the real ones live in the shared defaults).
+  var universalSwitches: (unicode: Bool, pdflatex: Bool)?
+  /// The typesetter this project names now: its own engine (Settings), Overleaf's compiler, its main file.
+  func choose(compiler: String?, image: String?, mainText: String?) -> EngineChoice {
+    EngineChoice.choose(compiler: compiler, image: image, mainText: mainText, engine: folder.flatMap { UniversalSettings.engine(for: $0) },
+                        universal: universalSwitches ?? (UniversalSettings.unicode(), UniversalSettings.pdflatex()))
+  }
+
+  /// Overleaf's compiler for this project (project.open), nil before it comes or without the engine.
+  var overleafCompiler: String?
+  /// The TeX Live image project.open named.
+  var lastImage: String?
+  /// The engine the project names: Overleaf's compiler, else its main file's.
+  var projectEngine: TexEngine? {
+    if let c = overleafCompiler { return TexEngine(compiler: c) }
+    guard let folder, let main = openedMainName,
+      let s = try? String(contentsOf: folder.appendingPathComponent(main), encoding: .utf8) else { return nil }
+    return TexEngine.fromSource(s)
+  }
+  /// What runs the project, in words (Settings ▸ PDF).
+  var runningName: String? {
+    switch engine {
+    case .texpresso: return "TeXpresso"
+    case .live: return "pdfTeX (patched, live)"
+    case .universal(let e): return "\(e.title) on universal"
+    case nil: return nil
+    }
+  }
+  /// Tells Settings ▸ PDF this is the project it talks about (opened, came to the front, or its engine changed).
+  func publishProject() {
+    CurrentProject.set(folder: folder, engine: projectEngine, running: runningName)
+    if projectObservers.isEmpty {
+      let nc = NotificationCenter.default
+      projectObservers.append(nc.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] n in
+        let w = UncheckedBox(n.object as AnyObject?)
+        MainActor.assumeIsolated {
+          guard let self, w.v != nil, w.v === self.pane.window, self.folder != nil else { return }
+          self.publishProject()
+        }
+      })
+      projectObservers.append(nc.addObserver(forName: UniversalSettings.changed, object: nil, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.engineSettingsChanged() }
+      })
+    }
+  }
+  private var projectObservers: [NSObjectProtocol] = []
+
+  /// Settings ▸ PDF changed an engine switch or this project's engine: the typesetter it names now, if another.
+  func engineSettingsChanged() {
+    guard let folder, let main = openedMainName, engine != nil else { return }
+    let text = try? String(contentsOf: folder.appendingPathComponent(main), encoding: .utf8)
+    let c = choose(compiler: overleafCompiler, image: lastImage, mainText: text)
+    guard c != requested else { return }
+    check("settings: engine → \(c)")
+    startTypesetter(c)
   }
 
   /// Runs `t` as the pane's typesetter (`choice`: which one it is, nil for a saved PDF).
   func install(_ t: any Typesetter, choice: EngineChoice?) {
     engine = choice
     t.pageStyle = pageStyle.rawValue  // sent when it starts
+    resetParaCount()
     txp = t
     t.onPages = { [weak self] e in self?.pagesEvent(e) }
     if let lt = t as? LiveTex {
@@ -284,6 +368,7 @@ import TaudotShared
       guard let self else { return }
       self.check("txp restarted")
       self.inFlight = []  // the new process counts from 0; the reopen sends the docs whole
+      self.resetParaCount()
       Task { try? await self.feed?.reopen() }
     }
     if let g = pane.pagesInView.max() { t.goal(g) }
@@ -291,7 +376,7 @@ import TaudotShared
     pane.queueRefresh()  // renders may go out again
     // the open editor buffers TeXpresso had (a switch after project.open, or a start after the fallback timer)
     for (path, b) in sources.sorted(by: { $0.key < $1.key }) { t.open(path, String(decoding: b, as: UTF8.self)) }
-    let name = choice == nil ? "saved PDF" : choice == .texpresso ? "texpresso" : "pdfTeX"
+    let name = choice == nil ? "saved PDF" : choice == .texpresso ? "texpresso" : (t as? LiveTex)?.label ?? "pdfTeX"
     onStatus?(cacheShown ? "the last PDF; typesetting…" : "\(name): first run")
   }
 
@@ -373,6 +458,8 @@ import TaudotShared
   public func close() {
     saveCacheIndex()
     openGen += 1
+    overleafCompiler = nil
+    lastImage = nil
     // every generation moves on, so in-flight placements, reads and jumps drop their results
     syncGen += 1
     notesGen += 1
@@ -494,6 +581,11 @@ import TaudotShared
 
   /// The paragraph preview: edits already in a PDF (a preview of fewer comes too late to show); TAUDOT_PARA=0 off.
   private var paraRetired = -1
+  /// A new driver counts edits from 0 again: the previews' and PDFs' `applied` restart.
+  private func resetParaCount() {
+    paraRetired = -1
+    pane.para.covered = Int.min
+  }
   static let paraOff = ProcessInfo.processInfo.environment["TAUDOT_PARA"] == "0"
 
   private func pagesEvent(_ e: PagesEvent) {
@@ -535,6 +627,8 @@ import TaudotShared
     }
     // SyncTeX once reports have been quiet for 250 ms: right after a "done" TeXpresso may start an aux rerun and roll
     // its SyncTeX back (then it reads as empty). Empty data never replaces good data.
+    // A display page has no SyncTeX and changes nothing about it: a settled document's SyncTeX still installs.
+    if e.display { return }
     syncGen += 1
     let g = syncGen, og = openGen
     if e.done, let t = txp {
@@ -587,6 +681,7 @@ import TaudotShared
   /// Line `line` (1-based) of a source file, from what TeXpresso was sent, else from disk.
   public func sourceLine(_ path: String, _ line: Int) -> String? {
     let rel = relative(path)
+    if sources[rel] != nil { let ls = cachedLines(rel); return line >= 1 && line <= ls.count ? ls[line - 1] : nil }
     var bytes = sources[rel]
     if bytes == nil, let folder {
       let url = rel.hasPrefix("/") ? URL(fileURLWithPath: rel) : folder.appendingPathComponent(rel)
@@ -629,8 +724,30 @@ import TaudotShared
     }
   }
 
-  /// A deliberate mark now shows for this source line (it goes when the cursor leaves it).
-  func marked(_ path: String, _ line: Int) { markFor = (relative(path), line) }
+  /// A deliberate mark now shows for this source line (it goes when the cursor leaves it). Any new mark cancels a
+  /// click's pending fade.
+  func marked(_ path: String, _ line: Int) {
+    markFor = (relative(path), line)
+    clickFadeGen += 1
+  }
+
+  /// Seconds a click's mark stays before it fades (tests shorten it).
+  nonisolated(unsafe) static var clickMarkHold: TimeInterval = 1.5
+
+  /// A click in the PDF marked this line: the mark only confirms where the editor went, so it fades by itself after
+  /// `clickMarkHold`, even with the cursor still on that line. Clicks in a row: each one's timer replaces the last
+  /// (the user's report: clicking from line to line left the highlight on for good).
+  func clickMarked(_ path: String, _ line: Int) {
+    marked(path, line)
+    let gen = clickFadeGen
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.clickMarkHold) { [weak self] in
+      MainActor.assumeIsolated {
+        guard let self, self.clickFadeGen == gen, self.markFor != nil else { return }
+        self.markFor = nil
+        self.pane.clearMark()  // a quick fade
+      }
+    }
+  }
 
   /// A new jump (or a clear): earlier word searches are dropped, and none is running until one starts.
   @discardableResult func nextJump() -> Int {
@@ -788,7 +905,7 @@ import TaudotShared
     guard let st = synctex, let r = st.inverse(page: page, x: x, y: y) else { return }
     if let f = figureAt(st, page: page, x: x, y: y, hit: r) {
       lastInverse = (f.path, f.line, f.column, "figure")
-      marked(f.path, f.line)
+      clickMarked(f.path, f.line)
       if let cb = onInverseSearchWord { cb(f.path, f.line, f.column) } else { onInverseSearch?(f.path, f.line) }
       return
     }
@@ -803,14 +920,14 @@ import TaudotShared
         pane.reveal(page: page, rects: [w.rect], lines: [row])
       }
       lastInverse = (path, pos.line, pos.column, nil)
-      marked(path, pos.line)
+      clickMarked(path, pos.line)
       if let cb = onInverseSearchWord { cb(path, pos.line, pos.column) } else { onInverseSearch?(path, pos.line) }
       return
     }
     let path = relative(r.file)
     let w = await inverseWord(st, page: page, x: x, y: y, path: path, line: r.line)
     lastInverse = (path, w?.line ?? r.line, w?.column, w?.word)
-    marked(path, w?.line ?? r.line)
+    clickMarked(path, w?.line ?? r.line)
     if let cb = onInverseSearchWord { cb(path, w?.line ?? r.line, w?.column) }
     else { onInverseSearch?(path, w?.line ?? r.line) }
   }
@@ -1054,9 +1171,18 @@ extension TaudotPDFPane {
 // ---- figures and cross-references -----------------------------------------------------------------------------------
 
 extension TaudotPDFPane {
+  /// What TeXpresso was sent of `rel`, as lines (cached until it changes).
+  private func cachedLines(_ rel: String) -> [String] {
+    if let ls = sourceLinesCache[rel] { return ls }
+    let ls = String(decoding: sources[rel] ?? [], as: UTF8.self).components(separatedBy: "\n")
+    sourceLinesCache[rel] = ls
+    return ls
+  }
+
   /// A source file's lines: what TeXpresso was sent, else the file on disk.
   public func sourceLines(_ path: String) -> [String] {
     let rel = relative(path)
+    if sources[rel] != nil { return cachedLines(rel) }
     var bytes = sources[rel]
     if bytes == nil, let folder {
       let url = rel.hasPrefix("/") ? URL(fileURLWithPath: rel) : folder.appendingPathComponent(rel)
@@ -1214,7 +1340,7 @@ extension TaudotPDFPane {
       glyphTasks[i] = nil
     }
     if let map = cursorMap {
-      map.update(synctex: map.synctex, changed: e.changed, count: e.n > 0 ? e.n : nil)
+      map.update(synctex: map.synctex, changed: e.changed, count: e.n > 0 && !e.display ? e.n : nil)  // (a display page's n: through it)
     }
   }
 

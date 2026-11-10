@@ -3,6 +3,7 @@
 import AppKit
 import TaudotHome
 import TaudotNeovim
+import TaudotPDF
 import TaudotShared
 
 // TEXSYNC_* variables (names before the rename) still work (Compat.swift).
@@ -72,6 +73,7 @@ Compat.migrateDefaults()
     timeline("did finish launching")
     // A self-contained app (docs/release.md): its engine's launch agent points at this bundle; updates by Sparkle.
     _ = BundledTools.ensured
+    ParkedEngines.shared.startAtLaunch()  // engines past their format load, for the first project's first page
     Updater.shared.start()
     // the last crash, if there was one we haven't shown (after the windows are up)
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { MainActor.assumeIsolated { CrashReport.showIfAny() } }
@@ -178,10 +180,20 @@ Compat.migrateDefaults()
     file.addItem(withTitle: "Open Folder…", action: #selector(openPanel), keyEquivalent: "o")
     file.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
     fileItem.submenu = file
-    // Edit ▸ Find (the find bar, Find.swift). Only Find here: the editors keep their own copy, paste and undo.
+    // Edit: the standard items, sent to the first responder. The native editor (an NSTextView) gets ⌘Z ⌘C ⌘V ⌘X ⌘A
+    // only through these. Neovim's view implements none of them, so there they're disabled and the keys reach Neovim
+    // as <D-…> (EditorView+Input). Then Find (the find bar, Find.swift).
     let editItem = NSMenuItem()
     main.addItem(editItem)
     let edit = NSMenu(title: "Edit")
+    edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+    edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+    edit.addItem(.separator())
+    edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+    edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+    edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+    edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+    edit.addItem(.separator())
     let findItem = NSMenuItem(title: "Find", action: nil, keyEquivalent: "")
     let findMenu = NSMenu(title: "Find")
     findMenu.addItem(withTitle: "Find…", action: #selector(ProjectWindow.findShow(_:)), keyEquivalent: "f")
@@ -197,7 +209,7 @@ Compat.migrateDefaults()
     func item(_ title: String, _ action: Selector, _ key: String, _ mods: NSEvent.ModifierFlags = .command) {
       view.addItem(withTitle: title, action: action, keyEquivalent: key).keyEquivalentModifierMask = mods
     }
-    item("Show/Hide Sidebar", #selector(ProjectWindow.toggleMargin(_:)), "0")
+    item("Show/Hide Sidebar", #selector(ProjectWindow.toggleMargin(_:)), "s", [.command, .control])
     item("Show/Hide PDF", #selector(ProjectWindow.togglePDF(_:)), "\\")
     item("Show/Hide Editor", #selector(ProjectWindow.toggleEditor(_:)), "\\", [.command, .option])
     item("Show Comments on PDF", #selector(ProjectWindow.togglePDFComments(_:)), "k", [.command, .shift])
@@ -212,6 +224,15 @@ Compat.migrateDefaults()
     item("Show Comments", #selector(ProjectWindow.showSidebarComments(_:)), "m", [.command, .shift])
     item("Show History", #selector(ProjectWindow.showSidebarHistory(_:)), "h", [.command, .shift])
     item("Show Issues", #selector(ProjectWindow.toggleIssues(_:)), "e", [.command, .option])
+    view.addItem(.separator())
+    // The editor's font, both editor modes (TaudotSettings.fontSize, as Settings ▸ Editor sets it).
+    item("Bigger", #selector(ProjectWindow.fontBigger(_:)), "+")
+    let biggerAlias = NSMenuItem(title: "Bigger", action: #selector(ProjectWindow.fontBigger(_:)), keyEquivalent: "=")
+    biggerAlias.isHidden = true      // ⌘= (no shift): the same as ⌘+
+    biggerAlias.allowsKeyEquivalentWhenHidden = true
+    view.addItem(biggerAlias)
+    item("Smaller", #selector(ProjectWindow.fontSmaller(_:)), "-")
+    item("Actual Size", #selector(ProjectWindow.fontActualSize(_:)), "0")
     view.addItem(.separator())
     let focusHeader = NSMenuItem(title: "Focus", action: nil, keyEquivalent: "")
     focusHeader.isEnabled = false

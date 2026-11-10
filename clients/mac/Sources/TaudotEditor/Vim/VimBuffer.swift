@@ -14,6 +14,9 @@ import Foundation
   func redo()
   /// The UTF-16 offset `count` display lines below (negative: above) `loc`, keeping its x position.
   func displayLine(from loc: Int, by count: Int) -> Int
+  /// The screen row (display line) holding `loc`: its first offset and the offset just past its last character
+  /// (the next row's start, or the line's end before its newline). `g0`, `g$`.
+  func displayLineEdges(at loc: Int) -> (start: Int, end: Int)
   /// First and last line (0-based) on screen.
   var screenLines: ClosedRange<Int> { get }
   /// Scroll by lines (smoothly where the view can); the caret is moved by the engine.
@@ -22,6 +25,15 @@ import Foundation
   var clipboard: String? { get set }
   /// Show the mode, a pending command line, or a message.
   func status(_ text: String)
+}
+
+extension VimBuffer {
+  /// Without soft wrap: the whole line.
+  public func displayLineEdges(at loc: Int) -> (start: Int, end: Int) {
+    var a = 0, e = 0, c = 0
+    text.getLineStart(&a, end: &e, contentsEnd: &c, for: NSRange(location: min(loc, text.length), length: 0))
+    return (a, c)
+  }
 }
 
 /// A key as Vim names it: one character, or `<Esc>`, `<CR>`, `<BS>`, `<C-r>`, `<Left>`…

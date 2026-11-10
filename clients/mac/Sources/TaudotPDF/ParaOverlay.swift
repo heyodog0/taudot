@@ -6,6 +6,7 @@
 // writes) and draws it the way LiveDraw draws tiles, so an exact preview has the exact page's pixels. Logic stays in
 // the driver (C); here it is only drawn.
 import CoreGraphics
+import CoreText
 import Foundation
 
 public struct ParaOverlay: @unchecked Sendable {
@@ -23,6 +24,9 @@ public struct ParaOverlay: @unchecked Sendable {
   public let erase: [CGRect]
   /// Glyphs, one path per run (page points, y down), and rules.
   let runs: [(path: CGPath, color: CGColor)]
+  /// Runs in sfnt fonts (XeTeX's OpenType files), drawn as text by Core Graphics (as the exact page's PDF text is),
+  /// not as filled outlines: the same rasterizer, the same weight.
+  let texts: [GlyphRun]
   let rules: [(rect: CGRect, color: CGColor)]
   /// Each run's ink box (page points): paper goes under it too (microtype protrudes punctuation past the box).
   let inks: [CGRect]
@@ -56,6 +60,7 @@ public struct ParaOverlay: @unchecked Sendable {
     let withPDF = m["overlay"] is String && m["origin"] != nil
     guard let list = ParaOverlay.read(data, outlines: !withPDF) else { return nil }
     self.runs = list.runs
+    self.texts = list.texts
     self.rules = list.rules
     self.inks = list.inks
     let o = m["origin"] as? [Double] ?? []
@@ -104,6 +109,18 @@ public struct ParaOverlay: @unchecked Sendable {
       ctx.setFillColor(r.color)
       ctx.fillPath(using: .winding)
     }
+    ctx.setShouldSubpixelPositionFonts(true)
+    ctx.textMatrix = .identity
+    for t in texts {
+      ctx.setFillColor(t.color)
+      for (g, p) in zip(t.glyphs, t.positions) {
+        ctx.saveGState()
+        ctx.concatenate(t.m.concatenating(CGAffineTransform(translationX: p.x, y: p.y)))
+        var gl = g, at = CGPoint.zero
+        CTFontDrawGlyphs(t.font, &gl, &at, 1, ctx)
+        ctx.restoreGState()
+      }
+    }
   }
 
   // ---- TDL (the subset the driver writes)
@@ -128,19 +145,21 @@ public struct ParaOverlay: @unchecked Sendable {
   }
 
   static func read(_ data: Data, outlines: Bool = true)
-    -> (runs: [(path: CGPath, color: CGColor)], rules: [(rect: CGRect, color: CGColor)], inks: [CGRect])?
+    -> (runs: [(path: CGPath, color: CGColor)], texts: [GlyphRun], rules: [(rect: CGRect, color: CGColor)], inks: [CGRect])?
   {
     var r = Reader(d: data, i: 0)
     guard data.count >= 8, data.prefix(4) == Data("TDL\0".utf8), r.skip(4), let ver = r.u32(), ver <= 2 else { return nil }
     var glyphs: [Int: [Int: CGPath]] = [:]  // font → gid → outline (em, y up)
+    var sfnts: [Int: CTFont?] = [:]  // font → the file's face at 1 pt (its glyph paths are in em units, y up)
     var runs: [(path: CGPath, color: CGColor)] = []
+    var texts: [GlyphRun] = []
     var rules: [(rect: CGRect, color: CGColor)] = []
     var inks: [CGRect] = []
     while let kind = r.u8(), let len = r.u32() {
       let end = r.i + len
       guard end <= data.count else { return nil }
       switch kind {
-      case 0x00: return (runs, rules, inks)
+      case 0x00: return (runs, texts, rules, inks)
       case 0x02:  // FONT: id, type, name, then for outlines: n × (gid, path)
         guard let id = r.u32(), let type = r.u8(), let nl = r.u16(), r.skip(nl) else { return nil }
         if type == 2 && outlines {
@@ -151,6 +170,12 @@ public struct ParaOverlay: @unchecked Sendable {
             g[gid] = p
           }
           glyphs[id] = g
+        } else if type == 1 && outlines {  // sfnt: an OpenType/TrueType file Core Text loads (XeTeX's fonts)
+          guard let pl = r.u16(), r.i + pl <= data.count else { return nil }
+          let p = String(decoding: data.subdata(in: data.startIndex + r.i ..< data.startIndex + r.i + pl), as: UTF8.self)
+          r.i += pl
+          guard let index = r.u32() else { return nil }
+          sfnts[id] = SfntCache.shared.font(path: p, index: index)
         }
       case 0x10:  // TEXT
         guard let bb = r.f32s(4), let mode = r.u8(), let c = r.f32s(4) else { return nil }
@@ -159,12 +184,17 @@ public struct ParaOverlay: @unchecked Sendable {
         if !outlines { break }
         guard let font = r.u32(), let m = r.f32s(4), let n = r.u32() else { return nil }
         let out = CGMutablePath()
+        let color = CGColor(srgbRed: c[0], green: c[1], blue: c[2], alpha: c[3])
+        let mt = CGAffineTransform(a: m[0], b: m[1], c: m[2], d: m[3], tx: 0, ty: 0)
+        var gs: [CGGlyph] = [], ps: [CGPoint] = []
         for _ in 0..<n {
           guard let gid = r.u32(), let x = r.f32(), let y = r.f32(), r.skip(4), let tl = r.u16(), r.skip(tl) else { return nil }
+          if sfnts[font] != nil { gs.append(CGGlyph(gid)); ps.append(CGPoint(x: x, y: y)); continue }
           guard let g = glyphs[font]?[gid] else { continue }
           out.addPath(g, transform: CGAffineTransform(a: m[0], b: m[1], c: m[2], d: m[3], tx: x, ty: y))
         }
-        if mode == 0 { runs.append((out, CGColor(srgbRed: c[0], green: c[1], blue: c[2], alpha: c[3]))) }
+        if mode == 0, let f = sfnts[font] ?? nil { texts.append(GlyphRun(font: f, glyphs: gs, positions: ps, m: mt, color: color)) }
+        else if mode == 0 { runs.append((out, color)) }
       case 0x13:  // RULE: bbox, rgba
         guard let b = r.f32s(4), let c = r.f32s(4) else { return nil }
         rules.append((CGRect(x: b[0], y: b[1], width: b[2] - b[0], height: b[3] - b[1]),
@@ -202,3 +232,36 @@ public struct ParaOverlay: @unchecked Sendable {
   }
 }
 
+
+/// sfnt fonts of display lists (TDL FONT type 1), loaded once per file and face, and their glyph outlines: XeTeX's
+/// previews name the same few fonts every key.
+final class SfntCache: @unchecked Sendable {
+  static let shared = SfntCache()
+  private let lock = NSLock()
+  private var fonts: [String: CTFont?] = [:]
+
+  func font(path: String, index: Int) -> CTFont? {
+    let key = "\(index):\(path)"
+    lock.lock()
+    if let f = fonts[key] { lock.unlock(); return f }
+    lock.unlock()
+    var f: CTFont?
+    if let ds = CTFontManagerCreateFontDescriptorsFromURL(URL(fileURLWithPath: path) as CFURL) as? [CTFontDescriptor],
+      index < ds.count {
+      f = CTFontCreateWithFontDescriptor(ds[index], 1, nil)
+    }
+    lock.lock()
+    fonts[key] = f
+    lock.unlock()
+    return f
+  }
+}
+
+/// A TEXT run in an sfnt font: glyph ids, their origins (page points, y down) and the em → page matrix.
+struct GlyphRun: @unchecked Sendable {
+  let font: CTFont
+  let glyphs: [CGGlyph]
+  let positions: [CGPoint]
+  let m: CGAffineTransform
+  let color: CGColor
+}

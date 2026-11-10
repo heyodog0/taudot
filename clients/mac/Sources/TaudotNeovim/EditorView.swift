@@ -16,6 +16,8 @@ struct RowEntry {
   public let ui = UIModel()
   let renderer: Renderer
   var font: FontSet
+  /// The editor font's size in points (from `guifont`).
+  public var fontPointSize: CGFloat { font.size }
   var atlas: GlyphAtlas
   let metalLayer = CAMetalLayer()
   /// How frames reach the screen: `.surface` (default) renders into an IOSurface and sets it as the layer's contents
@@ -120,6 +122,13 @@ struct RowEntry {
   /// With `traceRows`: rows of scrolled areas drawn blank (no row known for them), summed over frames.
   public var debugBlankRows = 0
   public var onFrameRendered: (() -> Void)?
+  /// A terminal view (the Claude pane): typing while scrolled back (Terminal mode left by a scroll) goes back to the
+  /// prompt and on to the program.
+  public var typingResumesTerminal = false
+  /// An `i` is on its way back to Terminal mode (until Neovim reports a mode other than normal).
+  var terminalResumePending = false
+  /// Wheel movement over a terminal in Terminal mode not yet sent as a wheel event (rows).
+  var terminalWheel = 0.0
   /// A key before Neovim sees it: return true to keep it from Neovim (the Claude pane's Esc-Esc).
   public var onKeyDown: ((NSEvent) -> Bool)?
 
@@ -301,6 +310,7 @@ struct RowEntry {
   }
 
   func flushed(_ m: UIModel) {
+    if m.modeName != "normal" { terminalResumePending = false }
     if m.optionsChanged && (font.linespace != m.linespace || FontSet(guifont: m.guifont, linespace: m.linespace, scale: scale).name != font.name
         || FontSet(guifont: m.guifont, linespace: m.linespace, scale: scale).size != font.size) {
       rebuildFont()

@@ -37,6 +37,8 @@ extension ParaOverlay {
   private(set) var overlay: ParaOverlay?
   var retireOnSwap = false
   var gen = 0
+  /// The most edits a PDF has brought: a preview rendered meanwhile that it covers is not put up.
+  var covered = Int.min
   /// For tests and benches: previews put on screen, and the last one's edit time to on screen (ms).
   var shows = 0
   var onShown: ((ParaOverlay) -> Void)?
@@ -71,7 +73,7 @@ extension PDFPaneView {
       let img = ParaOverlay.render(box.v, scale: s, x0: x0, y0: y0, w: w, h: h, style: style).map(UncheckedBox.init)
       DispatchQueue.main.async {
         MainActor.assumeIsolated {
-          guard let self, g == self.para.gen, let img, box.v.page < self.pages.count else { return }
+          guard let self, g == self.para.gen, let img, box.v.page < self.pages.count, box.v.applied > self.para.covered else { return }
           let p = self.pages[box.v.page]
           CATransaction.begin()
           CATransaction.setDisableActions(true)
@@ -95,10 +97,15 @@ extension PDFPaneView {
   }
 
   /// A PDF with `applied` edits came: a preview it covers goes once its page's new tiles are up (now, if that page
-  /// didn't change).
+  /// didn't change and none of its new tiles are still on the way). Item 8: tau-live sends a display page and then,
+  /// within a few ms, that edit's other PDFs, which leave the page as it is (`changed` []); the preview went on the
+  /// second, before the display page's tiles were up, and the old text showed for a frame or two at every key.
   public func retirePara(applied: Int, changed: [Int], pages n: Int) {
+    para.covered = max(para.covered, applied)
     guard let o = para.overlay, applied >= o.applied, o.page < n else { return }
-    if changed.contains(o.page) { para.retireOnSwap = true } else { removePara() }
+    // (a page out of view draws nothing new until it's scrolled to: the preview goes now)
+    let swapping = o.page < pages.count && pages[o.page].lastShownVer != pages[o.page].ver && pagesInView.contains(o.page)
+    if changed.contains(o.page) || swapping { para.retireOnSwap = true } else { removePara() }
   }
 
   /// Page i's new content is on screen (swapIfComplete).

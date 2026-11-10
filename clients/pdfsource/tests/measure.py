@@ -12,7 +12,7 @@ from pathlib import Path
 
 R = Path(os.environ["TAUDOT_REF"])  # the reference tree: corpus, texlive-2026, universal engines
 CACHE = Path(os.environ.get("PDFSOURCE_CACHE", R / "pdfsource"))
-BIN = Path(__file__).resolve().parent.parent / "target/release/pdfsource"
+BIN = Path(os.environ.get("PDFSOURCE_BIN", Path(__file__).resolve().parent.parent / "target/release/pdfsource"))
 
 # Not ground truth: their main file only includes a prebuilt PDF of the paper (pdfpages).
 SUMMARY = False

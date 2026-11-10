@@ -3,7 +3,7 @@
 // focused (EditorView.focused).
 //
 //   ⌘[ / ⌘]     previous / next visible pane (wrapping)      ⌘⌥← / ⌘⌥→  pane to the left / right
-//   ⌘1 ⌘2 ⌘3    sidebar / Neovim / PDF (shown if hidden)      ⌘0 (⇧⌘\)   show / hide the sidebar
+//   ⌘1 ⌘2 ⌘3    sidebar / Neovim / PDF (shown if hidden)      ⌃⌘S (⇧⌘\)  show / hide the sidebar
 //   ⌘E          zoom the focused pane; again restores          ⇧⌘E / ⇧⌘M  sidebar: Files / Comments
 import AppKit
 import TaudotReview

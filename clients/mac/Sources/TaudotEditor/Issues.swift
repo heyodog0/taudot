@@ -167,22 +167,31 @@ final class IssuesOverlay: NSView {
     return NSRect(x: x, y: line.midY - 3, width: 6, height: 6)
   }
 
+  /// Only the marks in `dirtyRect` are measured (an issue's rects lay its paragraph out: a long log's hundreds of
+  /// issues cost ~50 ms a frame drawn one by one), and they're drawn as one path per colour: errors, then warnings
+  /// over them, as the list orders them.
   override func draw(_ dirtyRect: NSRect) {
     MainActor.assumeIsolated {
-      guard let o = owner else { return }
+      guard let o = owner, !o.placedIssues.isEmpty else { return }
+      let lay = o.textLayout
+      let fh = o.font.ascender - o.font.descender
+      var dots: [EditorIssue.Severity: NSBezierPath] = [:], waves: [EditorIssue.Severity: NSBezierPath] = [:]
+      var order: [EditorIssue.Severity] = []
       for p in o.placedIssues {
-        let color = p.issue.severity == .error ? NSColor.systemRed : NSColor.systemOrange
+        if let lay {  // the paragraph's span, without laying it out (y(ofPara:) is the same before and after)
+          let k = lay.paraIndex(p.range.location)
+          let top = lay.y(ofPara: k), bottom = k + 1 < lay.paras.count ? lay.y(ofPara: k + 1) : lay.height + lay.origin.y
+          if bottom < dirtyRect.minY - 8 || top > dirtyRect.maxY + 8 { continue }
+        }
         let rects = o.issueRects(p.range)
         guard let first = rects.first else { continue }
-        color.setFill()
-        NSBezierPath(ovalIn: dotRect(first)).fill()
-        color.setStroke()
+        let s = p.issue.severity
+        if dots[s] == nil { dots[s] = NSBezierPath(); waves[s] = NSBezierPath(); order.append(s) }
+        dots[s]!.appendOval(in: dotRect(first))
         for r in rects {
           // a wave under the glyphs (the fragment's text height, not the line spacing below it)
-          let fh = o.font.ascender - o.font.descender
           let y = r.minY + min(r.height, fh) + 1.5
-          let path = NSBezierPath()
-          path.lineWidth = 1.2
+          let path = waves[s]!
           var x = r.minX
           path.move(to: NSPoint(x: x, y: y))
           var up = true
@@ -192,8 +201,15 @@ final class IssuesOverlay: NSView {
             up.toggle()
             x = nx
           }
-          path.stroke()
         }
+      }
+      for s in order {
+        let color = s == .error ? NSColor.systemRed : NSColor.systemOrange
+        color.setFill()
+        dots[s]!.fill()
+        color.setStroke()
+        waves[s]!.lineWidth = 1.2
+        waves[s]!.stroke()
       }
     }
   }

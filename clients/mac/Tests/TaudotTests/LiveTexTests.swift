@@ -88,6 +88,7 @@ private let twoPages: String = {
   let cache = dir.appendingPathExtension("cache")  // its own page cache, not a shared TAUDOT_PAGE_CACHE
   defer { try? FileManager.default.removeItem(at: cache) }
   let pane = TaudotPDFPane(cacheRoot: cache)
+  pane.universalSwitches = (true, false)  // pdfLaTeX on the patched pdfTeX (universal is the default since 2026-11-09)
   pane.open(folder: dir, main: "main.tex", engineSocket: nil)
   defer { pane.close() }
   #expect(pane.engine == .live(year: "2026"))
@@ -99,19 +100,19 @@ private let twoPages: String = {
 
 @Test func engineChoice() {
   let env: [String: String] = [:]
-  #expect(EngineChoice.choose(compiler: "pdflatex", image: "texlive-full:2025.1", mainText: nil, setting: nil, env: env) == .live(year: "2025"))
-  #expect(EngineChoice.choose(compiler: "pdflatex", image: "", mainText: nil, setting: nil, env: env) == .live(year: "2026"))
-  #expect(EngineChoice.choose(compiler: "pdflatex", image: "texlive-full:2022.1", mainText: nil, setting: nil, env: env) == .live(year: "2024"))
-  #expect(EngineChoice.choose(compiler: "xelatex", image: "texlive-full:2025.1", mainText: nil, setting: nil, env: env) == .texpresso)
-  #expect(EngineChoice.choose(compiler: "lualatex", image: nil, mainText: nil, setting: nil, env: env) == .texpresso)
-  #expect(EngineChoice.choose(compiler: "pdflatex", image: nil, mainText: nil, setting: "texpresso", env: env) == .texpresso)
+  #expect(EngineChoice.choose(compiler: "pdflatex", image: "texlive-full:2025.1", mainText: nil, setting: nil, universal: (false, false), env: env) == .live(year: "2025"))
+  #expect(EngineChoice.choose(compiler: "pdflatex", image: "", mainText: nil, setting: nil, universal: (false, false), env: env) == .live(year: "2026"))
+  #expect(EngineChoice.choose(compiler: "pdflatex", image: "texlive-full:2022.1", mainText: nil, setting: nil, universal: (false, false), env: env) == .live(year: "2024"))
+  #expect(EngineChoice.choose(compiler: "xelatex", image: "texlive-full:2025.1", mainText: nil, setting: nil, universal: (false, false), env: env) == .texpresso)
+  #expect(EngineChoice.choose(compiler: "lualatex", image: nil, mainText: nil, setting: nil, universal: (false, false), env: env) == .texpresso)
+  #expect(EngineChoice.choose(compiler: "pdflatex", image: nil, mainText: nil, setting: "texpresso", universal: (false, false), env: env) == .texpresso)
   // no engine: the source decides
   let xe = "% !TEX program = xelatex\n\\documentclass{article}\n"
-  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: xe, setting: nil, env: env) == .texpresso)
+  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: xe, setting: nil, universal: (false, false), env: env) == .texpresso)
   let fs = "\\documentclass{article}\n\\usepackage{fontspec}\n\\begin{document}\n"
-  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: fs, setting: nil, env: env) == .texpresso)
+  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: fs, setting: nil, universal: (false, false), env: env) == .texpresso)
   let commented = "\\documentclass{article}\n% \\usepackage{fontspec}\n\\begin{document}\n\\usepackage{fontspec}"
-  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: commented, setting: nil, env: env) == .live(year: "2026"))
+  #expect(EngineChoice.choose(compiler: nil, image: nil, mainText: commented, setting: nil, universal: (false, false), env: env) == .live(year: "2026"))
   #expect(EngineChoice.choose(compiler: "xelatex", image: nil, mainText: nil, setting: nil, env: ["TAUDOT_ENGINE": "live"]) == .live(year: "2026"))
 }
 
@@ -192,13 +193,15 @@ func pixel(_ t: TileImage, _ x: Int, _ y: Int) -> (Int, Int, Int) {
   for w in g.words() where grep == nil || w.raw.contains(grep!) { print("WORD \(w.raw) \(w.rect)") }
 }
 
-/// XeLaTeX projects stay on TeXpresso: a fontspec document in a folder without the engine.
+/// With "XeLaTeX and LuaLaTeX on universal" off, XeLaTeX projects stay on TeXpresso: a fontspec document in a folder
+/// without the engine. (On, the default, they go to universal: UniversalTests.)
 @MainActor @Test func paneKeepsXeLaTeXOnTeXpresso() throws {
   let dir = try tempProject("\\documentclass{article}\n\\usepackage{fontspec}\n\\begin{document}\nHi.\n\\end{document}\n")
   defer { try? FileManager.default.removeItem(at: dir) }
   let cache = dir.appendingPathExtension("cache")  // its own page cache, not a shared TAUDOT_PAGE_CACHE
   defer { try? FileManager.default.removeItem(at: cache) }
   let pane = TaudotPDFPane(cacheRoot: cache)
+  pane.universalSwitches = (false, false)
   pane.open(folder: dir, main: "main.tex", engineSocket: nil)
   defer { pane.close() }
   #expect(pane.engine == .texpresso)

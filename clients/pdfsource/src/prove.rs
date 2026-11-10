@@ -31,6 +31,8 @@ pub struct Report {
     pub paras: Vec<(usize, Outcome)>,
     pub doc_lines: usize,
     pub para_lines: Vec<usize>,
+    /// Per paragraph: main (body column), block (indented), item, foot, small (another text size).
+    pub kinds: Vec<&'static str>,
     pub words: Vec<usize>,
     pub other_lines: usize,
     pub tex_runs: usize,
@@ -309,6 +311,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             french: false,
             cite_spaces: true,
             labelsep_adj: 0,
+            newblock_neg: false,
             hang_sp: if p.hang > 0.0 { if (texgen::sp(p.hang) - parindent).abs() < 200 { parindent } else { texgen::sp(p.hang) } } else { 0 },
         },
         font_choice: font_choice.clone(),
@@ -472,6 +475,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         }
         let mut rsearch: Vec<(usize, usize)> = vec![];
         let mut lsearch: Vec<usize> = vec![];
+        let mut gsearch: Vec<usize> = vec![];
         for (&i, c) in todo.iter().zip(&res) {
             let st = &mut states[i];
             if st.done.is_some() {
@@ -479,6 +483,9 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             }
             let p = &doc.paras[i];
             st.last_reason = c.why.clone();
+            if std::env::var("PDFSOURCE_TRACE").is_ok_and(|v| v == i.to_string()) {
+                eprintln!("trace {i}: {} | {:?} resid {:?}", c.why, st.hyp.params, st.hyp.resid);
+            }
             let mut moved = false;
             if c.why.starts_with("breaks") {
                 let upto = c.bad_line.unwrap_or(p.lines.len()).min(p.lines.len() - 1);
@@ -516,6 +523,11 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                     moved = true;
                 } else if st.searched.insert(li) {
                     rsearch.push((i, li));
+                    moved = true;
+                } else if st.searched.insert(usize::MAX - 1) {
+                    // Still one unit off with every residual: the paragraph's own geometry, a few sp from its
+                    // column's (blocks get theirs derived, not calibrated), changes the glue and so the kerns.
+                    gsearch.push(i);
                     moved = true;
                 }
             } else if c.why.starts_with("positions") && !c.why.contains(" dy ") && !c.why.contains("scale") && c.first_dx >= 0.0125 && !st.hyp.params.french && c.text.contains(". ") {
@@ -567,6 +579,48 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                 if let Some((_, d)) = best {
                     states[i].hyp.params.labelsep_adj = d;
                 }
+            }
+        }
+        if !gsearch.is_empty() {
+            // (hsize change, left change) along two lines: hsize alone, and the ridge (right edge kept). Coarse
+            // (16 sp over ±640) by glyphs out of place, then 1 sp around the best; keep a candidate that gets further.
+            let mut best: HashMap<usize, (i64, i64)> = gsearch.iter().map(|&i| (i, (0, 0))).collect();
+            for (step, reach) in [(16i64, 40i64), (1, 16)] {
+                let mut offs_of: Vec<Vec<(i64, i64)>> = vec![];
+                let mut items = vec![];
+                for &i in &gsearch {
+                    let (h0, l0) = best[&i];
+                    let mut offs = vec![];
+                    for d in -reach..=reach {
+                        offs.push((h0 + step * d, l0));
+                        if d != 0 {
+                            offs.push((h0 - step * d, l0 + step * d));
+                        }
+                    }
+                    for &(dh, dl) in &offs {
+                        let mut h = states[i].hyp.clone();
+                        h.params.hsize_sp += dh;
+                        h.params.left_sp += dl;
+                        items.push((i, h));
+                    }
+                    offs_of.push(offs);
+                }
+                let res = cx.batch(&items);
+                let mut at = 0;
+                for (n, &i) in gsearch.iter().enumerate() {
+                    let offs = &offs_of[n];
+                    let k = (0..offs.len()).min_by_key(|&k| { let c = &res[at + k]; (if c.ok { 0 } else { 1 + c.misses.min(1_000_000) }, (offs[k].0 - best[&i].0).abs() + (offs[k].1 - best[&i].1).abs()) }).unwrap();
+                    best.insert(i, offs[k]);
+                    at += offs.len();
+                }
+            }
+            for &i in &gsearch {
+                let (dh, dl) = best[&i];
+                states[i].hyp.params.hsize_sp += dh;
+                states[i].hyp.params.left_sp += dl;
+                // Residuals found under the old geometry are searched again.
+                states[i].hyp.resid.clear();
+                states[i].searched.retain(|&x| x >= usize::MAX - 1);
             }
         }
         if !rsearch.is_empty() {
@@ -632,6 +686,14 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         paras,
         doc_lines: doc.lines.len(),
         para_lines: doc.paras.iter().map(|p| p.lines.len()).collect(),
+        kinds: doc
+            .paras
+            .iter()
+            .map(|p| {
+                let main = doc.columns[..doc.n_main].iter().any(|c| (c.left - p.column.left).abs() < 0.02 && (c.right - p.column.right).abs() < 0.02);
+                if p.label_box > 0.0 { "foot" } else if p.label > 0 { "item" } else if (p.lines[0].size - doc.body_size).abs() > 0.3 { "small" } else if main { "main" } else { "block" }
+            })
+            .collect(),
         words: doc.paras.iter().map(words_in).collect(),
         other_lines: doc.other_lines,
         tex_runs: cx.runs,
@@ -816,7 +878,7 @@ pub fn print(r: &Report, json: bool) {
         s += &r
             .paras
             .iter()
-            .map(|(i, o)| format!("{{\"i\":{},\"lines\":{},\"proven\":{},\"reason\":\"{}\",\"tries\":{},\"max_dx\":{:.4}}}", i, r.para_lines[*i], o.proven, esc(&o.reason), o.tries, o.max_dx))
+            .map(|(i, o)| format!("{{\"i\":{},\"lines\":{},\"proven\":{},\"reason\":\"{}\",\"tries\":{},\"max_dx\":{:.4},\"kind\":\"{}\"}}", i, r.para_lines[*i], o.proven, esc(&o.reason), o.tries, o.max_dx, r.kinds[*i]))
             .collect::<Vec<_>>()
             .join(",");
         s += "]}";

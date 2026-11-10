@@ -620,7 +620,11 @@ final class HomeNSWindow: NSWindow {
     }
   }
 
+  /// Takes the alerts instead of a sheet (tests: a sheet brings the window on screen).
+  var onAlert: ((String, String) -> Void)?
+
   private func alert(_ title: String, _ text: String) {
+    if let onAlert { onAlert(title, text); return }
     let a = NSAlert()
     a.messageText = title
     a.informativeText = text

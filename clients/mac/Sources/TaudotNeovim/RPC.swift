@@ -131,7 +131,7 @@ public final class NeovimProcess: @unchecked Sendable {
     let exe = nvim ?? NeovimProcess.findNvim()
     let toChild = Pipe(), fromChild = Pipe()
     process.executableURL = URL(fileURLWithPath: exe)
-    process.arguments = ["--embed"] + args
+    process.arguments = ["--embed", "--cmd", "lua " + NeovimProcess.watchdogLua] + args
     if let cwd { process.currentDirectoryURL = cwd }
     var e = ProcessInfo.processInfo.environment
     for (k, v) in env { e[k] = v }
@@ -147,6 +147,39 @@ public final class NeovimProcess: @unchecked Sendable {
   private var pipes: (Pipe, Pipe)?
 
   public func terminate() { if process.isRunning { process.terminate() } }
+
+  /// SIGKILL: for a Neovim stuck in Lua, which handles SIGTERM only between events.
+  public func kill() { if process.isRunning { Darwin.kill(process.processIdentifier, SIGKILL) } }
+
+  /// Neovim ends with us. It exits by itself when its stdin closes, but only between events: stuck in a Lua loop it
+  /// would spin at 100% CPU for good, ignoring SIGTERM too. So a thread of its own (a luv thread: its own Lua state,
+  /// which the main one can't block) waits in kqueue for our exit (no wake-ups until then) and SIGKILLs it. macOS;
+  /// elsewhere nothing. One line: `--cmd "lua …"` runs it before any config, `--clean` too.
+  static let watchdogLua = [
+    "pcall(function()",
+    "if not (jit and jit.os == 'OSX' and vim.uv.new_thread) then return end",
+    "vim.uv.new_thread(function(parent)",
+    "local ffi = require('ffi')",
+    "ffi.cdef([[",
+    "struct taudot_kevent { uintptr_t ident; int16_t filter; uint16_t flags; uint32_t fflags; intptr_t data; void *udata; };",
+    "int kqueue(void);",
+    "int kevent(int kq, const struct taudot_kevent *ch, int nch, struct taudot_kevent *ev, int nev, const void *timeout);",
+    "int kill(int pid, int sig); int getpid(void);",
+    "]])",
+    "local C = ffi.C",
+    "local kq = C.kqueue()",
+    "if kq < 0 then return end",
+    "local ch = ffi.new('struct taudot_kevent[1]')",
+    // EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT
+    "ch[0].ident = parent; ch[0].filter = -5; ch[0].flags = 0x11; ch[0].fflags = 0x80000000",
+    // ESRCH: we are gone already; EINTR: wait again; any other error: leave Neovim alone
+    "if C.kevent(kq, ch, 1, nil, 0, nil) < 0 then if ffi.errno() ~= 3 then return end",
+    "else local ev = ffi.new('struct taudot_kevent[1]')",
+    "while C.kevent(kq, nil, 0, ev, 1, nil) < 0 do if ffi.errno() ~= 4 then return end end end",
+    "C.kill(C.getpid(), 9)",
+    "end, vim.uv.os_getppid())",
+    "end)",
+  ].joined(separator: " ")
 
   /// $TAUDOT_NVIM, else the app bundle's Neovim, else nvim on PATH, else the usual Homebrew places. A GUI app
   /// launched from Finder has a minimal PATH.

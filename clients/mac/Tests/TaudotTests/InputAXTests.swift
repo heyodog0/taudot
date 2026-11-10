@@ -71,3 +71,39 @@ import Testing
     #expect(vis.location == 0 && vis.length > 100 && vis.length < (tv.string as NSString).length, "\(mode): visible \(vis)")
   }
 }
+
+/// Edit ▸ Cut/Copy/Paste/Select All/Undo (main.swift) go to the first responder: the native editor (both TextKit and
+/// Metal) answers them, so ⌘C ⌘V work there; a view that implements none of them (Neovim's) gets no target, so the
+/// menu items stay disabled and the keys reach Neovim as before.
+@MainActor private func handler(_ a: Selector, in w: NSWindow) -> NSResponder? {
+  var r: NSResponder? = w.firstResponder
+  while let x = r { if x.responds(to: a) { return x }; r = x.nextResponder }
+  return nil
+}
+
+@MainActor @Test func editMenuActionsReachTheNativeEditorOnly() async throws {
+  let actions = ["cut:", "copy:", "paste:", "selectAll:"].map { Selector($0) }
+  for metal in [false, true] {
+    let (w, v) = editor(metal: metal)
+    let tv = v.textView, mode = metal ? "metal" : "textkit"
+    for a in actions + [Selector(("undo:"))] {
+      #expect(handler(a, in: w) != nil, "\(mode): \(a) has a handler")
+    }
+    for a in actions { #expect(handler(a, in: w) === tv, "\(mode): \(a) reaches the editor") }
+    let r = (tv.string as NSString).range(of: "paper")
+    tv.setSelectedRange(r)
+    NSPasteboard.general.clearContents()
+    #expect(w.firstResponder!.tryToPerform(#selector(NSText.copy(_:)), with: nil), "\(mode): copy")
+    #expect(NSPasteboard.general.string(forType: .string) == "paper", "\(mode): copied")
+    let end = (tv.string as NSString).range(of: "line 3 of").upperBound
+    tv.setSelectedRange(NSRange(location: end, length: 0))
+    #expect(w.firstResponder!.tryToPerform(#selector(NSText.paste(_:)), with: nil), "\(mode): paste")
+    #expect(tv.string.contains("line 3 ofpaper"), "\(mode): pasted")
+  }
+  final class Plain: NSView { override var acceptsFirstResponder: Bool { true } }
+  let w = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 200, height: 100), styleMask: [.titled], backing: .buffered, defer: false)
+  let p = Plain(frame: w.contentView!.bounds)
+  w.contentView!.addSubview(p)
+  w.makeFirstResponder(p)
+  for a in actions { #expect(handler(a, in: w) == nil, "a view without \(a) gets no target") }
+}

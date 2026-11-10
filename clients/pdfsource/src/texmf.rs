@@ -32,6 +32,8 @@ pub struct Tfm {
     pub width: HashMap<u32, f64>,
     /// (left, right) → ligature char, for plain `=:` ligatures.
     pub ligs: HashMap<(u32, u32), u32>,
+    /// (left, right) → kern, in units of the design size.
+    pub kerns: HashMap<(u32, u32), f64>,
     /// fontdimens, 1-based (param[1] slant, [2] space, ...).
     pub param: Vec<f64>,
 }
@@ -187,8 +189,7 @@ pub fn parse_tfm(b: &[u8]) -> Option<Tfm> {
         return None;
     }
     let mut t = Tfm { design: fix(b, 24 + 4), bc: bc as u32, ec: ec as u32, ..Default::default() };
-    let kern = |k: usize| fix(b, ki + 4 * k);
-    let _ = kern;
+    let kern = |k: usize| if ki + 4 * k + 4 <= b.len() { fix(b, ki + 4 * k) } else { 0.0 };
     for c in bc..=ec {
         let o = ci + 4 * (c - bc);
         let wix = b[o] as usize;
@@ -211,6 +212,9 @@ pub fn parse_tfm(b: &[u8]) -> Option<Tfm> {
                 let (skip, next, op, rem) = (b[s], b[s + 1], b[s + 2], b[s + 3]);
                 if skip <= 128 && op == 0 {
                     t.ligs.entry((c as u32, next as u32)).or_insert(rem as u32);
+                }
+                if skip <= 128 && op >= 128 {
+                    t.kerns.entry((c as u32, next as u32)).or_insert(kern(256 * (op as usize - 128) + rem as usize));
                 }
                 if skip >= 128 {
                     break;

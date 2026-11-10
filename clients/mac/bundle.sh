@@ -5,9 +5,11 @@
 #   Contents/Resources/neovim/           Neovim's official release build (system libraries only)
 #   Contents/Resources/nvim/             the Neovim plugin (clients/nvim)
 #   Contents/Resources/txp-render        TeXpresso's driver (the live XeLaTeX preview)
+#   Contents/Resources/tau-attach        the Claude pane's shared terminal (clients/attach)
 #   Contents/Resources/texpresso/        texpresso-xetex and taudot-pdfinfo
 #   Contents/Resources/bin/tectonic      the stand-in TeXpresso's file provider calls (tools/release/tectonic)
 #   Contents/Resources/bibtex/, pdftex/  TeX Live's BibTeX; the live pdfTeX per TeX Live year (GPL, separate programs)
+#   Contents/Resources/universal/        tau-live, libtau, tau-tdl; stock pdfTeX, XeTeX, LuaTeX, tau-pdfmx (GPL) and formats
 #   Contents/Frameworks/                 the vendored dylibs (tools/release/vendor.py) and Sparkle.framework
 #   Contents/Resources/Acknowledgements.txt, COPYING-GPL-2
 # Environment: TAUDOT_VERSION (CFBundleShortVersionString and CFBundleVersion; default 0.1 and the git description),
@@ -51,6 +53,11 @@ if [ ! -x "$rnd" ] || [ -n "$(find "$here/../render" \( -name '*.c' -o -name '*.
   TEXPRESSO_DIR="$T" sh "$here/../render/build.sh" >&2 || note "building txp-render failed"
 fi
 [ -x "$rnd" ] && cp "$rnd" "$app/Contents/Resources/" || note "no txp-render: XeLaTeX projects have no preview"
+# tau-attach: the Claude pane's claude runs behind it (in the project's Rex session when Rex is there), so it outlives
+# the app and Rex can show it too (ClaudeSession.swift). libc only.
+att="$here/../attach/tau-attach"
+if [ ! -x "$att" ] || [ "$here/../attach/tau-attach.c" -nt "$att" ]; then sh "$here/../attach/build.sh" >&2 || note "building tau-attach failed"; fi
+[ -x "$att" ] && cp "$att" "$app/Contents/Resources/" || note "no tau-attach: the Claude pane runs claude in a plain terminal"
 mkdir -p "$app/Contents/Resources/texpresso" "$app/Contents/Resources/bin"
 for f in texpresso-xetex taudot-pdfinfo; do
   if [ -x "$T/build/$f" ]; then cp "$T/build/$f" "$app/Contents/Resources/texpresso/"; else note "no $T/build/$f (make -C $T all)"; fi
@@ -85,6 +92,24 @@ for year in 2026 2025 2024; do
   cp "$t/texmf-dist/web2c/texmf.cnf" "$d/tree/texmf-dist/web2c/"
   [ -f "$t/texmf-dist/web2c/cp227.tcx" ] && cp "$t/texmf-dist/web2c/cp227.tcx" "$d/tree/texmf-dist/web2c/"
 done
+# Universal (clients/universal, MIT): tau-live, libtau.dylib (beside it: tau-live loads it into the engines) and
+# tau-tdl, with TeX Live 2026's stock pdfTeX, XeTeX, LuaHBTeX and BibTeX, and tau-pdfmx (xdvipdfmx kept resident: the stock
+# dvipdfm-x objects; tau-live converts XeTeX's pages with it) (GPL, separate programs, the TeX Live code not
+# modified) and the formats those engines built. The engines' zlib dylib (TeX Live's own) is vendored below with the
+# rest. They share the live pdfTeX's 2026 tree. Built by clients/universal/{build-engines,build,build-formats}.sh.
+ub="$ref/universal/bin" uf="$ref/universal/fmt-2026" d="$app/Contents/Resources/universal"
+if [ -x "$ub/tau-live" ] && [ -f "$ub/libtau.dylib" ] && [ -f "$uf/xelatex.fmt" ] && [ -d "$app/Contents/Resources/pdftex/2026/tree" ]; then
+  mkdir -p "$d/bin" "$d/fmt"
+  for f in tau-live libtau.dylib tau-tdl tau-pdfmx pdftex xetex luahbtex bibtex; do
+    if [ -e "$ub/$f" ]; then cp -L "$ub/$f" "$d/bin/$f"; else note "universal: no $f in $ub"; fi
+  done
+  ln -sf pdftex "$d/bin/pdflatex"; ln -sf xetex "$d/bin/xelatex"; ln -sf luahbtex "$d/bin/lualatex"
+  ln -sf tau-pdfmx "$d/bin/xdvipdfmx"  # (tau-pdfmx names itself xdvipdfmx beside it; kpathsea needs the name to exist)
+  install_name_tool -id @loader_path/libtau.dylib "$d/bin/libtau.dylib" 2>/dev/null
+  for f in pdflatex xelatex lualatex; do
+    if [ -f "$uf/$f.fmt" ]; then cp "$uf/$f.fmt" "$d/fmt/"; else note "universal: no $f.fmt; those projects fall back"; fi
+  done
+else note "no universal build in $ref/universal (or no 2026 tree); XeLaTeX/LuaLaTeX projects use TeXpresso"; fi
 # The icon: Assets.car from the Icon Composer document (macOS 26 draws its glass, dark, tinted and clear looks),
 # and actool's AppIcon.icns for older macOS. Both from docs/design/logo/build_icon.py.
 cp "$repo/docs/design/logo/final/car/Assets.car" "$repo/docs/design/logo/final/car/AppIcon.icns" "$app/Contents/Resources/"
@@ -139,6 +164,7 @@ lic=$(mktemp -d)
 uv run --no-project --quiet python "$rel/vendor.py" "$app" --licences "$lic" > "$out/vendored.txt"
 uv run --no-project --quiet python "$rel/notices.py" "$app/Contents/Resources/Acknowledgements.txt" --licences "$lic" \
   --texpresso "$T" --neovim-licence "$nvim_licence" --sparkle-licence "$sp/LICENSE" --version "$short" \
+  $([ -d "$app/Contents/Resources/universal" ] && [ -d "$ref/universal/src-2026" ] && printf -- '--texlive-src %s ' "$ref/universal/src-2026") \
   $(B=$(brew --prefix 2>/dev/null) && for k in freetype libpng brotli; do [ -d "$B/opt/$k" ] && printf -- '--static-keg %s ' "$B/opt/$k"; done) >&2
 rm -rf "$lic"
 cp "$rel/COPYING-GPL-2" "$app/Contents/Resources/"

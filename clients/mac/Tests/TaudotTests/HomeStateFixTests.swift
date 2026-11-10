@@ -91,6 +91,8 @@ final class FakeHomeEngine: @unchecked Sendable {
   h.isOpen = { _ in open }
   var answer: ((Bool) -> Void)?
   h.confirm = { _, done in answer = done }
+  var alerted: String?
+  h.onAlert = { t, _ in alerted = t }
   let p = HomeProject(id: "p1", name: "Paper", ownerName: "Me", lastUpdated: nil, accessLevel: "owner", archived: false,
                       trashed: false, localFolder: dir.path, lastOpened: nil)
   h.removeLocal(p)
@@ -99,4 +101,5 @@ final class FakeHomeEngine: @unchecked Sendable {
   answer?(true)
   try? await Task.sleep(for: .milliseconds(500))
   #expect(FileManager.default.fileExists(atPath: dir.path), "the open project's folder is not trashed")
+  #expect(alerted == "“Paper” is open", "says why (\(alerted ?? "nil"))")
 }

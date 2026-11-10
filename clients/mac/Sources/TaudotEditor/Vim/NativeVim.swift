@@ -43,6 +43,21 @@ import AppKit
     return at
   }
 
+  func displayLineEdges(at loc: Int) -> (start: Int, end: Int) {
+    // Metal: the rows as drawn
+    if let lay = view?.textLayout { return lay.visualLine(at: loc) }
+    // TextKit: its own row edges (the end of a wrapped row is the next row's start)
+    let sel = tv.selectedRange()
+    tv.setSelectedRange(NSRange(location: loc, length: 0))
+    tv.moveToBeginningOfLine(nil)
+    let a = tv.selectedRange().location
+    tv.setSelectedRange(NSRange(location: loc, length: 0))
+    tv.moveToEndOfLine(nil)
+    let b = tv.selectedRange().location
+    tv.setSelectedRange(sel)
+    return (a, max(a, b))
+  }
+
   var screenLines: ClosedRange<Int> { view?.visibleLines ?? 0...0 }
 
   func scroll(lines: Int) {
