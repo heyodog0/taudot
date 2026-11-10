@@ -698,6 +698,14 @@ import Foundation
         apply(Motion(to: q))
         count = nil
         if op != nil { reset() }
+      case "$", "0", "<End>", "<Home>":
+        // the screen row's last character / first (a soft-wrapped line has several rows)
+        let (a, b) = buf.displayLineEdges(at: cursor)
+        let end = k == "$" || k == "<End>"
+        let last = b > a ? prev(b) : a
+        apply(end ? Motion(to: op == nil && mode != .normal ? b : last, inclusive: op != nil) : Motion(to: a))
+        count = nil
+        if op != nil { reset() }
       case "u", "U", "~":
         if let o = op, o == "g" + k || (o == "gu" && k == "u") || (o == "gU" && k == "U") { linewiseLines(total ?? 1); reset() }
         else if mode == .visual || mode == .visualLine { visualCommand("g" + k) }
