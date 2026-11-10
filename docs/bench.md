@@ -13,30 +13,30 @@ is the quietest of up to three, and its figure is in the first-compile table.)
 
 ### pdfLaTeX: universal (unpatched pdfTeX under libtau) against the patched engine
 
+Universal's rows are from main c6881dd (2026-11-10, with uspeed's fixes for first pages, display pages and the
+preview reader); the patched engine's and everyone else's from the run above.
+
 - **Exact on every key.** tau-live's finished pages and whole PDFs equal stock pdfLaTeX's for all 180 keys (6
-  documents × 30), and every one of its 115 display pages has stock's content stream byte for byte and draws the
-  same pixels at 288 dpi. The patched engine: 180/180. (The earlier run's 60 mismatches were the BibTeX bug, fixed.)
-- **Per key, on par with the patched engine** (p50 over the 6 documents): finished exact page 29–76 ms against
-  33–62 ms; whole exact PDF 57–469 ms against 61–515 ms; paragraph preview 3.5–9.7 ms against 3.2–8.8 ms, now flat
-  with length. Where a **display page** is sent it comes first: 11–35 ms, on 115 of 180 keys (all 30 on 1706.03762,
-  2103.00020 and synth-100, 24 on synth-10).
-- **Where universal is behind:**
-  - *First page on open*: 340 ms–1.3 s against 220–440 ms; the patched engine finishes a PDF at the first page,
-    universal's first output grows with the document.
-  - *No display page at 300 pages or on 1512.03385* (0–1 of 30): tau-live's debug log shows the run's finished PDF
-    already out when the page's data arrives, so the display page is skipped and the key waits for the finished
-    page (~29 ms at 300 pages).
-  - *Paragraph preview coverage*: exact previews on 1–24 of 30 keys against 14–25. On 1512.03385 only 1 (12 keys
-    `none/reader`, 12 no event); on 2103.00020 12 against 14 (more `split`).
-  - *Memory*: 186–590 MB summed RSS against 130–515 MB (upper bounds; snapshots share pages).
+  documents × 30), and all 168 display pages it sent have stock's content stream byte for byte and draw the same
+  pixels at 288 dpi. The patched engine: 180/180.
+- **First exact pixels after a key: universal is now ahead.** A display page comes on 168 of 180 keys (all 30 at 100
+  and 300 pages, on 1512.03385 and 2103.00020; 24 on synth-10 and 1706.03762), p50 17–38 ms; the patched engine's first exact page is 33–62 ms. Universal's finished
+  page follows at 49–78 ms; whole PDF 66–483 ms against 61–515 ms.
+- **First page on open**: 308–468 ms against the patched engine's 220–440 ms (was up to 1.3 s at 300 pages).
+- **Paragraph preview**: p50 4.4–15.4 ms against 3.2–8.8 ms; exact previews on 12–25 of 30 keys against 14–25
+  (1512.03385 now 20, was 1).
+- **Behind, still**: since display pages come on every key, tau-live's own preview time and its finished page went up
+  (preview own p50 e.g. 3.6 → 6.1 ms at 10 pages; finished page +3 to +16 ms at the same load), so per key the
+  preview is now about 2–8 ms behind the patched engine. Memory 165–560 MB against 130–515 MB (summed RSS, an upper
+  bound).
 
 ### All engines
 
 - **Exact page after a key: only Taudot is under 100 ms, on all three engines**, and it barely grows with the
-  document: pdfLaTeX 29–47 ms, XeLaTeX 18–35 ms (now a PDF, tau-pdfmx included), LuaLaTeX 39–69 ms (display pages
-  13–27 ms where sent). Every finished page equals stock. The other exact routes take 0.3–9 s and grow with
+  document: pdfLaTeX 33–62 ms (patched) and 17–38 ms (universal's display page), XeLaTeX 18–35 ms (now a PDF, tau-pdfmx
+  included), LuaLaTeX 39–69 ms (display pages 13–27 ms where sent). Every finished page equals stock. The other exact routes take 0.3–9 s and grow with
   length: latexmk 0.4–1.2 s (LuaLaTeX 0.7–3.3 s), Rosina's full build 0.3–5.7 s, rtex's background layout 1.3–8.9 s.
-- **Whole exact PDF**: Taudot pdfLaTeX 57 ms / 177 ms / 469 ms at 10 / 100 / 300 pages against latexmk's 413 /
+- **Whole exact PDF**: Taudot pdfLaTeX (universal) 66 ms / 171 ms / 483 ms at 10 / 100 / 300 pages against latexmk's 413 /
   661 / 1174 ms and a bare stock run's 286 / 543 / 987 ms. LuaLaTeX at 300 pages: Taudot 1.3 s, rtex's export
   3.1 s, latexmk 3.3 s.
 - **Paragraph preview on LuaLaTeX: rtex covers every key, Taudot more often has nothing.** rtex's own figure is
@@ -136,14 +136,14 @@ builds them.
 <!-- bench:begin -->
 Machine: Apple M4 Pro, 24 GB, macOS 26.5; load average during runs 10.2–33.7 (other agents' work shared the machine). Dates: 2026-11-09, 2026-11-10. Cells: **p50 / p90 ms** over the 30 edits. Blank: the system doesn't support that engine.
 
-Versions: latexmk `Latexmk, John Collins, 15 June 2025. Version 4.87`; rosina `liveTeX-Rosina dff263fc21`; rtex `rtex 0.0.7 fcff7a5c7f`; stock-run `TeX Live 2026 static engines`; taudot-pdftex `pdftex-live ad58f81329`; taudot-universal `tau-live ad58f81329`; texpresso `texpresso e8df770907 via txp-headless ad58f81329`; typst `typst 0.15.1 (9dfd3a08)`.
+Versions: latexmk `Latexmk, John Collins, 15 June 2025. Version 4.87`; rosina `liveTeX-Rosina dff263fc21`; rtex `rtex 0.0.7 fcff7a5c7f`; stock-run `TeX Live 2026 static engines`; taudot-pdftex `pdftex-live ad58f81329`; taudot-universal `tau-live ad58f81329`; taudot-universal `tau-live c6881dd60e`; texpresso `texpresso e8df770907 via txp-headless ad58f81329`; typst `typst 0.15.1 (9dfd3a08)`.
 
 ### Edit → paragraph preview
 
 |  | 10 pp | 100 pp | 300 pp |
 |---|---|---|---|
 | **Taudot**, patched pdfTeX | 4.0 / 9.1<br><sub>25 exact, 0 prov. of 30</sub><br><sub>own p50 4.0</sub> | 3.4 / 5.1<br><sub>24 exact, 0 prov. of 30</sub><br><sub>own p50 3.3</sub> | 8.8 / 19.1<br><sub>24 exact, 0 prov. of 30</sub><br><sub>own p50 8.7</sub> |
-| **Taudot** universal, pdfLaTeX | 4.1 / 13.1<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 3.6</sub> | 6.0 / 13.0<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 5.1</sub> | 6.7 / 14.1<br><sub>24 exact, 0 prov. of 30</sub><br><sub>own p50 5.9</sub> |
+| **Taudot** universal, pdfLaTeX | 6.9 / 10.0<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 6.1</sub> | 7.5 / 10.0<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 6.5</sub> | 7.7 / 11.1<br><sub>25 exact, 0 prov. of 30</sub><br><sub>own p50 6.9</sub> |
 | **Taudot** universal, XeLaTeX | 3.9 / 10.9<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 3.6</sub> | 5.5 / 14.6<br><sub>19 exact, 0 prov. of 30</sub><br><sub>own p50 5.0</sub> | 10.4 / 17.3<br><sub>14 exact, 0 prov. of 30</sub><br><sub>own p50 10.0</sub> |
 | **Taudot** universal, LuaLaTeX | 3.7 / 4.6<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 3.5</sub> | 4.2 / 5.3<br><sub>19 exact, 0 prov. of 30</sub><br><sub>own p50 3.9</sub> | 11.9 / 19.6<br><sub>26 exact, 0 prov. of 30</sub><br><sub>own p50 10.9</sub> |
 | rtex, LuaLaTeX | 10.4 / 15.1<br><sub>30 exact, 0 prov. of 30</sub><br><sub>own p50 1.6</sub> | 15.5 / 29.5<br><sub>30 exact, 0 prov. of 30</sub><br><sub>own p50 2.3</sub> | 19.3 / 34.5<br><sub>30 exact, 0 prov. of 30</sub><br><sub>own p50 4.5</sub> |
@@ -156,8 +156,8 @@ Versions: latexmk `Latexmk, John Collins, 15 June 2025. Version 4.87`; rosina `l
 |  | 10 pp | 100 pp | 300 pp |
 |---|---|---|---|
 | **Taudot**, patched pdfTeX | 41.9 / 81.4 | 32.6 / 48.2 | 44.0 / 59.4 |
-| **Taudot** universal, pdfLaTeX | 40.8 / 146 | 46.9 / 57.9 | 39.0 / 54.0 |
-| ↳ its display page | 12.1 / 25.5<br><sub>24 of 30, 20 the edited page</sub> | 31.8 / 44.3<br><sub>30 of 30, 20 the edited page</sub> | –<br><sub>0 of 30, 0 the edited page</sub> |
+| **Taudot** universal, pdfLaTeX | 49.2 / 154 | 49.8 / 62.7 | 49.2 / 57.8 |
+| ↳ its display page | 16.8 / 22.5<br><sub>24 of 30, 24 the edited page</sub> | 20.4 / 27.9<br><sub>30 of 30, 30 the edited page</sub> | 18.1 / 26.7<br><sub>30 of 30, 30 the edited page</sub> |
 | **Taudot** universal, XeLaTeX | 18.5 / 33.1 | 23.3 / 45.4 | 34.7 / 53.4 |
 | **Taudot** universal, LuaLaTeX | 39.1 / 65.4 | 42.6 / 59.0 | 68.5 / 78.4 |
 | ↳ its display page | 12.6 / 15.0<br><sub>24 of 30, 20 the edited page</sub> | 27.1 / 31.1<br><sub>30 of 30, 20 the edited page</sub> | 75.0 / 75.0<br><sub>1 of 30, 0 the edited page</sub> |
@@ -179,7 +179,7 @@ Versions: latexmk `Latexmk, John Collins, 15 June 2025. Version 4.87`; rosina `l
 |  | 10 pp | 100 pp | 300 pp |
 |---|---|---|---|
 | **Taudot**, patched pdfTeX | 60.5 / 114 | 207 / 335 | 515 / 881 |
-| **Taudot** universal, pdfLaTeX | 56.7 / 171 | 177 / 296 | 492 / 833 |
+| **Taudot** universal, pdfLaTeX | 65.5 / 181 | 171 / 283 | 483 / 765 |
 | **Taudot** universal, XeLaTeX | 27.9 / 44.7 | 134 / 195 | 322 / 556 |
 | **Taudot** universal, LuaLaTeX | 89.5 / 145 | 488 / 817 | 1320 / 2316 |
 | rtex, LuaLaTeX | 580 / 600 | 1372 / 1396 | 3124 / 3147 |
@@ -200,14 +200,14 @@ Versions: latexmk `Latexmk, John Collins, 15 June 2025. Version 4.87`; rosina `l
 | preview | 1512.03385 | 1706.03762 | 2103.00020 |
 |---|---|---|---|
 | **Taudot**, patched pdfTeX | 3.2 / 4.1<br><sub>23 exact, 0 prov. of 30</sub><br><sub>own p50 3.1</sub> | 3.4 / 5.1<br><sub>15 exact, 0 prov. of 30</sub><br><sub>own p50 3.3</sub> | 7.0 / 11.3<br><sub>14 exact, 0 prov. of 30</sub><br><sub>own p50 6.9</sub> |
-| **Taudot** universal, pdfLaTeX | 3.5 / 3.5<br><sub>1 exact, 0 prov. of 30</sub><br><sub>own p50 3.2</sub> | 8.2 / 11.3<br><sub>17 exact, 0 prov. of 30</sub><br><sub>own p50 7.5</sub> | 9.7 / 23.9<br><sub>12 exact, 0 prov. of 30</sub><br><sub>own p50 9.0</sub> |
+| **Taudot** universal, pdfLaTeX | 4.4 / 11.2<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 3.9</sub> | 8.0 / 11.9<br><sub>17 exact, 0 prov. of 30</sub><br><sub>own p50 7.2</sub> | 15.4 / 20.0<br><sub>12 exact, 0 prov. of 30</sub><br><sub>own p50 11.1</sub> |
 | liveTeX-Rosina, pdfLaTeX | – | – | – |
 
 | exact page | 1512.03385 | 1706.03762 | 2103.00020 |
 |---|---|---|---|
 | **Taudot**, patched pdfTeX | 39.1 / 49.6 | 58.8 / 87.2 | 62.0 / 76.3 |
-| **Taudot** universal, pdfLaTeX | 33.5 / 45.6 | 76.4 / 94.6 | 67.7 / 83.6 |
-| ↳ its display page | 11.1 / 11.1<br><sub>1 of 30, 0 the edited page</sub> | 32.7 / 41.9<br><sub>30 of 30, 17 the edited page</sub> | 35.3 / 51.5<br><sub>30 of 30, 17 the edited page</sub> |
+| **Taudot** universal, pdfLaTeX | 50.0 / 70.7 | 78.4 / 97.4 | 70.8 / 88.3 |
+| ↳ its display page | 17.8 / 34.4<br><sub>30 of 30, 30 the edited page</sub> | 38.5 / 56.4<br><sub>24 of 30, 24 the edited page</sub> | 28.5 / 52.0<br><sub>30 of 30, 18 the edited page</sub> |
 | liveTeX-Rosina, pdfLaTeX | 632 / 650 | 2999 / 3175 | 4736 / 4845 |
 | latexmk, pdfLaTeX | 645 / 687 | 916 / 936 | 1087 / 1138 |
 | one stock run, pdfLaTeX | 481 / 510 | 748 / 774 | 902 / 933 |
@@ -215,7 +215,7 @@ Versions: latexmk `Latexmk, John Collins, 15 June 2025. Version 4.87`; rosina `l
 | whole PDF | 1512.03385 | 1706.03762 | 2103.00020 |
 |---|---|---|---|
 | **Taudot**, patched pdfTeX | 136 / 171 | 149 / 214 | 437 / 644 |
-| **Taudot** universal, pdfLaTeX | 111 / 149 | 158 / 208 | 431 / 609 |
+| **Taudot** universal, pdfLaTeX | 126 / 172 | 154 / 207 | 419 / 615 |
 | liveTeX-Rosina, pdfLaTeX | 632 / 650 | 2999 / 3175 | 4736 / 4845 |
 | latexmk, pdfLaTeX | 645 / 687 | 916 / 936 | 1087 / 1138 |
 | one stock run, pdfLaTeX | 481 / 510 | 748 / 774 | 902 / 933 |
@@ -225,7 +225,7 @@ Versions: latexmk `Latexmk, John Collins, 15 June 2025. Version 4.87`; rosina `l
 | | display page = stock | exact page = stock | whole PDF = stock |
 |---|---|---|---|
 | **Taudot**, patched pdfTeX |  | 180 / 180 | 180 / 180 |
-| **Taudot** universal, pdfLaTeX | 115 / 115 | 180 / 180 | 180 / 180 |
+| **Taudot** universal, pdfLaTeX | 168 / 168 | 180 / 180 | 180 / 180 |
 | **Taudot** universal, XeLaTeX |  | 90 / 90 | 90 / 90 |
 | **Taudot** universal, LuaLaTeX | 55 / 55 | 90 / 90 | 90 / 90 |
 | rtex, LuaLaTeX |  | claimed (display lists) | 90 / 90 |
@@ -240,7 +240,7 @@ Versions: latexmk `Latexmk, John Collins, 15 June 2025. Version 4.87`; rosina `l
 | | 10 pp: first page / settled / peak RSS | 100 pp: first page / settled / peak RSS | 300 pp: first page / settled / peak RSS |
 |---|---|---|---|
 | **Taudot**, patched pdfTeX | 220 / 251 ms / 130 MB<br><sub>3.69 cores busy elsewhere</sub> | 235 / 560 ms / 252 MB<br><sub>3.51 cores busy elsewhere</sub> | 234 / 1156 ms / 514 MB<br><sub>3.96 cores busy elsewhere</sub> |
-| **Taudot** universal, pdfLaTeX | 340 / 341 ms / 186 MB<br><sub>3.86 cores busy elsewhere</sub> | 606 / 609 ms / 343 MB<br><sub>3.99 cores busy elsewhere</sub> | 1337 / 1344 ms / 556 MB<br><sub>3.76 cores busy elsewhere</sub> |
+| **Taudot** universal, pdfLaTeX | 355 / 391 ms / 165 MB<br><sub>3.12 cores busy elsewhere</sub> | 308 / 598 ms / 354 MB<br><sub>3.95 cores busy elsewhere</sub> | 362 / 1285 ms / 497 MB<br><sub>3.96 cores busy elsewhere</sub> |
 | **Taudot** universal, XeLaTeX | 291 / 292 ms / 370 MB<br><sub>3.59 cores busy elsewhere</sub> | 485 / 486 ms / 527 MB<br><sub>3.86 cores busy elsewhere</sub> | 952 / 952 ms / 711 MB<br><sub>3.18 cores busy elsewhere</sub> |
 | **Taudot** universal, LuaLaTeX | 617 / 618 ms / 483 MB<br><sub>4.16 cores busy elsewhere</sub> | 1764 / 1768 ms / 1184 MB<br><sub>4.30 cores busy elsewhere</sub> | 3343 / 3353 ms / 2641 MB<br><sub>3.83 cores busy elsewhere</sub> |
 | rtex, LuaLaTeX | 1705 / 1705 ms / 478 MB<br><sub>4.39 cores busy elsewhere</sub> | 8386 / 8386 ms / 768 MB<br><sub>3.92 cores busy elsewhere</sub> | 24643 / 24643 ms / 1361 MB<br><sub>3.39 cores busy elsewhere</sub> |

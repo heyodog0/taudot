@@ -197,8 +197,9 @@ class TaudotDriver(System):
             elif k == "run" and ev.get("applied", 0) >= n and seq is None:
                 seq = ev["seq"]
             elif k == "pdf" and ev.get("display") and ev.get("applied", 0) >= n and r.get("display_ms") is None:
-                # tau-live's display page: the last finished PDF with the run's first page drawn anew
-                r["display_ms"], r["display_pdf"], r["display_page"] = ms, ev.get("kept_path"), ev.get("from_page", 0)
+                # tau-live's display page: the last finished PDF with page `pages` - 1 drawn anew (the run's first
+                # page that differs from the old one)
+                r["display_ms"], r["display_pdf"], r["display_page"] = ms, ev.get("kept_path"), ev.get("pages", 1) - 1
             elif k == "pdf" and not ev.get("display") and ev.get("applied", 0) >= n and r["page_ms"] is None:
                 if page is None or ev.get("final") or ev.get("pages", 0) > page:
                     r["page_ms"], r["early"] = ms, ev.get("kept_path")
