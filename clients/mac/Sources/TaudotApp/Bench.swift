@@ -794,6 +794,64 @@ import TaudotShared
   func count(_ s: String, in t: String) -> Int { t.components(separatedBy: s).count - 1 }
   var fr: NSResponder? { p.window.firstResponder }
 
+  /// The terminal's mode, top line and line count (Claude's Neovim).
+  func term() async -> (mode: String, top: Int, last: Int) {
+    let a = (try? await p.claude?.nvim.execLua("return { vim.api.nvim_get_mode().mode, vim.fn.line('w0'), vim.fn.line('$') }", []))?.array ?? []
+    return (a.first?.string ?? "", a.count > 1 ? a[1].int ?? 0 : 0, a.count > 2 ? a[2].int ?? 0 : 0)
+  }
+
+  /// A scroll event over the Claude pane: trackpad (`pixels`, a phase) or a mouse-wheel notch (`lines`).
+  func scrollClaude(pixels: Double = 0, phase: Int64 = 0, lines: Int32 = 0) {
+    guard let v = p.claude?.view, let w = v.window else { return }
+    let e = lines != 0 ? CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: lines, wheel2: 0, wheel3: 0)
+      : CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: Int32(pixels.rounded()), wheel2: 0, wheel3: 0)
+    guard let e else { return }
+    if lines == 0 {
+      e.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+      e.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
+      e.setDoubleValueField(.scrollWheelEventPointDeltaAxis1, value: pixels)
+      e.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: pixels)
+    }
+    let mid = w.convertPoint(toScreen: v.convert(NSPoint(x: v.bounds.midX, y: v.bounds.midY), to: nil))
+    e.location = CGPoint(x: mid.x, y: NSScreen.screens.first!.frame.height - mid.y)
+    if let ns = NSEvent(cgEvent: e) { v.scrollWheel(with: ns) }
+  }
+
+  func keyClaude(_ chars: String, code: UInt16 = 0) {
+    guard let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                   windowNumber: p.window.windowNumber, context: nil, characters: chars, charactersIgnoringModifiers: chars,
+                                   isARepeat: false, keyCode: code) else { return }
+    p.claude?.view.keyDown(with: e)
+  }
+
+  /// Bug 6 (editfix): the pane scrolls back through claude's output (trackpad, then a wheel notch), and typing goes
+  /// back to the prompt, the key reaching claude.
+  func scrollBack(_ where_: String, word: String) async {
+    p.focus(pane: 3)
+    await sleep(0.2)
+    let bottom = await term()
+    scrollClaude(pixels: 0, phase: 128)
+    scrollClaude(pixels: 40, phase: 1)
+    for _ in 0..<4 { await sleep(1.0 / 60); scrollClaude(pixels: 40, phase: 2) }
+    scrollClaude(pixels: 0, phase: 4)
+    await sleep(0.8)  // (the gesture settled: its last rows asked of Neovim and answered)
+    let up = await term()
+    check(up.mode == "nt" && up.top < bottom.top - 3, "\(where_): a trackpad scroll goes back through claude's output (mode \(bottom.mode) → \(up.mode), top line \(bottom.top) → \(up.top) of \(up.last))")
+    scrollClaude(lines: 3)
+    await sleep(0.4)
+    let more = await term()
+    check(more.top < up.top, "\(where_): … and a wheel notch further (top line \(up.top) → \(more.top))")
+    for c in word { keyClaude(String(c)) }
+    keyClaude("\r", code: 36)
+    // (counted across the terminal's own wraps: the prompt may hold earlier text, which makes the line wrap)
+    func flat() async -> String { await text().replacingOccurrences(of: "\n", with: "") }
+    var t = await flat()
+    for _ in 0..<40 where count(word, in: t) < 2 { await sleep(0.05); t = await flat() }
+    let back = await term()
+    check(back.mode == "t" && back.top >= bottom.top && count(word, in: t) >= 2,
+          "\(where_): typing goes back to the prompt and reaches claude (mode \(back.mode), top line \(back.top), '\(word)' ×\(count(word, in: t)))")
+  }
+
   func run() async {
     defer { finish() }
     if ProcessInfo.processInfo.environment["TAUDOT_CLAUDECHECK_MISSING"] != nil {
@@ -804,6 +862,7 @@ import TaudotShared
     await press("j")
     check(p.claudeShown && p.focusedPane == 3 && fr === p.claude?.view, "⌘J opens the pane and focuses it")
     check(await waitText("fake claude: ready"), "claude runs in the project folder's terminal")
+    await scrollBack("floating", word: "floatword")
     let job = await p.claude?.job()
     check(job != nil, "a terminal job (\(String(describing: job)))")
     // Floating (the default): a glass panel over the editor column, bottom centre, ~70% wide, ~40% high.
@@ -944,6 +1003,7 @@ import TaudotShared
           "double-click on the strip docks it (height \(Int(dh)), still focused)")
     let job3 = await p.claude?.job()
     check(job3?.pid == job?.pid, "… same session")
+    await scrollBack("docked", word: "dockword")
     p.focus(pane: 1); await press("e")
     check(!p.claudeShown, "docked: ⌘E on Neovim hides it"); await press("e")
     p.setClaudeFloating(nil)

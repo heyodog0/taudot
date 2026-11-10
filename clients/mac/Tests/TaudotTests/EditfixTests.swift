@@ -139,3 +139,66 @@ func orphanBusyNvim(watchdog: Bool) throws -> pid_t {
   if !gone { kill(pid, SIGKILL) }
   #expect(gone, "an orphaned Neovim blocked in Lua must exit within a second")
 }
+
+// MARK: scrolling a terminal (the Claude pane, editfix bug 6)
+
+/// A view on a Neovim whose only window is a terminal running `cmd`, in Terminal mode, as the Claude pane sets it up.
+@MainActor func terminalView(_ cmd: String) async throws -> (Neovim, EditorView) {
+  let nv = try Neovim(args: ["--clean", "-n"])
+  let v = EditorView(nvim: nv, frame: NSRect(x: 0, y: 0, width: 600, height: 300))
+  v.typingResumesTerminal = true
+  try await v.attach()
+  await editfixWait { v.ui.grids[1]?.width == v.cols }
+  _ = try await nv.execLua("vim.cmd.terminal((...)); vim.cmd('startinsert')", [.string(cmd)])
+  return (nv, v)
+}
+
+@MainActor func termState(_ nv: Neovim) async -> (mode: String, top: Int, last: Int) {
+  let a = (try? await nv.execLua("return { vim.api.nvim_get_mode().mode, vim.fn.line('w0'), vim.fn.line('$') }", []))?.array ?? []
+  return (a.first?.string ?? "", a.count > 1 ? a[1].int ?? 0 : 0, a.count > 2 ? a[2].int ?? 0 : 0)
+}
+
+@Test @MainActor func terminalScrollsBackAndTypingReturns() async throws {
+  // 200 lines of output, then a prompt that echoes what's typed (the fake claude)
+  let (nv, v) = try await terminalView("seq 1 200; exec cat")
+  defer { nv.terminate() }
+  var s = await termState(nv)
+  for _ in 0..<200 where s.last < 200 { try await Task.sleep(for: .milliseconds(10)); s = await termState(nv) }
+  try await Task.sleep(for: .milliseconds(200))
+  let bottom = await termState(nv)
+  #expect(bottom.mode == "t" && bottom.last >= 200)
+  // a trackpad scroll up, over the terminal
+  for (dy, phase) in [(40.0, 1 as Int64), (40, 2), (40, 2), (40, 2), (0, 4)] {
+    if let e = trackpadEvent(v, dy: dy, phase: phase, momentum: 0) { v.scrollWheel(with: e) }
+    try await Task.sleep(for: .milliseconds(30))
+  }
+  try await Task.sleep(for: .milliseconds(300))
+  let up = await termState(nv)
+  #expect(up.mode == "nt", "a scroll leaves Terminal mode (mode \(up.mode))")
+  #expect(up.top < bottom.top - 3, "earlier lines show (top line \(bottom.top) → \(up.top))")
+  // the drawn grid shows them too
+  let shown = v.ui.grids.values.flatMap { $0.rows.map(\.text) }.joined(separator: "\n")
+  #expect(shown.contains("\n\(up.top + 1)") || shown.contains("\(up.top)\n") || shown.hasPrefix("\(up.top)"), "the grid shows line \(up.top)")
+  // typing goes back to the prompt, and the key reaches the program
+  v.keyDown(with: keyEvent("x"))
+  v.keyDown(with: keyEvent("\r", code: 36))
+  try await Task.sleep(for: .milliseconds(300))
+  let back = await termState(nv)
+  #expect(back.mode == "t", "typing returns to Terminal mode (mode \(back.mode))")
+  #expect(back.top >= bottom.top, "and to the bottom (top line \(back.top), was \(bottom.top))")
+  let text = (try await nv.execLua("return table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), '\\n')", [])).string ?? ""
+  #expect(text.contains("\nx\nx"), "the program got the typed x (echoed by cat): …\(text.suffix(60).debugDescription)")
+}
+
+/// A program that asked for the mouse (as full-screen TUIs do) gets the wheel itself; Terminal mode stays.
+@Test @MainActor func terminalWheelGoesToAMouseProgram() async throws {
+  let (nv, v) = try await terminalView("seq 1 200; printf '\\033[?1000h'; exec cat")
+  defer { nv.terminate() }
+  try await Task.sleep(for: .milliseconds(500))
+  for (dy, phase) in [(40.0, 1 as Int64), (40, 2), (0, 4)] {
+    if let e = trackpadEvent(v, dy: dy, phase: phase, momentum: 0) { v.scrollWheel(with: e) }
+    try await Task.sleep(for: .milliseconds(30))
+  }
+  try await Task.sleep(for: .milliseconds(300))
+  #expect(await termState(nv).mode == "t")
+}

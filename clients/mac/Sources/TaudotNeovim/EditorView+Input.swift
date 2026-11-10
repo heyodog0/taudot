@@ -54,10 +54,22 @@ extension EditorView: @preconcurrency NSTextInputClient {
     return (left && optionAsMeta) || (right && rightOptionAsMeta)
   }
 
+  /// `typingResumesTerminal`: out of Terminal mode (scrolled back), go back in before the key. Once per return: the
+  /// keys after it, before Neovim reports the mode, would otherwise send another `i` to the program as text.
+  @discardableResult func resumeTerminal() -> Bool {
+    guard typingResumesTerminal, ui.modeName == "normal", !terminalResumePending else { return false }
+    terminalResumePending = true
+    nvim.input("i")
+    return true
+  }
+
   public override func keyDown(with event: NSEvent) {
     if onKeyDown?(event) == true { return }
     stats.keyDown(event.timestamp)
     NSCursor.setHiddenUntilMouseMoves(true)
+    // Scrolled back in a terminal (out of Terminal mode): a key goes back to the prompt first, then to the program.
+    // Esc only goes back (it would interrupt the program).
+    if resumeTerminal() && event.keyCode == 53 { return }
     if markedText == nil, let k = keyNotation(event) {
       nvim.input(k)
       stats.handed()
@@ -75,7 +87,11 @@ extension EditorView: @preconcurrency NSTextInputClient {
       let f = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
       // Cmd-Ctrl-Space: the system emoji picker.
       if f.contains([.command, .control]) && event.keyCode == 49 { return super.performKeyEquivalent(with: event) }
-      if f.contains(.control) && !f.contains(.command), let k = keyNotation(event) { nvim.input(k); return true }
+      if f.contains(.control) && !f.contains(.command), let k = keyNotation(event) {
+        resumeTerminal()  // (as keyDown: back to the prompt)
+        nvim.input(k)
+        return true
+      }
     }
     return super.performKeyEquivalent(with: event)
   }
@@ -188,6 +204,19 @@ extension EditorView: @preconcurrency NSTextInputClient {
     // Events without a window (synthetic ones) carry screen coordinates.
     let p = e.window == nil && window != nil ? convert(window!.convertPoint(fromScreen: e.locationInWindow), from: nil) : convert(e.locationInWindow, from: nil)
     guard let h = hit(p), let w = ui.windows[h.grid], w.kind != .message, h.grid != 1 else { return }
+    // A terminal in Terminal mode keeps its view at the bottom, so scrolling the window does nothing: hand Neovim
+    // real wheel events, one a row's worth of movement. It leaves Terminal mode and scrolls back through the output
+    // (from then on the smooth path below), or passes them to the program if it asked for the mouse.
+    if ui.modeName == "terminal" {
+      terminalWheel += e.hasPreciseScrollingDeltas ? -Double(e.scrollingDeltaY) * Double(scale) / Double(font.cellHeight) : -Double(e.scrollingDeltaY)
+      while abs(terminalWheel) >= 1 {
+        let up = terminalWheel < 0
+        terminalWheel += up ? 1 : -1
+        nvim.send("nvim_input_mouse", [.string("wheel"), .string(up ? "up" : "down"), .string(mouseMods(e)), .int(Int64(h.grid)), .int(Int64(h.row)), .int(Int64(h.col))])
+      }
+      return
+    }
+    terminalWheel = 0
     if !e.hasPreciseScrollingDeltas {
       // A mouse wheel: three rows a notch, animated by the spring.
       let rows = Int((-e.scrollingDeltaY * 3).rounded())
