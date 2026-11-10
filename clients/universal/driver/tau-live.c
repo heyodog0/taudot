@@ -1964,12 +1964,13 @@ int main(int argc, char **argv) {
              "%s\\def\\taudotsig#1{%s}\\AddToHook{shipout/after}{\\taudotsig{ship/\\the\\ReadonlyShipoutCounter}}"
              "%s%s%s\\csname @@input\\endcsname %s", presize, sig, pass_macros, pad,
              getenv("TAU_PHASES") ? "\\def\\taudotmark#1{\\taudotsig{t/#1}}" : "\\def\\taudotmark#1{}", a[n - 1]);
-    // the parked form (tau-live --park, and sessions that fork from it): the main file's name read at run time
+    // the parked form (tau-live --park, and sessions that fork from it): the main file's name read at run time (\space
+    // ends the name, as the end of the line does after a literal one)
     static char injp[24576];
     snprintf(injp, sizeof injp,
              "%s\\def\\taudotsig#1{%s}\\AddToHook{shipout/after}{\\taudotsig{ship/\\the\\ReadonlyShipoutCounter}}"
              "%s%s%s{\\endlinechar=-1 \\openin15=/.taudot/main.tex \\global\\readline15 to\\taudotmain"
-             "\\closein15}%s\\csname @@input\\endcsname\\taudotmain", presize, sig, pass_macros, pad,
+             "\\closein15}%s\\csname @@input\\endcsname\\taudotmain\\space", presize, sig, pass_macros, pad,
              getenv("TAU_PHASES") ? "\\def\\taudotmark#1{\\taudotsig{t/#1}}" : "\\def\\taudotmark#1{}",
              getenv("TAU_ALIAS_DEBUG") ? "\\immediate\\write16{TAUMAIN[\\taudotmain]}" : "");
     a[n - 1] = inj;

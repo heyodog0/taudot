@@ -439,6 +439,52 @@ Measured on paper-b, per placed `para` event (TeX time from the pass's start / t
   Fixed; `uni.py bigopen` sends a 270 KB `open`, a 100 KB `change` and a non-ASCII `open`, with and without the pass:
   each applied, output identical to stock (pdfTeX, XeTeX).
 
+## First compile, long documents, fixes (2026-11-09, later)
+
+- **BibTeX only when the `.bib` files exist** (latexmk's `-bibtex-cond`). arXiv sources ship only their `.bbl`; tau-live
+  ran BibTeX on `\bibdata` alone and replaced the `.bbl` with an empty one. `uni.py bblonly`: no BibTeX, `.bbl` kept,
+  0 undefined citations, output identical to stock (2103.00020 on all three engines, 1512.03385); the previous
+  binary fails it. The tests' own stock reference had the same flaw, so `rule` had passed.
+- **Long command lines**: the JSON reader didn't end decoded strings with a NUL; on a long line (an `open` of a whole
+  file) a command could read as `open24`. `uni.py bigopen`.
+- **The paragraph pass no longer grows with the document** (bench: pdfLaTeX 2.5 → 12.9 ms, LuaLaTeX 4.6 → 23 ms from
+  10 to 300 pages). Causes and fixes:
+  - at each key tau-live SIGKILLed the old runner, its finishers and every snapshot past the resume point; tearing
+    down dozens of large processes ran while the warm pass woke (1.4 ms at 300 pages) and the reader wrote the overlay
+    (6 ms). They are now stopped (SIGSTOP) at the edit and killed once the preview is out (or after 50 ms);
+  - the driver compared the whole text, wrote the whole file to the clone and counted lines from the top before
+    signalling: the edit now applies in place at its position, the clone is written after the signal (before it
+    when the pass will reread the file), and the line is counted from the last known point;
+  - the pass copied the whole file up to the paragraph into a new buffer; it now builds its text in place;
+  - the reader's content scanner looped forever on a lone `-`, `+` or `.` (1512.03385: 10/30 → 28/30 events); it
+    matched lines against the exact page even when given the offset; the overlay's resources repeated every page's
+    fonts.
+  synth-300 (bench spots, p50): LuaLaTeX edit → event 13–16 → 6.3 ms (reader 6.2 → 0.67), pdfLaTeX 3.3 ms; the same
+  as at 10 pages.
+- **The pass ships its lines at the old first baseline** (the driver reads it from SyncTeX and passes `\taudotyb`;
+  `\taudotgrab` kerns down to it): the engine rounds positions as on the exact page, the overlay's offset is 0, and
+  the content streams are byte-equal more often (pdfTeX 3 → 5–9 of 11).
+- **The checks**: a pass whose lines weren't the page's last (`why: insert`, no overlay for the app) is no longer
+  compared line by line, and pixels where the overlay draws nothing but the page has ink ("other ink in the rect",
+  e.g. an overfull table from the other column) are counted apart. The app erases such ink under the overlay, as
+  with patched pdfTeX.
+- **Parked engine** (`tau-live --park SOCKET --serve --engine PATH`): an engine started with the session's command
+  line, except that it reads the main file's name with `\openin` from `/.taudot/main.tex` (an `\openin` doesn't fix the
+  job name as a first `\input` would); libtau parks at that lookup (format loaded, kpathsea and the prelude done) and
+  listens on SOCKET. A session started with `--parked SOCKET` sends its environment, working directory, message pipe,
+  lifeline and log, and gets a forked child as its engine; a session started differently (a signature over the
+  engine, its command line and the environment that matters) spawns as before. Renewed every 5 minutes
+  (`TAU_PARK_RENEW`), since TeX's `\time` and `\today` are set when an engine starts. `uni.py parked`: outputs
+  identical to unparked sessions, fallback on a different `TEXINPUTS` (3 engines).
+- **First compile, corrected** (paper-b with its `.bbl`, no `.aux`, open → done, p50 of 3; earlier numbers in this
+  file ran without the `.bbl`):
+
+| | sparse first run off | default | parked |
+|---|---|---|---|
+| pdfLaTeX | 2.75 s (first PDF 1.07) | 2.64 s (0.97) | 2.58 s (0.89) |
+| XeLaTeX | 1.98 s (0.90) | 1.90 s (0.83) | 1.82 s (0.72) |
+| LuaLaTeX | 4.24 s (1.66) | 4.02 s (1.44) | 3.72 s (1.17) |
+
 ## Results (TeX Live 2026, M-series Mac, 2026-11-07)
 
 Papers: paper-a (32 pages, one column, review-mode line numbers) and paper-b (the corpus's arXiv 2103.00020, 48 pages, two columns). "Stock" is TeX Live's
@@ -505,7 +551,6 @@ pdfTeX 25 MiB (max single snapshot).
 
 ## Open
 
-- A first compile could start from an engine already past its format (parked before its first project file).
 - Snapshots at 20 ms cost ~10% of a first run.
 - The native fetcher: prefetch a package's other files in parallel; an svn fallback for a store outage.
 - A provisional pass could stop at its first inside break; the reader could skip pages whose fonts it has.

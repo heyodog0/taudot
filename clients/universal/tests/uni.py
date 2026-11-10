@@ -919,6 +919,61 @@ def bblonly(engine, src, main):
     return ok
 
 
+def parked(engine, src, main, n=3):
+    """The parked engine (tau-live --park): N sessions forked from it open SRC (no .aux) and settle; each output equals
+    an unparked session's byte for byte; open -> done for both; and a session started differently (another TEXINPUTS)
+    is spawned as usual."""
+    name = os.path.basename(os.path.abspath(src))
+    clean = f"{WORK}/park-{name}-src"
+    copy(src, clean)
+    shipped_bbl = not any(f.endswith(".bib") for f in os.listdir(clean))
+    for f in os.listdir(clean):
+        if f.endswith(DERIVED) and not (shipped_bbl and f.endswith(".bbl")):
+            os.remove(f"{clean}/{f}")
+    sock = f"{os.environ.get('TMPDIR', '/tmp')}/tau-park-test-{engine}.sock"  # (a Unix socket's path: <= 103 bytes)
+    env = dict(os.environ)
+    env.pop("TAU_FETCH", None)
+    eng = f"{UBIN}/{ENGINES[engine][0][0]}"
+    pk = subprocess.Popen([f"{UBIN}/tau-live", "--park", sock, "--serve", "--engine", eng], stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, text=True, env=env)
+    print(f"  parked: {pk.stdout.readline().strip()}")
+
+    def session(opts, env2):
+        out = f"{WORK}/park-out"
+        shutil.rmtree(out, ignore_errors=True)
+        log = f"{WORK}/park-live.log"
+        t0 = time.monotonic()
+        lv = Live.__new__(Live)
+        lv.events = []
+        lv.p = subprocess.Popen([f"{UBIN}/tau-live", *opts, "--serve", "--engine", eng, clean, main, out],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+                                env=dict(env2, TAU_LIVE_LOG=log))
+        done = lv.until(lambda e: e["ev"] == "done", timeout=600)
+        ms = (time.monotonic() - t0) * 1000
+        data = open(done["path"], "rb").read()
+        lv.p.stdin.close()
+        lv.p.wait(20)
+        how = "parked" if "from the parked engine" in open(log).read() else "spawned"
+        return data, ms, how
+
+    ref, ms_ref, _ = session([], env)
+    ok, times = True, []
+    for k in range(n):
+        data, ms, how = session(["--parked", sock], env)
+        same = data == ref
+        ok &= same and how == "parked"
+        times.append(ms)
+        print(f"  session {k}: {how}, open -> done {ms:.0f} ms, output {'identical' if same else 'DIFFERENT'}")
+    _, ms_o, how = session(["--parked", sock], dict(env, TEXINPUTS=".:"))
+    ok &= how == "spawned"
+    print(f"  started differently (TEXINPUTS): {how}")
+    pk.stdin.close()
+    pk.wait(20)
+    print(f"parked {engine} {name}: unparked {ms_ref:.0f} ms, parked p50 {statistics.median(times):.0f} ms: "
+          f"{'ok' if ok else 'FAILED'}")
+    return ok
+
+
 if __name__ == "__main__":
     if sys.argv[1:2] == ["serve"]:
         serve(*sys.argv[2:5])
@@ -930,6 +985,8 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["paragraph"]:
         paragraph(*sys.argv[2:5], *(int(x) for x in sys.argv[5:6]))
         sys.exit(0)
+    if sys.argv[1:2] == ["parked"]:
+        sys.exit(0 if parked(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["bblonly"]:
         sys.exit(0 if bblonly(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["bigopen"]:
