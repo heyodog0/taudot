@@ -38,7 +38,7 @@ public enum TexEngine: String, CaseIterable, Sendable {
 public enum UniversalSettings {
   /// XeLaTeX and LuaLaTeX projects on universal (default on; off: TeXpresso, as before).
   public static let unicodeKey = "taudot.universal.unicode"
-  /// pdfLaTeX projects on universal too (default off: the patched pdfTeX).
+  /// pdfLaTeX projects on universal too (default on since 2026-11-09; off: the patched pdfTeX).
   public static let pdflatexKey = "taudot.universal.pdflatex"
   /// Posted (by Settings) after any of these changed: an open project restarts on the engine they name now.
   public static let changed = Notification.Name("taudot.universal.changed")
@@ -46,7 +46,7 @@ public enum UniversalSettings {
   static func engineKey(_ folder: URL) -> String { "taudot.projectEngine." + folder.standardizedFileURL.path }
 
   public static func unicode(_ d: UserDefaults = .standard) -> Bool { d.object(forKey: unicodeKey) as? Bool ?? true }
-  public static func pdflatex(_ d: UserDefaults = .standard) -> Bool { d.bool(forKey: pdflatexKey) }
+  public static func pdflatex(_ d: UserDefaults = .standard) -> Bool { d.object(forKey: pdflatexKey) as? Bool ?? true }
 
   public static func engine(for folder: URL, _ d: UserDefaults = .standard) -> TexEngine? {
     d.string(forKey: engineKey(folder)).flatMap(TexEngine.init(rawValue:))
@@ -145,4 +145,78 @@ final class LockedInt: @unchecked Sendable {
   private var v = 0
   var value: Int { lock.lock(); defer { lock.unlock() }; return v }
   func set(_ n: Int) { lock.lock(); v = n; lock.unlock() }
+}
+
+/// uspeed's parked engines (docs/universal.md, "Parked engine"): one `tau-live --park SOCKET` per engine, started at
+/// app launch, keeps an engine just past its format load; a session started with `--parked SOCKET` forks its engine
+/// from it instead of starting one (first page on open: pdfLaTeX 0.97 → 0.89 s, LuaLaTeX 1.44 → 1.17 s on paper-b). A
+/// session whose engine, command line or environment differ from the parked one's (tau-live's signature), or that
+/// comes before the parked engine is ready, starts its own as before. tau-live renews the parked engine every 5 min
+/// (TeX's \time and \today) and exits when its stdin closes: with the app, also when the app dies.
+/// $TAUDOT_PARK=0 turns it off.
+@MainActor public final class ParkedEngines {
+  public static let shared = ParkedEngines()
+  /// Sessions may start parked engines (`ensure`): set at app launch; off in tests unless they turn it on.
+  public var enabled = false
+  private var procs: [TexEngine: Process] = [:]
+  /// Each engine's parked-engine readiness count (`parked` events), for tests and the log.
+  public private(set) var parkedEvents: [TexEngine: Int] = [:]
+
+  /// The socket for `e` (≤ 103 bytes: /tmp, not $TMPDIR; per app process, so test copies don't share one).
+  nonisolated static func socket(_ e: TexEngine) -> String { "/tmp/taudot-park-\(getuid())-\(getpid())-\(e.rawValue).sock" }
+
+  /// At app launch: a parked engine for every engine the settings put on universal.
+  public func startAtLaunch(env: [String: String] = ProcessInfo.processInfo.environment, d: UserDefaults = .standard) {
+    guard env["TAUDOT_PARK"] != "0" else { return }
+    enabled = true
+    guard d.string(forKey: EngineChoice.defaultsKey) != "texpresso" else { return }
+    var engines: [TexEngine] = []
+    if UniversalSettings.pdflatex(d) { engines.append(.pdflatex) }
+    if UniversalSettings.unicode(d) { engines += [.xelatex, .lualatex] }
+    for e in engines { _ = ensure(e, env: env) }
+  }
+
+  /// The parked engine's socket for `e`, started if it isn't running (nil: off, or universal can't run `e`).
+  public func ensure(_ e: TexEngine, env: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+    guard enabled, env["TAUDOT_PARK"] != "0" else { return nil }
+    if let p = procs[e], p.isRunning { return Self.socket(e) }
+    guard UniversalPaths.missing(e, env: env) == nil else { return nil }
+    let sock = Self.socket(e)
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: UniversalPaths.driver(env))
+    p.arguments = ["--park", sock, "--serve", "--engine", UniversalPaths.engine(e, env: env)]
+    p.environment = UniversalPaths.environment(base: env)
+    let i = Pipe(), o = Pipe()
+    TxpProcess.ignoreSigpipe
+    p.standardInput = i  // (kept open: tau-live --park exits when it closes)
+    p.standardOutput = o
+    p.standardError = FileHandle.nullDevice
+    let buf = LineBuffer()
+    o.fileHandleForReading.readabilityHandler = { [weak self] h in
+      let d = h.availableData
+      if d.isEmpty { h.readabilityHandler = nil; return }
+      let n = buf.take(d).filter { String(decoding: $0, as: UTF8.self).contains("\"ev\":\"parked\"") }.count
+      guard n > 0 else { return }
+      DispatchQueue.main.async { MainActor.assumeIsolated { self?.parkedEvents[e, default: 0] += n } }
+    }
+    p.terminationHandler = { [weak self] q in
+      DispatchQueue.main.async { MainActor.assumeIsolated { if self?.procs[e] === q { self?.procs[e] = nil } } }
+    }
+    do { try p.run() } catch { return nil }
+    procs[e] = p
+    pipes[e] = i
+    return sock
+  }
+  private var pipes: [TexEngine: Pipe] = [:]
+
+  /// Stops them all (tests).
+  public func stopAll() {
+    for (e, p) in procs {
+      try? pipes[e]?.fileHandleForWriting.close()
+      let pid = p.processIdentifier
+      DispatchQueue.global().asyncAfter(deadline: .now() + 1) { if p.isRunning { kill(pid, SIGTERM) } }
+    }
+    procs = [:]
+    pipes = [:]
+  }
 }

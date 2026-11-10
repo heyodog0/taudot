@@ -3,6 +3,7 @@
 import AppKit
 import TaudotHome
 import TaudotNeovim
+import TaudotPDF
 import TaudotShared
 
 // TEXSYNC_* variables (names before the rename) still work (Compat.swift).
@@ -72,6 +73,7 @@ Compat.migrateDefaults()
     timeline("did finish launching")
     // A self-contained app (docs/release.md): its engine's launch agent points at this bundle; updates by Sparkle.
     _ = BundledTools.ensured
+    ParkedEngines.shared.startAtLaunch()  // engines past their format load, for the first project's first page
     Updater.shared.start()
     // the last crash, if there was one we haven't shown (after the windows are up)
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { MainActor.assumeIsolated { CrashReport.showIfAny() } }

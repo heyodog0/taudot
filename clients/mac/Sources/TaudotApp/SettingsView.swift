@@ -525,7 +525,7 @@ struct PDFPage: View {
           .disabled(pdfEngine == "texpresso")
       }
       Row(p: p, label: "pdfLaTeX on universal too",
-          note: "Stock pdfTeX instead of Taudot's patched one (the default for pdfLaTeX).", last: true) {
+          note: "Stock pdfTeX, run live. Off: Taudot's patched pdfTeX.", last: true) {
         Switch(p: p, on: Binding(get: { uniPdf }, set: { uniPdf = $0; universalChanged() }))
           .disabled(pdfEngine == "texpresso")
       }
@@ -548,7 +548,7 @@ struct PDFPage: View {
   }
 
   @AppStorage(UniversalSettings.unicodeKey) private var uniUnicode = true
-  @AppStorage(UniversalSettings.pdflatexKey) private var uniPdf = false
+  @AppStorage(UniversalSettings.pdflatexKey) private var uniPdf = true
   @StateObject private var project = CurrentProjectModel()
 
   private func universalChanged() { NotificationCenter.default.post(name: UniversalSettings.changed, object: nil) }
