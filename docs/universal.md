@@ -667,3 +667,28 @@ then show an old page before the display page). Interleaved, same load (3–8), 
 At this load the two are within noise; the bench's regression needs a loaded machine to show, where the hold keeps
 the reader off the cores during the pass. `uni.py display` after the change: 40/40 (1512.03385, paper-b pdfLaTeX and
 LuaLaTeX), 29/40 synth-300, all 0 px, novel-glyph keys refused.
+
+## Parked sessions: lifeline, duplicate runners (2026-11-10)
+
+From a stall in the app (pdfLaTeX, parked engine on, edits through the app): no PDF after an edit; ~600 engine
+processes from earlier sessions still alive (parent 1); three runners in lockstep for one edit (page and finisher files
+in triples from consecutive pids).
+
+- **Lifeline.** libtau unset `TAU_FD` after reading it but not `TAU_LIFE`. A session's engine forked from the parked
+  one set its lifeline to the session's pipe, then `tau_config()` read the parked engine's stale `TAU_LIFE` (fd 5: in
+  the child its own kqueue or `/dev/null`, which kqueue refuses as a read filter). So no process of a parked session
+  watched its lifeline: when tau-live died without cleaning up (the app quitting or restarting), they lived on.
+  Fixed (the session's pipes set after `tau_config`, `TAU_LIFE` unset with `TAU_FD`). `uni.py parked` now types in a
+  parked session, SIGKILLs its tau-live, and counts the engine's processes left: 56 before, 0 now.
+- **Two runners for one edit.** A woken snapshot forked the runner, and the runner read `ctl-<snapshot>` after the
+  fork. Two resumes of one snapshot back to back (fast typing) gave two wakes, and both runners could read the newest
+  orders: two runners for the same edit, one unknown to tau-live, writing to the session's pipe. Now the snapshot reads
+  its orders once, before forking, and passes them to the runner; each resume's orders carry a stamp (`go N`), and a
+  wake for orders already served forks nothing. Fast typing (96 keys in bursts, 8 ms apart): duplicate runners per
+  session 4–6 before, 0 after (the one remaining pair is edit 0's two latexmk reruns, each with its own orders).
+- The stall itself didn't reproduce here (fast typing, parked typing; both builds). Duplicate runners are the likely
+  route: a resume of a snapshot from the untracked chain.
+
+Checked after: `edits` 8/8 (pdfLaTeX, LuaLaTeX), `finish` 10/10 (3 engines), `paragraph` pdfLaTeX 11/11 at 0 px,
+`display` 40/40, `parked` XeLaTeX and LuaLaTeX ok (with the new checks). `rule pdflatex` on paper-b differs from stock
+on this build and the previous one alike (3 runs against stock's 4): open, next.

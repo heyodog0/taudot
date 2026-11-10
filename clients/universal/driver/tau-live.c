@@ -824,7 +824,8 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
   flush_texts();  // (the runner reloads the changed files from the clone)
   snprintf(p, sizeof p, "%s/ctl-%d", tdir, s->pid);
   FILE *f = fopen(p, "w");
-  fprintf(f, "seq %d\n", seq);
+  static int go;  // each resume's orders differ (a snapshot woken twice for the same orders forks one runner)
+  fprintf(f, "seq %d\ngo %d\n", seq, ++go);
   for (int c = 0; c < nch; c++) fprintf(f, "load %s\n", ch[c].rel);
   if (nch) fprintf(f, "edit %s %ld\n", ch[0].rel, ch[0].k);
   if (nch && dense > 0)  // typing is local: a snapshot at every line near the edit
