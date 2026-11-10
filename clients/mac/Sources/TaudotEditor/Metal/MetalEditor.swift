@@ -113,8 +113,10 @@ extension NativeEditorView {
     guard let lay = textLayout else { change(); return {} }
     let clip = scroll.contentView
     guard clip.bounds.minY > 0 else { change(); return {} }
-    // (the line most on screen: a line mostly scrolled off would leave a rewrapped one above the anchor)
-    let top = lay.offset(at: CGPoint(x: lay.origin.x, y: clip.bounds.minY + lay.lineHeight / 2))
+    // The source position at the top edge (the start of the row the edge cuts, however little of it shows) stays in
+    // the row at the top edge, as far into it as before: after a rewrap it may sit mid-row, but it's still the top
+    // row. (Anchoring the row most on screen instead left whatever the rewrap put above it in the top sliver.)
+    let top = lay.offset(at: CGPoint(x: lay.origin.x, y: clip.bounds.minY + 0.5))
     let into = (clip.bounds.minY - (lay.caretRect(top).minY - lay.spacing)) / lay.lineHeight
     change()
     let restore = { [weak self] in

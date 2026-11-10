@@ -152,3 +152,40 @@ private let wrapText: String = {
   try await nv.command("normal! 0g$")
   await cursorCellIsRowEnd("g$ (first row)")
 }
+
+/// A font change keeps the same source position at the top: the character first on the top row before is on the
+/// top row after, wherever the rewrap puts it in that row (shell_native's check, on lines that wrap).
+@MainActor @Test(arguments: [(500.0, 2.0), (500.0, -2.0), (700.0, 3.0), (380.0, 1.0)])
+func fontChangeKeepsTheTopPosition(width: Double, delta: Double) async throws {
+  let w = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: width, height: 500), styleMask: [.titled], backing: .buffered, defer: false)
+  w.isReleasedWhenClosed = false
+  defer { w.close() }
+  let v = NativeEditorView(frame: w.contentView!.bounds, metal: true)
+  v.autoresizingMask = [.width, .height]
+  w.contentView!.addSubview(v)
+  let text = (1...300).map { "Line \($0) of a test paragraph with some words that may wrap when the window is narrow enough to need it." }.joined(separator: "\n") + "\n"
+  v.show(NativeDoc(docID: "k", path: "k.tex", text: text, seq: 0, conn: nil), buffer: 1)
+  v.layoutSubtreeIfNeeded()
+  try await Task.sleep(for: .milliseconds(300))  // laid out ahead
+  let lay = try #require(v.textLayout), clip = v.scroll.contentView
+  var report: [String] = []
+  for (i, frac) in [0.0, 0.3, 0.7].enumerated() {
+    // somewhere in the middle, the top row partly scrolled off by `frac`
+    let y = lay.y(ofPara: 120 + 37 * i) + CGFloat(1 + i % 2) * lay.lineHeight + CGFloat(frac) * lay.lineHeight
+    clip.scroll(to: NSPoint(x: 0, y: y))
+    v.scroll.reflectScrolledClipView(clip)
+    func topChar() -> Int { v.textView.characterIndexForInsertion(at: NSPoint(x: 40, y: clip.bounds.minY + 1)) }
+    let a = topChar()
+    var st = v.style
+    st.fontSize += CGFloat(delta)
+    v.apply(style: st)
+    try await Task.sleep(for: .milliseconds(300))
+    let b = topChar()
+    // the same visual row: a's row (after the rewrap) is the one at the top
+    if lay.visualLine(at: a) != lay.visualLine(at: b) {
+      report.append("w\(Int(width)) \(delta > 0 ? "+" : "")\(Int(delta)) at \(frac): top char \(a) → \(b) (rows \(lay.visualLine(at: a)) vs \(lay.visualLine(at: b))); a's row top \(lay.caretRect(a).minY - lay.spacing), view top \(clip.bounds.minY), line height \(lay.lineHeight)")
+    }
+  }
+  let summary = report.joined(separator: "\n")
+  #expect(report.isEmpty, "\(summary)")
+}

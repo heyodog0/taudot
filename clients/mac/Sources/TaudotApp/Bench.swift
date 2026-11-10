@@ -1079,15 +1079,21 @@ import TaudotShared
             "… the window, status bar, issues strip and Claude panel follow (\(dark ? "dark" : "light"))")
     }
     NSApp.appearance = nil
-    // a real re-style (a bigger font) keeps the top line too
+    // a real re-style (a bigger font) keeps the same source position at the top: the character at the top edge
+    // before is on the row at the top edge after. (Not the row's first character: when the text rewraps, that
+    // position may land mid-row.)
     let yA = clip.bounds.origin.y
-    let firstA = ed.view.textView.characterIndexForInsertion(at: NSPoint(x: 40, y: clip.bounds.minY + 4))
+    let firstA = ed.view.textView.characterIndexForInsertion(at: NSPoint(x: 40, y: clip.bounds.minY + 1))
     var bigger = ed.view.style
     bigger.fontSize += 2
     p.keepingTop(of: ed.view) { ed.view.apply(style: bigger) }
     await sleep(0.8)
-    let firstB = ed.view.textView.characterIndexForInsertion(at: NSPoint(x: 40, y: clip.bounds.minY + 4))
-    check(abs(firstB - firstA) <= 2, "a bigger font keeps the line at the top (first char \(firstA) → \(firstB), top \(Int(yA)) → \(Int(clip.bounds.origin.y)))")
+    let firstB = ed.view.textView.characterIndexForInsertion(at: NSPoint(x: 40, y: clip.bounds.minY + 1))
+    // its caret (the row below the line spacing) spans the top edge
+    let caret = clip.convert(p.window.convertFromScreen(ed.view.textView.firstRect(forCharacterRange: NSRange(location: firstA, length: 0), actualRange: nil)), from: nil)
+    let edge = clip.bounds.minY + 1
+    let onTopRow = caret.minY <= edge + ed.view.style.lineSpacing + 0.5 && caret.maxY > edge - 0.5
+    check(onTopRow, "a bigger font keeps the same source position at the top (char \(firstA) on the top row: its row \(Int(caret.minY))–\(Int(caret.maxY)), view top \(Int(clip.bounds.minY)); top row now starts at \(firstB); scrolled \(Int(yA)) → \(Int(clip.bounds.origin.y)))")
     if ProcessInfo.processInfo.environment["TAUDOT_NO_PDF"] == nil, ProcessInfo.processInfo.environment["TAUDOT_NATIVECHECK_NOSYNC"] == nil { await sync(ed) }
     // Opening each style file from the Files sidebar's path (review.open, as a click does), then back to main.tex.
     let styles = ((try? FileManager.default.contentsOfDirectory(atPath: p.folder.path)) ?? []).filter { $0.hasSuffix(".sty") || $0.hasSuffix(".cls") || $0.hasSuffix(".bst") }.sorted()
