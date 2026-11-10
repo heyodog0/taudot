@@ -77,7 +77,7 @@ def diff(exact_path, page_index, content, dx, dy, baselines, x_start):
     right = left + (ink_right(a, w, h, 0) + 1) / SCALE + 2
     a, w, h = render(mine, page_index, (left, bottom, right, top))
     b, _, _ = render(exact, page_index, (left, bottom, right, top))
-    n = vis = 0
+    n = vis = foreign = 0
     import os
     dump = os.environ.get("PIX_DUMP")
     if dump and a != b:
@@ -90,9 +90,12 @@ def diff(exact_path, page_index, content, dx, dy, baselines, x_start):
     for i in range(0, len(a), 4):
         d = max(abs(a[i] - b[i]), abs(a[i + 1] - b[i + 1]), abs(a[i + 2] - b[i + 2]))
         if d:
+            if a[i] == a[i + 1] == a[i + 2] == 255:  # the pass draws nothing here: the page's other ink (a figure,
+                foreign += 1                          # a table from the next column), not the paragraph
+                continue
             n += 1
             vis += d > 64
-    return n, vis, w * h
+    return n, vis, w * h, foreign
 
 
 def page_height(pdf_bytes, page_index):
@@ -112,4 +115,7 @@ def event_check(ev, exact_path):
     ox, oy = ev.get("origin", [0, 0])
     a, w, h = render(ov, 0, (x0 - ox, H - y1 + oy, x1 - ox, H - y0 + oy))
     b, _, _ = render(ex, ev["page"], (x0, H - y1, x1, H - y0))
-    return sum(1 for i in range(0, len(a), 4) if a[i:i + 3] != b[i:i + 3]), w * h
+    # (pixels where the overlay draws nothing and the page has ink: other content in the rect, counted apart)
+    diff = [i for i in range(0, len(a), 4) if a[i:i + 3] != b[i:i + 3]]
+    foreign = sum(1 for i in diff if a[i:i + 3] == b"\xff\xff\xff")
+    return len(diff) - foreign, w * h, foreign

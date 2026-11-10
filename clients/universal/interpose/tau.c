@@ -1389,7 +1389,7 @@ static ssize_t mem_read(mfd *d, void *buf, size_t n, int fd) {
 }
 
 static ssize_t my_read(int fd, void *buf, size_t n) {
-  if (fd == alias_fd && getenv("TAU_ALIAS_DEBUG")) {
+  if (getenv("TAU_ALIAS_DEBUG") && parked_engine) {
     char b[200];
     int k = snprintf(b, sizeof b, "tau: read alias fd %d used %d\n", fd, fd < MAXFD ? fds[fd].used : -1);
     write_nc(2, b, k);
@@ -1399,8 +1399,14 @@ static ssize_t my_read(int fd, void *buf, size_t n) {
 }
 INTERPOSE(my_read, read);
 static ssize_t my_read_nc(int fd, void *buf, size_t n) {
-  if (fd >= 0 && fd < MAXFD && fds[fd].used) return mem_read(&fds[fd], buf, n, fd);
-  return read_nc(fd, buf, n);
+  ssize_t r = fd >= 0 && fd < MAXFD && fds[fd].used ? mem_read(&fds[fd], buf, n, fd) : read_nc(fd, buf, n);
+  if (getenv("TAU_ALIAS_DEBUG") && parked_engine) {
+    char b[200];
+    int k = snprintf(b, sizeof b, "tau: read_nc fd %d used %d -> %zd (eof_all %d para %d)\n", fd,
+                     fd >= 0 && fd < MAXFD ? fds[fd].used : -1, r, eof_all, para_mode);
+    write_nc(2, b, k);
+  }
+  return r;
 }
 INTERPOSE(my_read_nc, read_nc);
 

@@ -278,14 +278,18 @@ static void put(FILE *f, const char *s) { fputs(s, f); }
 typedef struct { char path[4096]; dev_t dev; ino_t ino; off_t size; struct timespec mt; unsigned char *ex; size_t en;
                  pdf d; char *fonts, *xobjs; } exact_pdf;
 static exact_pdf exc;
+static int exc_hit;  // the last exact_get was served from the cache (reported in the answer)
 static void exact_resources(pdf *dp, char **fonts_out, char **xobjs_out);
 static exact_pdf *exact_get(const char *path)
 {
   struct stat st;
   if (stat(path, &st)) return NULL;
   if (exc.ex && !strcmp(exc.path, path) && exc.dev == st.st_dev && exc.ino == st.st_ino && exc.size == st.st_size &&
-      exc.mt.tv_sec == st.st_mtimespec.tv_sec && exc.mt.tv_nsec == st.st_mtimespec.tv_nsec)
+      exc.mt.tv_sec == st.st_mtimespec.tv_sec && exc.mt.tv_nsec == st.st_mtimespec.tv_nsec) {
+    exc_hit = 1;
     return &exc;
+  }
+  exc_hit = 0;
   if (exc.ex) { pdf_close(&exc.d); free(exc.ex), free(exc.fonts), free(exc.xobjs); memset(&exc, 0, sizeof exc); }
   size_t en;
   unsigned char *ex = slurp(path, &en);
@@ -329,9 +333,38 @@ static void exact_resources(pdf *D, char **fonts_out, char **xobjs_out)
       char **buf = which ? &xobjs : &fonts;
       size_t *bl = which ? &xl : &fl, *bc = which ? &xcap : &fcap;
       while (*bl + l + 2 > *bc) { *bc *= 2; *buf = realloc(*buf, *bc); }
-      memcpy(*buf + *bl, a, l);
-      *bl += l;
-      (*buf)[(*bl)++] = ' ';
+      // each "/Name N G R" once: every page repeats the same entries (a 300-page document: thousands)
+      const char *q = a, *qe = a + l;
+      while (q < qe) {
+        while (q < qe && (*q == ' ' || *q == '\n' || *q == '\r' || *q == '\t')) q++;
+        if (q >= qe) break;
+        const char *st = q, *en = NULL;
+        if (*q == '/') {
+          const char *r = q + 1;
+          while (r < qe && !strchr(" \t\r\n/<[(", *r)) r++;
+          while (r < qe && strchr(" \t\r\n", *r)) r++;
+          long n1, n2;
+          char R;
+          int used;
+          if (r < qe && sscanf(r, "%ld %ld %c%n", &n1, &n2, &R, &used) == 3 && R == 'R' && r + used <= qe) en = r + used;
+        }
+        if (!en) {  // anything else (an inline dictionary): the rest as it is
+          memcpy(*buf + *bl, st, qe - st);
+          *bl += qe - st;
+          (*buf)[(*bl)++] = ' ';
+          break;
+        }
+        size_t el = en - st;
+        int dup = 0;
+        for (const char *h = *buf; !dup && (h = memmem(h, *bl - (h - *buf), st, el)); h++)
+          dup = (h == *buf || h[-1] == ' ') && (h + el == *buf + *bl || h[el] == ' ');
+        if (!dup) {
+          memcpy(*buf + *bl, st, el);
+          *bl += el;
+          (*buf)[(*bl)++] = ' ';
+        }
+        q = en;
+      }
       free(dict);
     }
     free(res);
@@ -466,7 +499,7 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   if (g && fclose(g)) wrote = 0;
   free(tb.p), free(xc), free(pd), free(content), free(pb);
   if (!wrote) return fail("cannot write the list");
-  if (placed) printf("{\"ok\":true,\"page\":%ld,\"dy\":%.4f,\"us\":%lld}\n", page, dy, (long long)(now_us() - t0));
+  if (placed) printf("{\"ok\":true,\"page\":%ld,\"dy\":%.4f,\"cached\":%d,\"us\":%lld}\n", page, dy, exc_hit, (long long)(now_us() - t0));
   else printf("{\"ok\":true,\"page\":%ld,\"dy\":null,\"us\":%lld}\n", page, (long long)(now_us() - t0));
   return 0;
 }

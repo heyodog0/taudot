@@ -400,10 +400,12 @@ def paragraph(engine, src, main, n=20, seed=4):
             place[ev["state"]] += 1
             if ev["state"] == "exact" and pdf:
                 import pixels
-                nd, tot = pixels.event_check(ev, done["path"])
+                nd, tot, fo = pixels.event_check(ev, done["path"])
                 place["px0"] += nd == 0
                 place["worst"] = max(place["worst"], nd)
-                placed = f"; event {ev['state']} page {ev['page']}: {nd} px differ of {tot} in the new lines' rect"
+                place["foreign"] = place.get("foreign", 0) + (fo > 0)
+                placed = (f"; event {ev['state']} page {ev['page']}: {nd} px differ of {tot} in the new lines' rect"
+                          + (f" (and {fo} px of other ink in it)" if fo else ""))
             elif ev["state"] == "exact":  # XeTeX: the list's glyph baselines on the exact page's lines
                 import tdl as tdlr
                 import xdv
@@ -425,6 +427,11 @@ def paragraph(engine, src, main, n=20, seed=4):
         if not blob:
             stats["box"] += 1
             print(f"  edit {i:2d} @{pos:6d} no overlay (no page: a box, a float, a caption) {ev['us'] / 1000:.1f} ms{placed}")
+            continue
+        if ev.get("state") == "none" and ev.get("why") == "insert":  # the lines weren't the page's last (a float, a
+            stats["box"] += 1  # footnote): what the pass shipped is the page so far; the app gets no overlay
+            print(f"  edit {i:2d} @{pos:6d} no overlay (the lines weren't the last thing on the page) "
+                  f"{ev['us'] / 1000:.1f} ms{placed}")
             continue
         shipped = ev.get("pieces", 1)
         if shipped > 1:  # a page break inside the paragraph: the overlay would be provisional
@@ -462,7 +469,7 @@ def paragraph(engine, src, main, n=20, seed=4):
             content = b"".join(c for c in para.streams(blob) if b"BT" in c)
             base_ys = [y for y, r in ours[-n_:]]
             x0 = min(x for y, r in ours[-n_:] for dy_, x, f, s_, o in r)
-            d, vis, tot = pixels.diff(done["path"], hit[0], content, hit[1][0], hit[1][1], base_ys, x0)
+            d, vis, tot, fo = pixels.diff(done["path"], hit[0], content, hit[1][0], hit[1][1], base_ys, x0)
             # where pixels differ: the largest difference in line positions (start x, baseline) as printed
             dx_, dy_ = hit[1]
             delta = 0.0
@@ -505,7 +512,8 @@ def paragraph(engine, src, main, n=20, seed=4):
     ev_us = [e["us"] / 1000 for e in evs if e.get("state") != "none"]
     print(f"  events: exact {place['exact']}, provisional {place['provisional']}, none {place['none']}; exact ones placed "
           f"{'with 0 px differing' if pdf else 'on the exact baselines'}: {place['px0']}/{place['exact']} "
-          f"(worst {place['worst']}); edit -> event p50 {statistics.median(ev_us or [0]):.1f} ms")
+          f"(worst {place['worst']}; {place.get('foreign', 0)} with other ink in the rect); edit -> event p50 "
+          f"{statistics.median(ev_us or [0]):.1f} ms")
     if tdlstats:
         ok_ = [d for d, u in tdlstats if d is not None]
         print(f"  reader (overlay PDF + TDL FIGURE): placed {len(ok_)}/{len(tdlstats)}, 0 px differing in "
