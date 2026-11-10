@@ -832,7 +832,11 @@ final class Trash: @unchecked Sendable {
           }
           pdf = LivePDF(path: pdfPath, synctex: m["synctex"] as? String, log: m["log"] as? String,
                         seq: m["seq"] as? Int ?? 0, run: m["run"] as? Int ?? 0, first: first, count: m["pages"] as? Int)
-          if let pdf { for i in max(0, min((m["from_page"] as? Int ?? 0) - first, pdf.pageCount))..<pdf.pageCount { _ = pdf.digest(i) } }
+          if let pdf {
+            // (a display page: only from_page..<pages are new, the rest of its file is old pages)
+            let end = m["display"] as? Bool == true ? max(0, min(pdf.count - first, pdf.pageCount)) : pdf.pageCount
+            for i in max(0, min((m["from_page"] as? Int ?? 0) - first, end))..<end { _ = pdf.digest(i) }
+          }
         }
         var blg: String?
         if let b = m["blg"] as? String { blg = try? String(contentsOf: URL(fileURLWithPath: b), encoding: .isoLatin1) }
@@ -896,12 +900,17 @@ final class Trash: @unchecked Sendable {
   }
 
   /// A finished PDF: its pages replace the shown ones they cover; the changed ones are reported.
+  /// A display page (`"display": true`, tau-live): the last finished PDF with page `from_page` drawing the new run's;
+  /// only `from_page`..<`pages` are new (the pages before are the shown ones, those after old), so only they replace
+  /// the shown ones. It has no SyncTeX or log: `final`, the issues and SyncTeX stay until the next finished PDF.
   private func shown(_ pdf: LivePDF, final isFinal: Bool, _ m: [String: Any]) {
     gen += 1
     var changed: [Int] = []
     let fromPage = m["from_page"] as? Int ?? 0
+    let display = m["display"] as? Bool ?? false
     var next = pages
-    for k in 0..<pdf.pageCount {
+    let ks = display ? max(0, fromPage - pdf.first)..<max(0, min(pdf.count - pdf.first, pdf.pageCount)) : 0..<pdf.pageCount
+    for k in ks {
       let i = pdf.first + k  // the document's page (XeTeX's PDFs hold the pages tau-live converted)
       if i > next.count { break }  // (tau-live converts from the first page the client lacks: no gap)
       if i < next.count {
@@ -914,6 +923,7 @@ final class Trash: @unchecked Sendable {
         next.append((pdf, k))
       }
     }
+    let isFinal = isFinal && !display
     let trash = Trash(pages.map(\.pdf) + (isFinal ? [final].compactMap { $0 } : []))
     pages = next
     if isFinal { final = pdf }
@@ -924,6 +934,7 @@ final class Trash: @unchecked Sendable {
       "ev": "pages", "gen": gen, "n": pdf.count, "typeset": pdf.count, "done": false,
       "sizes": pages.map { [Double($0.pdf.sizes[$0.index].width), Double($0.pdf.sizes[$0.index].height)] },
       "changed": changed, "edit_us": m["edit_us"] as? Int ?? -1, "applied": m["applied"] as? Int ?? -1,
+      "display": display,
     ]
     lastEditUs = m["edit_us"] as? Int ?? -1
     lastApplied = m["applied"] as? Int ?? -1
@@ -969,7 +980,8 @@ final class Trash: @unchecked Sendable {
 
   // ---- what the pane asks for
 
-  public func synctex() async -> String? { final?.synctex ?? pages.last?.pdf.synctex }
+  /// The newest final PDF's SyncTeX, else the newest shown PDF's that has one (display pages have none).
+  public func synctex() async -> String? { final?.synctex ?? pages.last(where: { $0.pdf.synctex != nil })?.pdf.synctex }
 
   public func glyphs(page: Int) async -> PageGlyphs? {
     guard page >= 0, page < pages.count else { return nil }
