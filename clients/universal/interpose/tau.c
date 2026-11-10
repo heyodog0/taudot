@@ -110,6 +110,7 @@ static int passed = 1;
 static int finish_every;    // fork a finisher at every shipout once passed
 static int finish_next;     // fork one at the next shipout
 static int finish_rule;     // the first shipout past the edit, then at most every finish_period_us
+static int finish_first;    // TAU_FIRST_FINISH: a fresh run finishes once at the goal page (else the first), at once
 static int64_t finish_period_us = 150000, last_finish;
 static volatile sig_atomic_t finish_asap;  // SIGUSR2 from the driver ("finish"): at the next safe point
 static void on_usr2(int sig) { (void)sig; finish_asap = 1; }
@@ -877,6 +878,13 @@ static int magic(const char *path) {  // 1 if PATH is a TeX-side signal (handled
       finish_next = 0;
       last_finish = now_us();
       fork_finisher("ship");
+    } else if (finish_first && tau_fd >= 0 && is_runner && !seq) {
+      int fg = goal_page();
+      if (pages >= (fg >= 0 ? fg + 1 : 1)) {
+        finish_first = 0;
+        last_finish = now_us();
+        fork_finisher("first");
+      }
     }
   } else if (!strncmp(w, "t/", 2)) {
     int k = atoi(w + 2);
@@ -1209,6 +1217,8 @@ static void tau_config(void) {
   if (s) finish_text = s;
   s = getenv("TAU_FINISH");
   if (s && !strcmp(s, "every")) finish_every = 1;
+  s = getenv("TAU_FIRST_FINISH");
+  if (s && *s == '1') finish_first = 1;
   s = getenv("TAU_WARM_QOS");  // only an exec'd process may set its QoS (EPERM after fork); children inherit it
   if (s && !strcmp(s, "ui")) pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
   s = getenv("TAU_TLROOT");
