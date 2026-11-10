@@ -187,6 +187,7 @@ it off.
   |---|---|
   | `insert` | footnotes, floats, `\marginpar` in the paragraph |
   | `parshape` | `\parshape` of more than one line or `\hangindent`: wrapfig, lettrine, section headings |
+  | `shape` | (tau-live) the old lines start at different x (a hanging indent, a shaped paragraph): the pass ships its lines at one left edge, the old lines' |
   | `display` | the edit is inside a display (`\[…\]`, `equation`, …) |
   | `segment` | the old lines on screen are another part of the paragraph (a display between) |
   | `split` | the old lines run across pages or columns |
