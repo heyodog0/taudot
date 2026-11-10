@@ -621,3 +621,25 @@ pdfTeX 25 MiB (max single snapshot).
 - The native fetcher: prefetch a package's other files in parallel; an svn fallback for a store outage.
 - A provisional pass could stop at its first inside break; the reader could skip pages whose fonts it has.
 - A real memory measurement (free memory with N snapshots).
+
+## Paragraph preview on figures' pages; the LuaLaTeX 367 px (2026-11-10)
+
+- **The reader took a figure's stream as a page's content.** Both `tau-tdl pdf` (the paragraph overlay) and
+  `tau-tdl page` (display pages) found the content stream in what the engine wrote by "a stream with `BT` in it".
+  An embedded PDF figure's form XObject and font programs are written at the same ship; a font program has no
+  `/Type`, and its bytes can hold `BT` (and stray `)`). Effects: on 1512.03385 the reader looped forever on such a
+  stream, so every later request of the session timed out (bench: 1/30 exact previews, 12 `none/reader`); and the
+  pass's overlay could be a blank page marked exact (the app would erase the paragraph). A content stream is now one
+  whose dictionary holds only `/Length`, `/Filter`, `/DecodeParms`; the glyph check refuses (`syntax`) on a stray
+  delimiter instead of skipping it. `tests/pagepick.py`: a page's data with a font-program-like stream after the
+  content (the old reader drew the font program). Bench replay on 1512.03385 (30 keys): 0 → 20 exact previews
+  (patched pdfTeX 23; the other 10: 3 first keys at a spot with no snapshot in the paragraph yet, 5 `insert`, 2
+  split). `uni.py paragraph pdflatex` on 1512.03385: 8/8 exact events at 0 px.
+- **LuaLaTeX's "367 px" on paper-b was the test.** The pass's text operators were byte-identical to the page's. The
+  test's line parser rounded each run's offset in a clustered line to 0.01 pt (a table reaching into the column chained
+  lines 18 pt apart into one cluster), and its pixel check counted the table's ink over the paragraph's glyphs as a
+  difference. Offsets are now kept to 0.0001 pt, and both pixel checks render the page without the matched lines to
+  set the page's other ink apart. paper-b: LuaLaTeX 7/7, pdfLaTeX 11/11 exact at 0 px.
+- **Memory** (bench's peak summed RSS while typing, 1512.03385): patched 219–222 MB with 15 engine processes,
+  universal 272–293 MB with 26 (snapshots being replaced at an edit, the warm process, finishers, line snapshots near
+  the edit; ~10.7 MB each against patched's ~14.7). Returning freed malloc memory at idle saves ~1 MB; nothing cheap.

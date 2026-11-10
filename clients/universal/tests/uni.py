@@ -403,7 +403,10 @@ def paragraph(engine, src, main, n=20, seed=4):
             place[ev["state"]] += 1
             if ev["state"] == "exact" and pdf:
                 import pixels
-                nd, tot, fo = pixels.event_check(ev, done["path"])
+                other = None
+                if os.environ.get("NO_OTHER") is None and ev.get("bin") and ev.get("pieces", 1) == 1:
+                    other = other_layer(ev, done["path"], para)
+                nd, tot, fo = pixels.event_check(ev, done["path"], other)
                 place["px0"] += nd == 0
                 place["worst"] = max(place["worst"], nd)
                 place["foreign"] = place.get("foreign", 0) + (fo > 0)
@@ -442,7 +445,7 @@ def paragraph(engine, src, main, n=20, seed=4):
             print(f"  edit {i:2d} @{pos:6d} provisional (the paragraph crosses a page or column) {ev['us'] / 1000:.1f} ms{placed}")
             continue
         if pdf:
-            ours = para.lines(para.text_runs(para.pdf_runs(b"".join(para.streams(blob)))))
+            ours = para.lines(para.text_runs(para.pdf_runs(b"".join(para.streams(blob, content=True)))))
             time.sleep(float(os.environ.get("PARA_SLEEP", "0")))
             pages = [para.lines(para.text_runs(para.pdf_runs(c))) for c in pdf_pages_content(done["path"])]
         else:
@@ -469,10 +472,12 @@ def paragraph(engine, src, main, n=20, seed=4):
         if ok and pdf:  # the independent check: pixels, no tolerance
             import pixels
             n_ = ev["lines"]
-            content = b"".join(c for c in para.streams(blob) if b"BT" in c)
+            content = b"".join(c for c in para.streams(blob, content=True) if b"BT" in c)
             base_ys = [y for y, r in ours[-n_:]]
             x0 = min(x for y, r in ours[-n_:] for dy_, x, f, s_, o in r)
-            d, vis, tot, fo = pixels.diff(done["path"], hit[0], content, hit[1][0], hit[1][1], base_ys, x0)
+            pc = pdf_pages_content(done["path"])[hit[0]]
+            other = pixels.other_pdf(done["path"], hit[0], without_lines(pc, ours, n_, hit[1]))
+            d, vis, tot, fo = pixels.diff(done["path"], hit[0], content, hit[1][0], hit[1][1], base_ys, x0, other)
             # where pixels differ: the largest difference in line positions (start x, baseline) as printed
             dx_, dy_ = hit[1]
             delta = 0.0
@@ -526,6 +531,34 @@ def paragraph(engine, src, main, n=20, seed=4):
         print(f"  pixels (CoreGraphics, 288 dpi): {sum(1 for d, v, t, e in pix if d == 0)}/{len(pix)} cases with 0 px "
               f"differing; worst {max(d for d, v, t, e in pix)} px ({max(v for d, v, t, e in pix)} visibly); "
               f"largest position difference where pixels differ {max([e for d, v, t, e in pix if d] or [0]):.4f} pt")
+
+
+def other_layer(ev, exact_path, para):
+    """For the event check: the exact page without the pass's lines (found as in `paragraph`), or None."""
+    import pixels
+    blob = open(ev["bin"], "rb").read()
+    ours = para.lines(para.text_runs(para.pdf_runs(b"".join(para.streams(blob, content=True)))))
+    pc = pdf_pages_content(exact_path)[ev["page"]]
+    flat = [(y + dy, x, f, s_, o) for y, r in para.lines(para.text_runs(para.pdf_runs(pc))) for dy, x, f, s_, o in r]
+    off = para.match_lines(ours, flat, ev["lines"], 0.05, True) if ev.get("lines", 0) > 0 else None
+    return pixels.other_pdf(exact_path, ev["page"], without_lines(pc, ours, ev["lines"], off)) if off else None
+
+
+def without_lines(page_content, ours, n, off):
+    """PAGE_CONTENT with the text shows of OUR last N lines (moved by OFF onto the page) emptied: the page's other ink.
+    A page run is one of them when it lies on one of their baselines, inside their x range (the column)."""
+    import para
+    dx, dy = off
+    mine = [(y + dy_ + dy, x + dx) for y, r in ours[-n:] for dy_, x, f, s, o in r]
+    lo, hi = min(x for _, x in mine) - 0.5, max(x for _, x in mine) + 0.5
+    ys = [y for y, _ in mine]
+    spans = [r[5] for r in para.pdf_runs(page_content, spans=True)
+             if lo <= r[1] <= hi and any(abs(r[0] - y) <= 0.01 for y in ys)]
+    out, at = [], 0
+    for a, b in sorted(spans):
+        out += [page_content[at:a], b"[]" if page_content[a:a + 1] == b"[" else b"()"]
+        at = b
+    return b"".join(out + [page_content[at:]])
 
 
 def pdf_pages_content(path):
