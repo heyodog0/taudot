@@ -343,20 +343,27 @@ static void dump_outputs(int announce);
 //   stop             paragraph pass: exit at /.taudot/stop
 //   dense REL LO HI  snapshot at every line read of REL in [LO, HI)
 //   tag NAME         output folder prefix
-static void read_ctl(int pid) {
+// A snapshot's orders (TAU_OUT/ctl-PID) as text, read once by the snapshot when woken, before it forks the runner: the
+// driver rewrites the file for each edit resumed here, and a runner reading it after the fork could take a later
+// edit's orders (two runners for one edit, one the driver doesn't know of). "" when there are none.
+static int ctl_text(int pid, char *b, size_t cap) {
+  char p[2048];
+  snprintf(p, sizeof p, "%s/ctl-%d", out, pid);
+  int fd = open_nc(p, O_RDONLY);
+  b[0] = 0;
+  if (fd < 0) return 0;
+  ssize_t n = read_nc(fd, b, cap - 1);
+  close_nc(fd);
+  if (n <= 0) return 0;
+  b[n] = 0;
+  return 1;
+}
+static void read_ctl(char *b) {
   // Every source file from the clone: an older snapshot (resumed for a rerun) may hold text from before later edits
   // past what it read; what it read is unchanged (else the driver wouldn't have chosen it).
   for (int i = 0; i < nfiles; i++)
     if (!files[i]->written && !files[i]->binary) load_disk(files[i]);
-  char p[2048];
-  snprintf(p, sizeof p, "%s/ctl-%d", out, pid);
-  int fd = open_nc(p, O_RDONLY);
-  if (fd < 0) return;
-  char b[65536];
-  ssize_t n = read_nc(fd, b, sizeof b - 1);
-  close_nc(fd);
-  if (n <= 0) return;
-  b[n] = 0;
+  if (!b[0]) return;
   char *save, *line = strtok_r(b, "\n", &save);
   for (; line; line = strtok_r(NULL, "\n", &save)) {
     char a[1024];
@@ -672,11 +679,15 @@ static void park(int kq) {
         }
         while (access(pp, F_OK) == 0) usleep(50);  // it has read its orders
       }
+      static char ctl[65536], served[65536];  // the orders, and those this snapshot last forked a runner for
+      int have = ctl_text(me, ctl, sizeof ctl);
+      if (have && !strcmp(ctl, served)) continue;  // a second wake for orders already served (each resume's orders
+      if (have) memcpy(served, ctl, strlen(ctl) + 1);  // are new: a "go" stamp): no second runner
       pid_t c = fork();
       if (c == 0) {
         close(kq);
         reopen_real_fds();
-        read_ctl(me);
+        read_ctl(ctl);
         is_runner = 1;
         last_snap = now_us();
         msg("R %d %d %d %lld", me, getpid(), seq, (long long)now_us());
@@ -815,7 +826,11 @@ static void park_engine(void) {
       for (int i = 0; i < nfiles; i++) free(files[i]);  // (the zygote's own lookups: of its empty directory)
       nfiles = 0;
       tau_config();
-      unsetenv("TAU_FD");
+      // the session's pipes, set again after tau_config: the parked engine's environment may still name its own (a stale
+      // TAU_LIFE once pointed life_fd at fd 5, here the snapshot's own kqueue or /dev/null: a resumed snapshot could take
+      // its own SIGUSR1 for the driver's exit and quit, and no process saw its session end)
+      tau_fd = fdv[0], life_fd = fdv[1];
+      unsetenv("TAU_FD"), unsetenv("TAU_LIFE");
       char b[32];
       int bl = snprintf(b, sizeof b, "%d\n", getpid());
       write_nc(c, b, bl);
@@ -1233,7 +1248,7 @@ __attribute__((constructor)) static void tau_init(void) {
   tau_config();
   // children (xdvipdfmx, bibtex, kpsewhich) must not inherit us
   unsetenv("DYLD_INSERT_LIBRARIES");
-  unsetenv("TAU_FD");
+  unsetenv("TAU_FD"), unsetenv("TAU_LIFE");  // (a parked engine's children get theirs from the session)
   atexit(at_exit);
   signal(SIGUSR2, on_usr2);
   inited = 1;
