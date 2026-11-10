@@ -20,6 +20,9 @@ public struct PagesEvent: Sendable {
   public var applied: Int
   /// Times txp-headless made its engine again after TeXpresso lost its start (txp-headless.c, recover_lost_start).
   public var lostStarts: Int
+  /// A display page (tau-live's `"display": true`, docs/live-protocol.md): pages drawn as the finished ones will be,
+  /// with no SyncTeX or log; SyncTeX, issues and jumps stay as they were until the next finished PDF.
+  public var display: Bool
 
   init?(_ m: [String: Any]) {
     guard m["ev"] as? String == "pages", let n = m["n"] as? Int else { return nil }
@@ -33,6 +36,7 @@ public struct PagesEvent: Sendable {
     stepUs = (m["step_us"] as? NSNumber)?.int64Value ?? 0
     applied = m["applied"] as? Int ?? -1
     lostStarts = m["lost_starts"] as? Int ?? 0
+    display = m["display"] as? Bool ?? false
   }
 }
 

@@ -616,6 +616,8 @@ import TaudotShared
     }
     // SyncTeX once reports have been quiet for 250 ms: right after a "done" TeXpresso may start an aux rerun and roll
     // its SyncTeX back (then it reads as empty). Empty data never replaces good data.
+    // A display page has no SyncTeX and changes nothing about it: a settled document's SyncTeX still installs.
+    if e.display { return }
     syncGen += 1
     let g = syncGen, og = openGen
     if e.done, let t = txp {
@@ -1327,7 +1329,7 @@ extension TaudotPDFPane {
       glyphTasks[i] = nil
     }
     if let map = cursorMap {
-      map.update(synctex: map.synctex, changed: e.changed, count: e.n > 0 ? e.n : nil)
+      map.update(synctex: map.synctex, changed: e.changed, count: e.n > 0 && !e.display ? e.n : nil)  // (a display page's n: through it)
     }
   }
 
