@@ -243,15 +243,10 @@ import TaudotShared
     txp?.stop()
     requested = choice
     var choice = choice
-    if makeTypesetter == nil, case .universal(let e) = choice, let why = UniversalPaths.missing(e) {
-      // pdfLaTeX falls back to the patched pdfTeX, the others to TeXpresso
-      choice = e == .pdflatex ? .live(year: EngineChoice.years[0]) : .texpresso
-      onStatus?("universal: \(why); typesetting with \(e == .pdflatex ? "pdfTeX" : "TeXpresso")")
-    }
-    if case .live(let year) = choice, let why = LiveTexPaths.missing(year) {
-      onStatus?("pdfTeX: \(why); typesetting with TeXpresso")
-      choice = .texpresso
-    }
+    // (tests' typesetters stand in for universal, not for a missing pdfTeX year)
+    let (c, notes) = makeTypesetter == nil ? Self.runnable(choice) : Self.runnable(choice, universalMissing: { _ in nil })
+    choice = c
+    for n in notes { onStatus?(n) }
     defer { publishProject() }
     let t: any Typesetter
     if let make = makeTypesetter { install(make(choice), choice: choice); return }
@@ -265,6 +260,22 @@ import TaudotShared
                   state: cache?.appendingPathComponent("universal-\(e.rawValue)"), universal: e)
     }
     install(t, choice: choice)
+  }
+
+  /// What runs when `choice` can't: universal pdfLaTeX falls back to the patched pdfTeX, universal XeLaTeX/LuaLaTeX
+  /// to TeXpresso, a missing patched pdfTeX year to TeXpresso; with the status lines saying so.
+  static func runnable(_ choice: EngineChoice, universalMissing: (TexEngine) -> String? = { UniversalPaths.missing($0) },
+                       liveMissing: (String) -> String? = { LiveTexPaths.missing($0) }) -> (EngineChoice, [String]) {
+    var choice = choice, notes: [String] = []
+    if case .universal(let e) = choice, let why = universalMissing(e) {
+      choice = e == .pdflatex ? .live(year: EngineChoice.years[0]) : .texpresso
+      notes.append("universal: \(why); typesetting with \(e == .pdflatex ? "pdfTeX" : "TeXpresso")")
+    }
+    if case .live(let year) = choice, let why = liveMissing(year) {
+      notes.append("pdfTeX: \(why); typesetting with TeXpresso")
+      choice = .texpresso
+    }
+    return (choice, notes)
   }
 
   /// Settings' universal switches (tests set their own: the real ones live in the shared defaults).

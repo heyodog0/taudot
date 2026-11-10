@@ -88,6 +88,7 @@ private let twoPages: String = {
   let cache = dir.appendingPathExtension("cache")  // its own page cache, not a shared TAUDOT_PAGE_CACHE
   defer { try? FileManager.default.removeItem(at: cache) }
   let pane = TaudotPDFPane(cacheRoot: cache)
+  pane.universalSwitches = (true, false)  // pdfLaTeX on the patched pdfTeX (universal is the default since 2026-11-09)
   pane.open(folder: dir, main: "main.tex", engineSocket: nil)
   defer { pane.close() }
   #expect(pane.engine == .live(year: "2026"))

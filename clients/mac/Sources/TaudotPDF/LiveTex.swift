@@ -679,6 +679,8 @@ final class Trash: @unchecked Sendable {
       cmd = [UniversalPaths.driver(env)]
       args = ["--serve", "--engine", UniversalPaths.engine(universal, env: env)]
       if let b = UniversalPaths.bibtex(env) { args += ["--bibtex", b] }
+      // the engine forked from the parked one when it's there and started the same way (else spawned as before)
+      if let sock = ParkedEngines.shared.ensure(universal, env: env) { args += ["--parked", sock] }
     } else {
       cmd = LiveTexPaths.driver(year, env: env)
       args = Array(cmd.dropFirst()) + ["--serve", "--engine", LiveTexPaths.engine(year, env: env)]
