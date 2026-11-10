@@ -38,6 +38,16 @@ import TaudotShared
   /// "" and 0: as the user's config has them (guifont).
   public var fontFamily: String { get { string("taudot.fontFamily", "") } set { set("taudot.fontFamily", newValue) } }
   public var fontSize: Double { get { defaults.double(forKey: "taudot.fontSize") } set { set("taudot.fontSize", newValue) } }
+  /// Sizes ⌘+ / ⌘− step through (Settings' arrows too), points.
+  public static let fontSizes: ClosedRange<Double> = 9...28
+  /// ⌘+ (`by` 1) / ⌘− (-1): one point from `current` (what the editor shows now; the Settings value when set), kept
+  /// in `fontSizes`, persisted like the Settings value.
+  public func stepFontSize(by d: Double, current: Double) {
+    let from = fontSize > 0 ? fontSize : (current > 0 ? current : 13)
+    fontSize = min(Self.fontSizes.upperBound, max(Self.fontSizes.lowerBound, from.rounded() + d))
+  }
+  /// ⌘0: back to the default (Neovim: the config's guifont; native: 13 pt).
+  public func resetFontSize() { if fontSize != 0 { fontSize = 0 } }
   /// Extra pixels between rows (Neovim's 'linespace'); -1: the config's.
   public var lineSpace: Int { get { defaults.object(forKey: "taudot.lineSpace") as? Int ?? -1 } set { set("taudot.lineSpace", newValue) } }
   /// Soft-wrap column: the editor's grid is at most this many columns wide (0: the window's width).
@@ -48,7 +58,7 @@ import TaudotShared
   public var pdfMarkColor: String { get { string("taudot.pdfMarkColor", "accent") } set { set("taudot.pdfMarkColor", newValue) } }
   public var pdfComments: Bool { get { bool("taudot.pdfComments", true) } set { set("taudot.pdfComments", newValue) } }
   /// The word box and line band follow the cursor everywhere (off: only the coral dot follows it; the highlight shows
-  /// on deliberate jumps, ⌘⌥J, a click in the PDF, ]r, a cross-reference, until the cursor changes line).
+  /// on deliberate jumps, ⌘⌥J, ]r, a cross-reference, until the cursor changes line; a click in the PDF fades by itself).
   public var pdfHighlightFollows: Bool { get { bool("taudot.pdfHighlightFollows", false) } set { set("taudot.pdfHighlightFollows", newValue) } }
   /// "white", "sepia" or "dark".
   public var pdfPage: String { get { string("taudot.pdfPage", "white") } set { set("taudot.pdfPage", newValue) } }
@@ -70,11 +80,15 @@ import TaudotShared
   public func neovimLua() -> String {
     let theme = ThemeLua.apply(Theme.named(editorTheme))
     let fam = fontFamily.replacingOccurrences(of: "'", with: ""), size = fontSize, ls = lineSpace
+    // Each part in its own function: a `return` in one (the theme's, when it puts the user's colours back) or an
+    // error (a ColorScheme autocmd of the user's config) must not skip the others. Returns the errors, if any.
     return """
-    do
+    local errs = {}
+    local function part(f) local ok, e = pcall(f) if not ok then errs[#errs + 1] = tostring(e) end end
+    part(function()
     \(theme)
-    end
-    do
+    end)
+    part(function()
       if vim.g.taudot_user_guifont == nil then
         vim.g.taudot_user_guifont = vim.o.guifont
         vim.g.taudot_user_linespace = vim.o.linespace
@@ -92,8 +106,8 @@ import TaudotShared
       end
       local ls = \(ls) >= 0 and \(ls) or (vim.g.taudot_user_linespace or 0)
       if vim.o.linespace ~= ls then vim.o.linespace = ls end
-    end
-    pcall(function()
+    end)
+    part(function()
       local c = require('taudot.config').options
       local style, resolved = '\(commentStyle)', \(showResolved)
       if c.comment_style == style and c.show_resolved == resolved then return end
@@ -105,6 +119,7 @@ import TaudotShared
       end
       require('taudot.review').redraw()
     end)
+    return errs
     """
   }
 }

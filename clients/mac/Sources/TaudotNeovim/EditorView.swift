@@ -16,6 +16,8 @@ struct RowEntry {
   public let ui = UIModel()
   let renderer: Renderer
   var font: FontSet
+  /// The editor font's size in points (from `guifont`).
+  public var fontPointSize: CGFloat { font.size }
   var atlas: GlyphAtlas
   let metalLayer = CAMetalLayer()
   /// How frames reach the screen: `.surface` (default) renders into an IOSurface and sets it as the layer's contents

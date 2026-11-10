@@ -27,7 +27,7 @@ import CoreText
 
   private(set) var starts: [Int] = [0]
   private(set) var paras: [Para] = [Para()]
-  /// Visual lines before each paragraph (count + 1 entries), valid up to `cumValid`.
+  /// Visual lines before each paragraph (count + 1 entries), valid up to and including `cum[cumValid]`.
   private var cum: [Int] = [0, 1]
   private var cumValid = 0
   /// Fonts the glyphs use (the base font first; Core Text's fallbacks after).
@@ -185,7 +185,10 @@ import CoreText
     let before = p.laid ? p.lines : estimate(k)
     if !p.laid { typeset(k, p) }
     if p.width != Float(width) { breakLines(k, p) }
-    if p.lines != before { invalidateCum(k + 1) }
+    // cum[k] still holds (it counts the paragraphs before k); cum[k + 1] on counted this one's old lines. (Keeping
+    // cum[k + 1] drew the next paragraph over this one's last lines until something else cleared the cache: the
+    // user's "lines overlapped, then fixed themselves".)
+    if p.lines != before { invalidateCum(k) }
     return p
   }
 
@@ -285,6 +288,19 @@ import CoreText
       cumValid = k
     }
     return cum[k]
+  }
+
+  /// For checks: the first paragraph whose cached count of lines before it disagrees with the paragraphs' own counts
+  /// (laid out ones as broken, the rest as estimated), or nil.
+  func staleCum() -> Int? {
+    guard cum.count == paras.count + 1 else { return nil }
+    var c = cum[0]
+    for i in 0..<cumValid {
+      let p = paras[i]
+      c += p.laid && p.width == Float(width) ? p.lines : (p.laid ? -1_000_000 : estimate(i))
+      if cum[i + 1] != c { return i }
+    }
+    return nil
   }
 
   var totalLines: Int { linesBefore(paras.count) }

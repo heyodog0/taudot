@@ -197,7 +197,7 @@ Compat.migrateDefaults()
     func item(_ title: String, _ action: Selector, _ key: String, _ mods: NSEvent.ModifierFlags = .command) {
       view.addItem(withTitle: title, action: action, keyEquivalent: key).keyEquivalentModifierMask = mods
     }
-    item("Show/Hide Sidebar", #selector(ProjectWindow.toggleMargin(_:)), "0")
+    item("Show/Hide Sidebar", #selector(ProjectWindow.toggleMargin(_:)), "s", [.command, .control])
     item("Show/Hide PDF", #selector(ProjectWindow.togglePDF(_:)), "\\")
     item("Show/Hide Editor", #selector(ProjectWindow.toggleEditor(_:)), "\\", [.command, .option])
     item("Show Comments on PDF", #selector(ProjectWindow.togglePDFComments(_:)), "k", [.command, .shift])
@@ -212,6 +212,15 @@ Compat.migrateDefaults()
     item("Show Comments", #selector(ProjectWindow.showSidebarComments(_:)), "m", [.command, .shift])
     item("Show History", #selector(ProjectWindow.showSidebarHistory(_:)), "h", [.command, .shift])
     item("Show Issues", #selector(ProjectWindow.toggleIssues(_:)), "e", [.command, .option])
+    view.addItem(.separator())
+    // The editor's font, both editor modes (TaudotSettings.fontSize, as Settings ▸ Editor sets it).
+    item("Bigger", #selector(ProjectWindow.fontBigger(_:)), "+")
+    let biggerAlias = NSMenuItem(title: "Bigger", action: #selector(ProjectWindow.fontBigger(_:)), keyEquivalent: "=")
+    biggerAlias.isHidden = true      // ⌘= (no shift): the same as ⌘+
+    biggerAlias.allowsKeyEquivalentWhenHidden = true
+    view.addItem(biggerAlias)
+    item("Smaller", #selector(ProjectWindow.fontSmaller(_:)), "-")
+    item("Actual Size", #selector(ProjectWindow.fontActualSize(_:)), "0")
     view.addItem(.separator())
     let focusHeader = NSMenuItem(title: "Focus", action: nil, keyEquivalent: "")
     focusHeader.isEnabled = false

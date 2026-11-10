@@ -346,6 +346,14 @@ import TaudotShared
 
   @objc func togglePDFComments(_ sender: Any?) { pdf.toggleComments() }
 
+  // ⌘+ / ⌘− / ⌘0: the editor's font, either editor mode; saved as Settings ▸ Editor ▸ Font size, so every window
+  // follows (applySettings).
+  @objc func fontBigger(_ sender: Any?) { TaudotSettings.shared.stepFontSize(by: 1, current: editorFontSize) }
+  @objc func fontSmaller(_ sender: Any?) { TaudotSettings.shared.stepFontSize(by: -1, current: editorFontSize) }
+  @objc func fontActualSize(_ sender: Any?) { TaudotSettings.shared.resetFontSize() }
+  /// The size the editor shows now, points.
+  var editorFontSize: Double { Double(native?.view.style.fontSize ?? editor?.fontPointSize ?? 13) }
+
   @objc func togglePDF(_ sender: Any?) {
     if zoom != nil { unzoom(animated: false) }  // toggle the layout the zoom hid, not the zoom
     setPane(pdf.view, hidden: !pdf.view.isHidden)

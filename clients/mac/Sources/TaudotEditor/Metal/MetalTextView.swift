@@ -25,6 +25,10 @@ import TaudotShared
   private var noteShapes: [String: TextLayout.Shaped] = [:]
   private var noteGeneration = -1
   private weak var noteFont: NSFont?
+  /// For checks: the visual lines the last frame drew (paragraph, line in it, top in the document).
+  private(set) var drawnLines: [(k: Int, l: Int, top: CGFloat)] = []
+  /// For checks: called after each frame is drawn.
+  var onFrame: (() -> Void)?
   /// For checks: the notes the last frame drew (line, where they start in the document).
   private(set) var drawnNotes: [(line: Int, at: CGPoint)] = []
   /// For measuring: the last key's highlight + sizing, and its frame (seconds).
@@ -224,9 +228,11 @@ import TaudotShared
     var blockGlyphs: [(Int, Int)] = []  // (para, glyph) under a block caret
     var lastK = -1
     var runs: [(end: Int, color: SIMD4<Float>)] = []
+    drawnLines.removeAll(keepingCapacity: true)
     for (k, l) in visible {
       let p = lay.paras[k]
       let ps = lay.starts[k]
+      drawnLines.append((k, l, lay.origin.y + CGFloat(lay.linesBefore(k) + l) * lh))
       if k != lastK {
         lastK = k
         runs = []
@@ -345,6 +351,7 @@ import TaudotShared
     }
     lastGlyphs = glyphCount
     frames += 1
+    onFrame?()
     if let surface { renderer.end(surface: surface, atlas: atlas, clear: bg); return }
     metalLayer.presentsWithTransaction = withCommit
     if key != 0 {
