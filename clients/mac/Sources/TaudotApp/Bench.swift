@@ -153,6 +153,24 @@ import TaudotShared
     _ = try? await nv.execLua("vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<leader>av', true, false, true), 'm', false)", [])
     for _ in 0..<40 where got == nil { await sleep(0.05) }
     log("<leader>av forced: \(got.map { "\($0.0):\($0.1)" } ?? "nothing")")
+    // a double-click on a word: a deliberate jump whose mark fades by itself, the cursor staying on the line (the
+    // user: the highlight never went away)
+    var args: [Value] = []
+    nv.notify("taudot_app_cursor") { a in args = a }
+    _ = try? await nv.execLua("""
+      local p = vim.fn.screenpos(0, 31, 7)  -- (a word on line 31)
+      for _ = 1, 2 do
+        vim.api.nvim_input_mouse('left', 'press', '', 0, p.row - 1, p.col - 1)
+        vim.api.nvim_input_mouse('left', 'release', '', 0, p.row - 1, p.col - 1)
+      end
+      """, [])
+    for _ in 0..<40 where args.isEmpty { await sleep(0.05) }
+    let click = args.count > 5 && args[5].bool == true
+    await sleep(0.4)
+    let shown = p.pdf.pane.markShown
+    await sleep(2.1)  // (the hold, TaudotPDFPane.clickMarkHold: 1.5 s)
+    let line = (try? await nv.execLua("return vim.api.nvim_win_get_cursor(0)[1]", []))?.int ?? -1
+    log((click && shown && !p.pdf.pane.markShown ? "" : "FAIL ") + "double-click: line \(args.count > 1 ? args[1].int ?? -1 : -1) click \(click), mark shown \(shown), after the hold shown \(p.pdf.pane.markShown) (cursor on line \(line))")
     let fwd = p.pdf.syncTex?.forward(file: "main.tex", line: 31)
     log("forward main.tex:31 → \(fwd.map { "page \($0.page) y \(Int($0.y))" } ?? "none")")
     // PDF → Neovim: what a double-click at that spot reports, sent through the same handler.

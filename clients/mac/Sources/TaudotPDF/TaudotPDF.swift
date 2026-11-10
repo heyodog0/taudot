@@ -711,9 +711,16 @@ import TaudotShared
   /// The editor's cursor came to rest on a line or word (cursor-follow). `deliberate`: ⌘⌥J / <leader>av, ]r, ⌥⌘↓ —
   /// the highlight goes there. Otherwise (the follow mode off) the highlight from the last deliberate jump stays while
   /// the cursor is on its line and fades out quickly once it leaves; the dot does the following.
-  public func cursorMoved(path: String, line: Int, column: Int?, deliberate: Bool) {
+  /// `fades`: a click's jump (a double-click in Neovim): the mark only shows where the word is, and fades by itself
+  /// after `clickMarkHold`, as a click in the PDF's does (the user: it stayed on for good while the cursor sat there).
+  public func cursorMoved(path: String, line: Int, column: Int?, deliberate: Bool, fades: Bool = false) {
     let follows = Self.highlightFollows
     pane.forward.dimWhenIdle = follows
+    if deliberate && fades {
+      jump(path: path, line: line, column: column, deliberate: true)
+      clickMarked(path, line)
+      return
+    }
     if deliberate || follows {
       jump(path: path, line: line, column: column, deliberate: deliberate)
       return
