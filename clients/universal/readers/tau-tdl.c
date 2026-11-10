@@ -394,7 +394,8 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   // where the lines go: the pass's first line that is also on the exact page (an unchanged line of the paragraph)
   size_t xn = 0;
   unsigned char *xc = NULL;
-  if (dict_get(pd, pe, "Contents", &vs, &ve)) {
+  int64_t t1 = now_us();
+  if (!has_dy && dict_get(pd, pe, "Contents", &vs, &ve)) {  // (only to match lines: not when the driver placed them)
     long cnum = ref_num(vs);
     if (cnum > 0 && D->off[cnum] >= 0) {
       const char *op = (const char *)D->b + D->off[cnum];
@@ -402,7 +403,8 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
     }
   }
   static tline pl[4096], el[8192];
-  int np = text_lines(content, cn, pl, 4096), ne = xc ? text_lines(xc, xn, el, 8192) : 0;
+  int np = has_dy ? 0 : text_lines(content, cn, pl, 4096), ne = xc ? text_lines(xc, xn, el, 8192) : 0;
+  int64_t t2 = now_us();
   int placed = has_dy;
   double dy = has_dy ? dy_in : 0;  // given (the driver knows the old lines' place): no matching
   for (int i = np - 1; i >= 0 && !placed; i--)  // the pass's lines are last (earlier ones: the page above)
@@ -421,9 +423,12 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   }
   // the update: a content stream, a resources dictionary, the page (same number), an xref stream
   // the exact PDF as an APFS clone (no copy), then the update appended
+  int64_t t3 = now_us();
   unlink(out_pdf);
+  int64_t t4 = now_us();
   FILE *f = NULL;
   if (clonefile(exact_path, out_pdf, 0) == 0) f = fopen(out_pdf, "ab");
+  int64_t t5 = now_us();
   if (!f) {
     f = fopen(out_pdf, "wb");
     if (f) fwrite(ex, 1, en, f);
@@ -499,7 +504,9 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   if (g && fclose(g)) wrote = 0;
   free(tb.p), free(xc), free(pd), free(content), free(pb);
   if (!wrote) return fail("cannot write the list");
-  if (placed) printf("{\"ok\":true,\"page\":%ld,\"dy\":%.4f,\"cached\":%d,\"us\":%lld}\n", page, dy, exc_hit, (long long)(now_us() - t0));
+  if (placed) printf("{\"ok\":true,\"page\":%ld,\"dy\":%.4f,\"cached\":%d,\"t\":[%lld,%lld,%lld,%lld,%lld,%lld],\"us\":%lld}\n", page, dy, exc_hit,
+                     (long long)(t1 - t0), (long long)(t2 - t1), (long long)(t3 - t2), (long long)(t4 - t3), (long long)(t5 - t4),
+                     (long long)(now_us() - t5), (long long)(now_us() - t0));
   else printf("{\"ok\":true,\"page\":%ld,\"dy\":null,\"us\":%lld}\n", page, (long long)(now_us() - t0));
   return 0;
 }
