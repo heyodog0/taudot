@@ -1673,6 +1673,14 @@ static FILE *my_fdopen(int fd, const char *mode) {
   return f;
 }
 INTERPOSE(my_fdopen, fdopen);
+// The engines are single-threaded: reading a character needs no lock (as patched pdfTeX's getc_unlocked, pdfTeX
+// 1.40.29's own change). Libc's getc and fgetc are exactly __sgetc under the FILE's lock; a lock per character was
+// ~25% of a short pdfLaTeX run (the font map, encodings, Type 1 fonts, TFMs, every input line). A fork in read()
+// then finds the lock free (lock_depth 0).
+static int my_getc(FILE *f) { return getc_unlocked(f); }
+INTERPOSE(my_getc, getc);
+static int my_fgetc(FILE *f) { return getc_unlocked(f); }
+INTERPOSE(my_fgetc, fgetc);
 static int my_fclose(FILE *f) {
   int fd = f->_file;
   if (fd >= 0 && fd < MAXFD && stream_of[fd] == f) stream_of[fd] = NULL;
