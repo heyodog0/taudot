@@ -39,6 +39,9 @@ fn main() {
                 }
                 let p = pdf.page(n).unwrap();
                 println!("page {n} {}x{} glyphs {} rules {} graphics {}", p.width, p.height, p.glyphs.len(), p.rules.len(), p.graphics);
+                for r in &p.rules {
+                    println!("rule {:9.3} {:9.3} {:9.3} {:9.3}", r.x0, r.y0, r.x1, r.y1);
+                }
                 for g in &p.glyphs {
                     let f = &pdf.fonts[g.font];
                     println!(

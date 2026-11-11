@@ -56,9 +56,20 @@ def main(papers):
           (out / f"{p}.json").write_text(json.dumps(j))
         for k in ("paras", "proven", "lines", "lines_proven", "words", "words_proven", "pages", "doc_lines"):
             tot[k] += j[k]
+        # Displayed formulas are reported on their own; text totals leave them out.
+        for d in j.get("detail", []):
+            if d.get("kind") == "display":
+                tot["disp"] += 1
+                tot["disp_proven"] += d["proven"]
+                tot["paras"] -= 1
+                tot["proven"] -= d["proven"]
+                tot["lines"] -= d["lines"]
+                tot["lines_proven"] -= d["lines"] * d["proven"]
+                tot["words"] -= d.get("words", 0)
+                tot["words_proven"] -= d.get("words", 0) * d["proven"]
         tot["ms"] += j["ms_total"]
         for d in j.get("detail", []):
-            if d.get("lines", 0) >= 2:
+            if d.get("lines", 0) >= 2 and d.get("kind") != "display":
                 tot["multi"] += 1
                 tot["multi_proven"] += d["proven"]
         reasons.update(j["reasons"])
@@ -74,6 +85,8 @@ def main(papers):
           f"{tot['ms']/tot['paras']:.0f} ms/paragraph, {tot['ms']/tot['pages']:.0f} ms/page")
     if tot["multi"]:
         print(f"paragraphs of 2+ lines: {tot['multi_proven']}/{tot['multi']} ({100*tot['multi_proven']/tot['multi']:.1f}%)")
+    if tot["disp"]:
+        print(f"displays: {tot['disp_proven']}/{tot['disp']} ({100*tot['disp_proven']/tot['disp']:.1f}%)")
     for k, v in reasons.most_common():
         print(f"  {v:5}  {k}")
 

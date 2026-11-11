@@ -178,6 +178,29 @@ and that quad was taken for an ordinary space when solving the line's glue ratio
 broke ties by hash order, so one paper's layout changed between runs (2103.00020: 799 or 773 paragraphs); ties
 now go by edge position. 2.0 s per page (machine under load).
 
+### 9. Display math, bibliography break order (2026-11-10)
+
+| all sizes, text | proven | of | % |
+|---|---|---|---|
+| paragraphs | 2 936 | 7 437 | 39.5 |
+| paragraphs of 2+ lines | 1 942 | 4 118 | 47.2 |
+| lines | 13 280 | 25 347 | 52.4 |
+| words | 133 915 | 253 380 | 52.9 |
+| **displays** | **42** | **252** | **16.7** |
+
+Displays are reported on their own (text totals leave them out). A display is the body-size lines with math
+between two paragraphs, inside a column and off its edges, grown from one line by vertical proximity, with an
+equation number "(n)" at the right edge and the rules inside it. Its source is rebuilt from the glyphs in PDF order:
+fractions, `\sqrt`, `\overline`, big operators with limits, `\left`/`\right` delimiters, `\quad` gaps, operator
+names (`\log`, `\max`: this also helps inline math). It is typeset as `$$ … \eqno\hbox{(n)}$$`, put where TeX
+would (`\lastbox` loses the display's shift, so it is recomputed from TeX's centring rule), and proven on every
+glyph, each line's baseline offset and each rule. Why the other 210 fail: positions 87 (mostly spacing the source
+wrote by hand), text inside math 32 (`\text`, `\mbox`), glyphs off the main baseline 23 (multi-row displays:
+`align`, `eqnarray`), stray glyphs 18, breaks 17, extensible delimiters 14.
+
+Break repairs in bibliography entries (hanging or `[n]`-labelled) now try `\sloppy` before forbidding breaks.
+Text lines +55, words +601 over section 8; no paper loses a proven paragraph. 2.0 s per page.
+
 ### Baselines (prior art, not run here)
 
 - **go-pdfkit/latex** (BSD-3, Go, 2026): heuristic PDF → LaTeX for TeX PDFs, 275 arXiv papers: 99.6 % compile,

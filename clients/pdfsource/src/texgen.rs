@@ -252,7 +252,63 @@ impl<'a> Gen<'a> {
     }
 
     /// Paragraph text as TeX input under the special catcodes (see `preamble`). Err: why it can't be written.
+    /// A displayed formula: `$$ source \eqno\hbox{number} $$` in an otherwise empty paragraph (TeX drops it).
+    fn display_input(&self, p: &Para, hyp: &Hyp) -> Result<String, String> {
+        let tf = |f: usize| -> Option<&TexFont> { self.fonts.get(&f)?.get(*hyp.font_choice.get(&f)?) };
+        let nf = p.lines.len() - p.eqno as usize;
+        let gl: Vec<crate::pdf::Glyph> = p.lines[..nf].iter().flat_map(|l| l.glyphs.iter().cloned()).collect();
+        let size0 = p.lines[..nf].iter().map(|l| l.size).fold(0.0, f64::max);
+        let m = crate::math::display_source(&self.pdf.fonts, &gl, &p.rules, size0)?;
+        let mut s = format!("{ESC}PSdd ");
+        let mut esc = false;
+        for ch in m.chars() {
+            if esc {
+                esc = false;
+                if !ch.is_ascii_alphabetic() {
+                    s.push(ch);
+                    continue;
+                }
+            }
+            match ch {
+                '\\' => {
+                    s.push(ESC);
+                    esc = true;
+                }
+                '{' => s.push('\u{2}'),
+                '}' => s.push('\u{3}'),
+                '^' => s.push_str("\u{1}sp "),
+                '_' => s.push_str("\u{1}sb "),
+                c => s.push(c),
+            }
+        }
+        if let Some(n) = p.lines.last().filter(|_| p.eqno) {
+            let _ = write!(s, "{ESC}eqno{ESC}hbox\u{2}");
+            let mut cf = usize::MAX;
+            for g in &n.glyphs {
+                let k = self.k(g);
+                if k != cf {
+                    let _ = write!(s, "{ESC}{}\u{2}\u{3}", font_cs(k));
+                    cf = k;
+                }
+                let f = tf(k).ok_or("number font")?;
+                for &c in f.input.get(&g.code).ok_or("number glyph")? {
+                    if (33..127).contains(&c) && !char::from_u32(c).unwrap().is_ascii_whitespace() {
+                        s.push(char::from_u32(c).unwrap());
+                    } else {
+                        let _ = write!(s, "{ESC}char{c} ");
+                    }
+                }
+            }
+            s.push('\u{3}');
+        }
+        let _ = write!(s, "{ESC}PSdd ");
+        Ok(s)
+    }
+
     pub fn para_input(&self, p: &Para, hyp: &Hyp, main_font: usize) -> Result<String, String> {
+        if p.display {
+            return self.display_input(p, hyp);
+        }
         let mut s = String::new();
         let mut cur: Option<usize> = None;
         let nlines = p.lines.len();
@@ -616,6 +672,8 @@ pub fn preamble(fonts: &HashMap<usize, Vec<TexFont>>, choice_of: &dyn Fn(usize) 
     let _ = writeln!(s, "\\pdfpagewidth={w_bp:.4}bp \\pdfpageheight={h_bp:.4}bp \\hoffset=-1in \\voffset=-1in");
     s.push_str("\\pdfcompresslevel=0 \\pdfobjcompresslevel=0\n");
     // Take a paragraph's lines off the end of the vbox into boxes 201.. (201 = last line); \count254 = how many.
+    // $$ for displays (the text's catcodes make $ other).
+    s.push_str("\\def\\PSdd{$$}\n");
     s.push_str("\\def\\PSpeel{\\global\\count254=0 \\PSpeelone}\n");
     s.push_str("\\def\\PSpeelone{\\unskip\\unpenalty\\unskip\\setbox2=\\lastbox\\ifvoid2 \\else\\global\\advance\\count254 1 \\global\\setbox\\numexpr200+\\count254\\relax=\\box2 \\expandafter\\PSpeelone\\fi}\n");
     // Catcodes for the text: everything "other" but letters and space; ^^A is the escape, ^^B ^^C group.
@@ -676,6 +734,16 @@ pub fn para_page(body: &str, p: &Para, hyp: &Hyp, sel: &[(usize, usize)]) -> Str
     for i in 0..p.lines.len() + 4 {
         // \lastbox drops a line's shift (TeX §1080), so a hanging indent is added back here.
         let l = line_place(p, hyp, i) + if i > 0 { hyp.params.hang_sp } else { 0 };
+        if p.display {
+            // \lastbox dropped the display's shift too: TeX centres the formula (half(z - w), §1202) or, with a
+            // number, ends the box at the right edge (it packs formula, kern and number: width z - d, §1204).
+            let n = "\\numexpr200+\\count254-0\\relax";
+            let d = if p.eqno { format!("\\dimexpr{}sp-\\wd{n}\\relax", pr.hsize_sp) } else { format!("\\dimexpr({}sp-\\wd{n})/2\\relax", pr.hsize_sp) };
+            if i == 0 {
+                let _ = write!(s, "\\ifnum\\count254>0 \\kern14pt\\moveright{l}sp\\hbox{{\\pdfliteral page{{q Q}}\\kern{d}\\box{n}}}\\fi\n");
+            }
+            continue;
+        }
         let _ = write!(s, "\\ifnum\\count254>{i} \\kern14pt\\moveright{l}sp\\hbox{{\\pdfliteral page{{q Q}}\\box\\numexpr200+\\count254-{i}\\relax}}\\fi\n");
     }
     s.push_str("}\n\\endgroup\n");
@@ -895,7 +963,7 @@ pub fn line_place(p: &Para, hyp: &Hyp, i: usize) -> i64 {
     } else {
         0
     };
-    if i >= p.lines.len() || std::env::var("PDFSOURCE_NORESID").is_ok() {
+    if i >= p.lines.len() || p.display || std::env::var("PDFSOURCE_NORESID").is_ok() {
         return left;
     }
     let a = left + o;

@@ -155,7 +155,7 @@ impl<'a> Ctx<'a> {
                         let page = repro.page(pi + 1).unwrap();
                         let lines = lines_of(pi + 1, &page.glyphs);
                         let (i, hyp) = &items[*j];
-                        let mut c = compare(self.pdf, &repro, &self.doc.paras[*i], &lines, hyp);
+                        let mut c = compare(self.pdf, &repro, &self.doc.paras[*i], &lines, hyp, &page.rules);
                         if c.why.starts_with("breaks") {
                             if let Some(bl) = c.bad_line {
                                 c.forbid = my_break(&self.tg, self.pdf, &repro, &self.doc.paras[*i], &lines, hyp, bl);
@@ -243,7 +243,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
     let _ = std::fs::create_dir_all(&work);
     // Under microtype, prefer the body family's own .fd where it maps the same TFM (microtype only treats the
     // \rmdefault family; TS1/cmr maps to Latin Modern, for one).
-    if doc.paras.iter().flat_map(|p| p.lines.iter()).flat_map(|l| l.glyphs.iter()).any(|g| (g.hscale - 1.0).abs() > 1e-4) {
+    if doc.paras.iter().filter(|p| !p.display).flat_map(|p| p.lines.iter()).flat_map(|l| l.glyphs.iter()).any(|g| (g.hscale - 1.0).abs() > 1e-4) {
         let mut h: HashMap<usize, usize> = HashMap::new();
         for m in &main {
             *h.entry(*m).or_default() += 1;
@@ -262,7 +262,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         }
     }
     let mut cx = Ctx { pdf, doc, tg: Gen { pdf, fonts: &fonts, fkey: &fkey }, fonts: &fonts, main, work, size: pdf_page_size(pdf), runs: 0, ms_tex: 0.0, latex: None };
-    if doc.paras.iter().flat_map(|p| p.lines.iter()).flat_map(|l| l.glyphs.iter()).any(|g| (g.hscale - 1.0).abs() > 1e-4) {
+    if doc.paras.iter().filter(|p| !p.display).flat_map(|p| p.lines.iter()).flat_map(|l| l.glyphs.iter()).any(|g| (g.hscale - 1.0).abs() > 1e-4) {
         // The body font's NFSS family is \rmdefault.
         let mut h: HashMap<usize, usize> = HashMap::new();
         for m in &cx.main {
@@ -384,7 +384,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                 let mut cal: Vec<(usize, usize)> = todo
                     .iter()
                     .zip(&res)
-                    .filter(|e| { let (i, c) = (*e.0, e.1); (c.ok || (c.why.starts_with("positions") && (c.max_dx < 0.05 || microtype))) && ((doc.paras[i].column.right - doc.paras[i].column.left) - (col.right - col.left)).abs() < 0.02 && !doc.paras[i].joined })
+                    .filter(|e| { let (i, c) = (*e.0, e.1); (c.ok || (c.why.starts_with("positions") && (c.max_dx < 0.05 || microtype))) && ((doc.paras[i].column.right - doc.paras[i].column.left) - (col.right - col.left)).abs() < 0.02 && !doc.paras[i].joined && !doc.paras[i].display })
                     .map(|(&i, _)| (i, doc.paras[i].lines.len()))
                     .collect();
                 cal.sort_by_key(|e| std::cmp::Reverse(e.1));
@@ -498,6 +498,19 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                         break;
                     }
                 }
+                // A bibliography entry is usually \sloppy (thebibliography): try that before forbidding breaks,
+                // which only make sense under the right parameters.
+                let bib = p.hang > 0.0 || (p.label > 0 && p.lines[0].glyphs.first().is_some_and(|g| crate::layout::glyph_text(&pdf.fonts[g.font], g.code) == "["));
+                if !moved && bib && st.break_set == 0 {
+                    st.break_set = 1;
+                    let (t, pt, es) = BREAKS[1];
+                    st.hyp.params.tolerance = t;
+                    st.hyp.params.pretolerance = pt;
+                    st.hyp.params.emergencystretch_pt = es;
+                    st.hyp.hyph.clear();
+                    st.flipped.clear();
+                    moved = true;
+                }
                 if !moved && st.hyp.ties.len() + st.hyp.nohyph.len() < 16 {
                     if let Some((at, space)) = c.forbid {
                         let set = if space { &mut st.hyp.ties } else { &mut st.hyp.nohyph };
@@ -506,6 +519,12 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                 }
                 if !moved && st.break_set + 1 < BREAKS.len() {
                     st.break_set += 1;
+                    if bib && st.break_set == 1 {
+                        st.break_set = 2;
+                    }
+                    if st.break_set >= BREAKS.len() {
+                        st.break_set = BREAKS.len() - 1;
+                    }
                     let (t, pt, es) = BREAKS[st.break_set];
                     st.hyp.params.tolerance = t;
                     st.hyp.params.pretolerance = pt;
@@ -691,7 +710,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             .iter()
             .map(|p| {
                 let main = doc.columns[..doc.n_main].iter().any(|c| (c.left - p.column.left).abs() < 0.02 && (c.right - p.column.right).abs() < 0.02);
-                if p.label_box > 0.0 { "foot" } else if p.label > 0 { "item" } else if (p.lines[0].size - doc.body_size).abs() > 0.3 { "small" } else if main { "main" } else { "block" }
+                if p.display { "display" } else if p.label_box > 0.0 { "foot" } else if p.label > 0 { "item" } else if (p.lines[0].size - doc.body_size).abs() > 0.3 { "small" } else if main { "main" } else { "block" }
             })
             .collect(),
         words: doc.paras.iter().map(words_in).collect(),
@@ -770,6 +789,10 @@ fn pdf_page_size(pdf: &Pdf) -> (f64, f64) {
 
 /// Reasons known before typesetting.
 fn precheck(pdf: &Pdf, p: &Para) -> Option<String> {
+    if p.display {
+        // Overlaps are the formula's business (the proof checks them); scaled glyphs aren't math TeX sets.
+        return p.lines.iter().flat_map(|l| l.glyphs.iter()).any(|g| (g.hscale - 1.0).abs() > 1e-4).then(|| "math: scaled glyph".into());
+    }
     for l in &p.lines {
         for g in &l.glyphs {
             let n = pdf.fonts[g.font].name.to_ascii_uppercase();
@@ -788,7 +811,7 @@ fn precheck(pdf: &Pdf, p: &Para) -> Option<String> {
 
 /// Same lines, same glyphs, same x (relative to the column's left), same offsets from the baseline.
 /// Same lines, same glyphs, same x (relative to each line's column left), same offsets from the baseline.
-fn compare(pdf: &Pdf, repro: &Pdf, p: &Para, lines: &[Line], hyp: &Hyp) -> Cmp {
+fn compare(pdf: &Pdf, repro: &Pdf, p: &Para, lines: &[Line], hyp: &Hyp, rrules: &[crate::pdf::Rule]) -> Cmp {
     let mut max_dx: f64 = 0.0;
     let mut misses = 0usize;
     let mut first: Option<(String, usize)> = None;
@@ -842,6 +865,33 @@ fn compare(pdf: &Pdf, repro: &Pdf, p: &Para, lines: &[Line], hyp: &Hyp) -> Cmp {
             }
         }
     }
+    // A display's lines are parts of one formula: their baselines and its rules must sit as in the original too.
+    if p.display && first.is_none() && p.lines.len() == lines.len() {
+        let left = texgen::line_place(p, hyp, 0) as f64 / texgen::SP_PER_BP;
+        for i in 1..n {
+            let dy = (p.lines[i].y - p.lines[0].y) - (lines[i].y - lines[0].y);
+            if dy.abs() > TOL {
+                misses += 1;
+                if first.is_none() {
+                    first = Some((format!("positions: line {i} baseline dy {dy:+.4}"), i));
+                    first_dx = 1.0;
+                }
+            }
+        }
+        // A stroked line has no height here (its width isn't kept): compare the centre line and, when both have one,
+        // the thickness.
+        let key = |r: &crate::pdf::Rule, x: f64, y: f64| [r.x0 - x, r.x1 - x, (r.y0 + r.y1) / 2.0 - y, r.y1 - r.y0];
+        let mut a: Vec<[f64; 4]> = p.rules.iter().map(|r| key(r, p.lines[0].left, p.lines[0].y)).collect();
+        let mut b: Vec<[f64; 4]> = rrules.iter().map(|r| key(r, left, lines[0].y)).collect();
+        a.sort_by(|u, v| u.partial_cmp(v).unwrap());
+        b.sort_by(|u, v| u.partial_cmp(v).unwrap());
+        let same = a.len() == b.len() && a.iter().zip(&b).all(|(u, v)| (0..3).all(|k| (u[k] - v[k]).abs() < TOL) && (u[3] == 0.0 || v[3] == 0.0 || (u[3] - v[3]).abs() < TOL));
+        if !same && first.is_none() {
+            misses += 1;
+            first = Some((format!("positions: rules {} vs {}", a.len(), b.len()), 0));
+            first_dx = 1.0;
+        }
+    }
     if p.lines.len() != lines.len() {
         misses += 1000 * (p.lines.len() as i64 - lines.len() as i64).unsigned_abs() as usize;
         if first.is_none() {
@@ -878,7 +928,7 @@ pub fn print(r: &Report, json: bool) {
         s += &r
             .paras
             .iter()
-            .map(|(i, o)| format!("{{\"i\":{},\"lines\":{},\"proven\":{},\"reason\":\"{}\",\"tries\":{},\"max_dx\":{:.4},\"kind\":\"{}\"}}", i, r.para_lines[*i], o.proven, esc(&o.reason), o.tries, o.max_dx, r.kinds[*i]))
+            .map(|(i, o)| format!("{{\"i\":{},\"lines\":{},\"words\":{},\"proven\":{},\"reason\":\"{}\",\"tries\":{},\"max_dx\":{:.4},\"kind\":\"{}\"}}", i, r.para_lines[*i], r.words[*i], o.proven, esc(&o.reason), o.tries, o.max_dx, r.kinds[*i]))
             .collect::<Vec<_>>()
             .join(",");
         s += "]}";
