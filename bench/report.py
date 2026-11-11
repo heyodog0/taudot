@@ -161,6 +161,29 @@ def interleave_table():
     return "\n".join(out)
 
 
+def opens_table():
+    """First page on open: six runs per driver and document (three ABBA blocks), median [min-max]."""
+    p = f"{RESULTS}/opens.tsv"
+    if not os.path.exists(p):
+        return ""
+    rows = list(csv.DictReader(open(p), delimiter="\t"))
+    out = ["| document | cores busy elsewhere (load) | first page on open: patched | universal | settled: patched | "
+           "universal |", "|---|---|---|---|---|---|"]
+    order = ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762", "arxiv-2103.00020"]
+    for d in sorted(dict.fromkeys(r["doc"] for r in rows), key=lambda d: order.index(d) if d in order else 99):
+        rs = [r for r in rows if r["doc"] == d]
+        oc, ld = [float(r["other_cpu"]) for r in rs], [float(r["load"]) for r in rs]
+
+        def c(system, k):
+            xs = sorted(float(r[k]) for r in rs if r["system"] == system)
+            return f"{f(pct(xs, 50))} [{f(xs[0])}–{f(xs[-1])}]"
+        name = d.replace("synth-", "").replace("arxiv-", "") + (" pp" if d.startswith("synth") else "")
+        out.append(f"| {name} | {min(oc):.1f}–{max(oc):.1f} ({min(ld):.0f}–{max(ld):.0f}) | "
+                   f"{c('taudot-pdftex', 'first_page_ms')} | {c('taudot-universal', 'first_page_ms')} | "
+                   f"{c('taudot-pdftex', 'done_ms')} | {c('taudot-universal', 'done_ms')} |")
+    return "\n".join(out)
+
+
 def burst_table():
     """The burst script: one row per document, system and engine, both rounds pooled (60 keys)."""
     kp, rp = f"{RESULTS}/burst.tsv", f"{RESULTS}/burst_runs.tsv"
@@ -302,6 +325,13 @@ def main():
         "The tables below pool both rounds (60 keys per document for these two).",
         "",
         interleave_table(),
+        "",
+        "### First page on open, pdfLaTeX",
+        "",
+        "Six opens per driver and document in three ABBA blocks, after one untimed open of each rebuilt binary. "
+        "Median [min–max] ms; open → first PDF, and open → settled.",
+        "",
+        opens_table(),
         "",
         "### Burst typing (8 keys a second)",
         "",

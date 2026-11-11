@@ -27,8 +27,13 @@ elsewhere, load average 8–19. 6 documents × 2 rounds × 30 keys each; per-run
   measured on c6881dd is gone). Exact previews on 11–27 of 30 keys against 14–25.
 - **Finished page and whole PDF: on par.** Finished page 41–77 ms against 42–75 ms; whole PDF 131–470 ms against
   139–513 ms.
-- **Behind**: first page on open 294–481 ms against 230–412 ms (+60–90 ms; one 978 ms outlier, universal's first
-  run of the series); memory 165–560 MB against 130–515 MB (summed RSS, an upper bound).
+- **First page on open: now on par** (main 9fea6c4, uspeed's 21545b8: libtau reads characters without a lock).
+  Six opens per driver and document, interleaved (ABBA), after one untimed open of each rebuilt binary; 1.8–7.5
+  cores busy elsewhere. Median first page: universal 221 / 234 / 245 ms at 10 / 100 / 300 pages against patched
+  225 / 225 / 231, and 334–370 ms against 359–398 ms on the three papers. Settled: 7 % faster than patched on
+  the papers, 2 % faster at 10 pages, 5 % slower at 100 and 300 pages. The first-page table below has every document. Two documents
+  were rerun because a burst of other work (10–12 cores) hit both drivers' runs.
+- **Behind**: memory, 165–560 MB against 130–515 MB (summed RSS, an upper bound).
 
 ### Burst typing: 8 keys a second (2026-11-10, main fcb58ce)
 
@@ -197,6 +202,19 @@ Per document: patched, universal, universal, patched (ABBA), back to back; one r
 | 2103.00020 | universal 1 | 3.98 (16.8) | 7.6 (12) | 24.5 (30, 30) | 61.6 | 420 | 431 |
 | 2103.00020 | universal 2 | 3.90 (16.6) | 9.1 (11) | 27.5 (30, 30) | 69.3 | 428 | 481 |
 | 2103.00020 | patched 2 | 4.14 (16.7) | 6.8 (14) | – | 58.4 | 442 | 412 |
+
+### First page on open, pdfLaTeX
+
+Six opens per driver and document in three ABBA blocks, after one untimed open of each rebuilt binary. Median [min–max] ms; open → first PDF, and open → settled.
+
+| document | cores busy elsewhere (load) | first page on open: patched | universal | settled: patched | universal |
+|---|---|---|---|---|---|
+| 10 pp | 1.8–2.9 (9–9) | 225 [219–244] | 221 [213–229] | 258 [251–276] | 253 [245–277] |
+| 100 pp | 3.0–6.2 (8–9) | 225 [220–252] | 234 [211–244] | 555 [542–620] | 585 [541–613] |
+| 300 pp | 3.0–6.6 (9–10) | 231 [223–239] | 245 [216–265] | 1225 [1179–1271] | 1281 [1212–1309] |
+| 1512.03385 | 2.3–5.2 (9–9) | 359 [337–401] | 334 [311–360] | 514 [486–569] | 479 [451–511] |
+| 1706.03762 | 3.4–7.5 (11–11) | 387 [360–410] | 352 [325–390] | 844 [798–867] | 782 [747–1051] |
+| 2103.00020 | 3.8–6.5 (10–11) | 398 [393–416] | 370 [359–384] | 1146 [1106–1186] | 1068 [1022–1087] |
 
 ### Burst typing (8 keys a second)
 
