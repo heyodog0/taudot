@@ -1,6 +1,6 @@
 # pdfsource: PDF → source, proven by re-typesetting
 
-Status: text paragraphs and single-row displays proven (56.6 % of lines), 2026-11-11; closing summary in section 10, tries on a parked engine and later fixes in section 11. Code: `clients/pdfsource/` (Rust, standalone crate).
+Status: text paragraphs and single-row displays proven (56.8 % of lines), 2026-11-11; closing summary in section 10, tries on a parked engine and later fixes in section 11. Code: `clients/pdfsource/` (Rust, standalone crate).
 Log: `docs/agents/pdfsource.log.md`. Brief: `docs/agents/pdfsource.md`.
 
 ## The claim
@@ -260,13 +260,13 @@ section 10 was under heavier load). Most of what is left is pdfTeX typesetting t
 
 | all sizes, 32 papers, 580 pages | proven | of | % | section 10 |
 |---|---|---|---|---|
-| paragraphs | 3 180 | 6 845 | 46.5 | 39.5 |
-| paragraphs of 2+ lines | 2 265 | 4 235 | 53.5 | 47.2 |
-| lines | 14 418 | 25 461 | 56.6 | 52.4 |
-| words | 145 944 | 255 521 | 57.1 | 52.9 |
+| paragraphs | 3 187 | 6 845 | 46.6 | 39.5 |
+| paragraphs of 2+ lines | 2 272 | 4 235 | 53.6 | 47.2 |
+| lines | 14 468 | 25 461 | 56.8 | 52.4 |
+| words | 146 509 | 255 521 | 57.3 | 52.9 |
 | displays | 42 | 245 | 17.1 | 16.7 |
 
-18 ms per paragraph; stock recheck 3 222/3 222. Why the rest fail: positions 3 039, stray glyphs 503, math 119,
+19 ms per paragraph; stock recheck 3 229/3 229. Why the rest fail: positions 3 032, stray glyphs 503, math 119,
 glyphs 98, breaks 58, font not found 41, accent or overlap 10. Paragraph counts fall (7 437 → 6 845) because pieces that layout used to cut apart are whole paragraphs
 now (bibliography entries, lines split at an accent); a few such pieces had been "proven" alone.
 
@@ -285,7 +285,9 @@ now (bibliography entries, lines split at an accent); a few such pieces had been
   longer a superscript.
 - **Math:** `\%` (cmr `%`), and a cmr comma, period or hyphen next to math is text (in math those come from cmmi
   and cmsy). Text-font glyphs inside a formula (`BERT$_{\textsc{base}}$`, `\text`) become `\mbox{...\/}` (the text
-  commands end with an italic correction).
+  commands end with an italic correction). Right after a formula, a gap narrower than the tightest interword space
+  (space − shrink) is no space: TeX ends a formula with its last letter's italic correction (`$T$.`); typing a space
+  there changed the line's expansion under microtype.
 - **Small caps** through a scaled virtual font (`ptmrc7t`: lowercase drawn from the base font at 0.8, letterspaced
   by moves in each packet, which the VF reader skipped): offered as a candidate for the smaller size and tried when
   a paragraph's positions fail at such a glyph.
