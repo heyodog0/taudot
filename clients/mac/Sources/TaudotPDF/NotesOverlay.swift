@@ -246,7 +246,7 @@ import TaudotShared
       y = marker.minY - gap - size.height
     }
     y = min(max(y, view.bounds.minY + 4), view.bounds.maxY - size.height - 4)
-    card.frame = NSRect(x: x, y: y, width: size.width, height: size.height).integral
+    card.frame = NSRect(x: x.rounded(), y: y.rounded(), width: size.width.rounded(.up), height: size.height.rounded(.up))
   }
 
   func pulse(_ id: String) {
@@ -302,8 +302,9 @@ import TaudotShared
       y = marker.minY - gap - size.height
     }
     y = min(max(y, view.bounds.minY + 4), view.bounds.maxY - size.height - 4)
-    v.frame.origin = NSPoint(x: x, y: y)
-    v.frame = v.frame.integral
+    // (the origin rounded, the size kept: `.integral` of a rect at a fractional origin grows it by a point, and this
+    // runs every scroll and zoom frame, each from the last size: the card grew while the user zoomed, item 10)
+    v.frame = NSRect(origin: NSPoint(x: x.rounded(), y: y.rounded()), size: size)
   }
 
   func closePopover() {
@@ -313,6 +314,7 @@ import TaudotShared
   }
 
   var popoverShown: String? { popoverID }
+  var hoverCardFrameForTest: NSRect? { card?.frame }
   /// Tests: the comment the hover card shows, and whether it is a view of the pane (never a window of its own).
   var hoverCardComment: PDFComment? { card.flatMap { $0.content as? NoteCard }?.comment }
   var hoverCardInPane: Bool { card?.superview === view }

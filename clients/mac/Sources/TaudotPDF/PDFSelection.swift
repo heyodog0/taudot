@@ -184,7 +184,7 @@ public enum SelectionGeometry {
       if y < view.bounds.minY + 4 { y = end.maxY + 6 }  // no room under it: above
       if v === card { x = min(max(view.bounds.minX + 4, end.maxX - 40), view.bounds.maxX - size.width - 4) }
       y = min(max(y, view.bounds.minY + 4), view.bounds.maxY - size.height - 4)
-      v.frame = NSRect(x: x, y: y, width: size.width, height: size.height).integral
+      v.frame = NSRect(x: x.rounded(), y: y.rounded(), width: size.width.rounded(.up), height: size.height.rounded(.up))  // (not .integral: see NotesOverlay.placeCard)
     }
   }
 }
