@@ -119,3 +119,211 @@ date	tag	system	version	doc	round	phase	fp_peak_mb	fp_mean_mb	rss_peak_mb	procs	
 2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	2	keys	472	380	517	39	19.9	4.49
 2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	2	burst	454	331	437	37	19.9	4.49
 2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	2	idle after	454	454	437	37	19.9	4.49
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	open	92	46	94	7	10.2	3.49
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	idle	111	111	118	8	10.2	3.49
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	keys	114	110	94	8	10.2	3.49
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	burst	113	106	94	8	10.2	3.49
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	idle after	113	113	94	8	10.2	3.49
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	open	56	15	62	5	9.9	3.19
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	idle	89	89	98	7	9.9	3.19
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	keys	134	115	143	15	9.9	3.19
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	burst	142	120	113	15	9.9	3.19
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	idle after	124	123	104	13	9.9	3.19
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	open	95	48	102	8	12.0	3.64
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	idle	96	96	106	8	12.0	3.64
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	keys	130	119	117	15	12.0	3.64
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	burst	142	122	124	18	12.0	3.64
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	idle after	122	121	96	15	12.0	3.64
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	open	91	46	95	7	10.9	3.38
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	idle	110	110	117	8	10.9	3.38
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	keys	114	109	117	8	10.9	3.38
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	burst	114	106	105	8	10.9	3.38
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	idle after	112	112	104	8	10.9	3.38
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-100	1	open	177	90	194	18	13.2	4.38
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-100	1	idle	214	214	234	21	13.2	4.38
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-100	1	keys	225	204	179	22	13.2	4.38
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-100	1	burst	223	178	165	22	13.2	4.38
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-100	1	idle after	218	218	143	21	13.2	4.38
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-100	1	open	171	89	191	18	14.6	4.73
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-100	1	idle	211	210	237	23	14.6	4.73
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-100	1	keys	250	219	251	31	14.6	4.73
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-100	1	burst	251	219	221	31	14.6	4.73
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-100	1	idle after	246	245	216	31	14.6	4.73
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-100	2	open	164	82	183	17	15.0	3.47
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-100	2	idle	212	209	238	23	15.0	3.47
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-100	2	keys	254	224	220	32	15.0	3.47
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-100	2	burst	255	215	209	32	15.0	3.47
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-100	2	idle after	256	250	194	32	15.0	3.47
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-100	2	open	170	84	186	17	11.7	4.21
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-100	2	idle	219	219	241	22	11.7	4.21
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-100	2	keys	235	208	233	24	11.7	4.21
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-100	2	burst	230	184	183	23	11.7	4.21
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-100	2	idle after	230	230	183	23	11.7	4.21
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-300	1	open	383	202	429	49	13.6	4.82
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-300	1	idle	429	429	479	52	13.6	4.82
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-300	1	keys	444	359	495	52	13.6	4.82
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-300	1	burst	465	329	521	56	13.6	4.82
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-300	1	idle after	455	454	509	54	13.6	4.82
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-300	1	open	388	200	440	49	16.8	4.85
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-300	1	idle	455	455	514	56	16.8	4.85
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-300	1	keys	494	399	478	58	16.8	4.85
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-300	1	burst	490	365	486	55	16.8	4.85
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-300	1	idle after	465	465	479	54	16.8	4.85
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-300	2	open	387	198	437	49	15.4	3.46
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-300	2	idle	403	403	456	49	15.4	3.46
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-300	2	keys	472	386	526	54	15.4	3.46
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-300	2	burst	496	378	530	60	15.4	3.46
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-300	2	idle after	468	468	489	55	15.4	3.46
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-300	2	open	315	167	353	39	16.5	3.92
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-300	2	idle	408	408	455	49	16.5	3.92
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-300	2	keys	453	353	508	54	16.5	3.92
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-300	2	burst	446	310	501	53	16.5	3.92
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-300	2	idle after	442	442	496	52	16.5	3.92
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	open	158	77	172	13	17.2	3.67
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	idle	182	182	197	14	17.2	3.67
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	keys	222	179	242	18	17.2	3.67
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	burst	208	169	226	16	17.2	3.67
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	idle after	208	208	226	16	17.2	3.67
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	open	78	39	86	7	17.2	3.31
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	idle	152	152	168	12	17.2	3.31
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	keys	268	193	286	26	17.2	3.31
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	burst	251	213	278	35	17.2	3.31
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	idle after	251	251	278	35	17.2	3.31
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	open	78	40	86	7	16.7	3.49
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	idle	163	163	181	13	16.7	3.49
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	keys	246	193	269	25	16.7	3.49
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	burst	267	214	286	36	16.7	3.49
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	idle after	249	249	276	35	16.7	3.49
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	open	72	36	76	6	16.7	3.59
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	idle	174	174	188	13	16.7	3.59
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	keys	206	173	222	16	16.7	3.59
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	burst	197	164	213	15	16.7	3.59
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	idle after	187	187	203	14	16.7	3.59
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1706.03762	1	open	192	103	202	14	14.6	2.08
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1706.03762	1	idle	207	207	220	14	14.6	2.08
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1706.03762	1	keys	236	201	253	17	14.6	2.08
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1706.03762	1	burst	228	193	242	16	14.6	2.08
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1706.03762	1	idle after	217	217	232	15	14.6	2.08
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1706.03762	1	open	198	106	214	14	12.2	2.77
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1706.03762	1	idle	181	181	197	13	12.2	2.77
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1706.03762	1	keys	264	214	288	26	12.2	2.77
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1706.03762	1	burst	254	213	272	24	12.2	2.77
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1706.03762	1	idle after	242	242	263	23	12.2	2.77
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1706.03762	2	open	208	109	216	14	12.7	2.91
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1706.03762	2	idle	183	183	198	13	12.7	2.91
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1706.03762	2	keys	271	227	293	26	12.7	2.91
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1706.03762	2	burst	255	215	276	23	12.7	2.91
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1706.03762	2	idle after	241	241	264	23	12.7	2.91
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1706.03762	2	open	192	103	205	14	12.3	2.37
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1706.03762	2	idle	206	206	220	14	12.3	2.37
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1706.03762	2	keys	244	200	262	18	12.3	2.37
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1706.03762	2	burst	225	192	241	16	12.3	2.37
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1706.03762	2	idle after	218	218	232	15	12.3	2.37
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-2103.00020	1	open	377	180	413	32	12.0	3.58
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-2103.00020	1	idle	445	445	487	36	12.0	3.58
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-2103.00020	1	keys	449	341	491	36	12.0	3.58
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-2103.00020	1	burst	440	307	482	35	12.0	3.58
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-2103.00020	1	idle after	430	430	470	34	12.0	3.58
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-2103.00020	1	open	314	150	344	26	13.4	3.70
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-2103.00020	1	idle	396	396	436	32	13.4	3.70
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-2103.00020	1	keys	489	391	538	45	13.4	3.70
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-2103.00020	1	burst	471	358	538	44	13.4	3.70
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-2103.00020	1	idle after	464	464	512	42	13.4	3.70
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-2103.00020	2	open	317	151	350	26	15.5	3.65
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-2103.00020	2	idle	410	410	451	33	15.5	3.65
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-2103.00020	2	keys	494	396	544	45	15.5	3.65
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-2103.00020	2	burst	481	346	532	44	15.5	3.65
+2026-11-10	main-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-2103.00020	2	idle after	459	459	508	42	15.5	3.65
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-2103.00020	2	open	311	145	338	26	16.5	3.68
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-2103.00020	2	idle	415	415	453	33	16.5	3.68
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-2103.00020	2	keys	449	348	490	36	16.5	3.68
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-2103.00020	2	burst	440	305	481	35	16.5	3.68
+2026-11-10	main-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-2103.00020	2	idle after	421	421	460	33	16.5	3.68
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	open	1	1	3	2	10.9	1.11
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	idle	104	104	110	7	10.9	1.11
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	keys	128	114	137	10	10.9	1.11
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	burst	128	109	137	10	10.9	1.11
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	idle after	114	114	121	8	10.9	1.11
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	idle +5-10 s	114	114	121	8	10.9	1.11
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	idle +10-15 s	114	114	121	8	10.9	1.11
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	idle +15-20 s	114	114	121	8	10.9	1.11
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	idle +20-25 s	114	114	121	8	10.9	1.11
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	idle +25-30 s	114	114	121	8	10.9	1.11
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	1	idle +30-35 s	114	114	121	8	10.9	1.11
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	open	1	1	2	2	8.2	1.25
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	idle	83	83	92	6	8.2	1.25
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	keys	145	121	165	17	8.2	1.25
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	burst	147	120	155	15	8.2	1.25
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	idle after	132	132	146	14	8.2	1.25
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	idle +5-10 s	132	132	146	14	8.2	1.25
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	idle +10-15 s	132	132	146	14	8.2	1.25
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	idle +15-20 s	132	132	146	14	8.2	1.25
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	idle +20-25 s	132	132	146	14	8.2	1.25
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	idle +25-30 s	132	132	146	14	8.2	1.25
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	1	idle +30-35 s	132	132	146	14	8.2	1.25
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	open	1	1	2	2	5.5	1.24
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	idle	83	83	91	6	5.5	1.24
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	keys	153	121	167	17	5.5	1.24
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	burst	148	122	164	15	5.5	1.24
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	idle after	133	133	147	14	5.5	1.24
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	idle +5-10 s	133	133	147	14	5.5	1.24
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	idle +10-15 s	133	133	147	14	5.5	1.24
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	idle +15-20 s	133	133	147	14	5.5	1.24
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	idle +20-25 s	133	133	147	14	5.5	1.24
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	idle +25-30 s	133	133	147	14	5.5	1.24
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	synth-10	2	idle +30-35 s	133	133	147	14	5.5	1.24
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	open	1	1	3	2	3.6	1.22
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	idle	104	104	110	7	3.6	1.22
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	keys	128	116	137	10	3.6	1.22
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	burst	127	114	137	10	3.6	1.22
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	idle after	121	121	129	9	3.6	1.22
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	idle +5-10 s	121	121	129	9	3.6	1.22
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	idle +10-15 s	121	121	129	9	3.6	1.22
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	idle +15-20 s	121	121	129	9	3.6	1.22
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	idle +20-25 s	121	121	129	9	3.6	1.22
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	idle +25-30 s	121	121	129	9	3.6	1.22
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	synth-10	2	idle +30-35 s	121	121	129	9	3.6	1.22
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	open	86	43	88	7	5.6	1.71
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	idle	169	169	182	12	5.6	1.71
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	keys	217	169	235	17	5.6	1.71
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	burst	190	157	216	15	5.6	1.71
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	idle after	180	180	195	13	5.6	1.71
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	idle +5-10 s	180	180	195	13	5.6	1.71
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	idle +10-15 s	180	180	195	13	5.6	1.71
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	idle +15-20 s	180	180	195	13	5.6	1.71
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	idle +20-25 s	180	180	195	13	5.6	1.71
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	idle +25-30 s	180	180	195	13	5.6	1.71
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	1	idle +30-35 s	180	180	195	13	5.6	1.71
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	open	93	47	100	8	8.6	2.31
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	idle	153	153	169	12	8.6	2.31
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	keys	238	187	263	24	8.6	2.31
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	burst	234	206	269	33	8.6	2.31
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	idle after	234	234	259	33	8.6	2.31
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	idle +5-10 s	234	234	259	33	8.6	2.31
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	idle +10-15 s	234	234	259	33	8.6	2.31
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	idle +15-20 s	234	234	259	33	8.6	2.31
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	idle +20-25 s	234	234	259	33	8.6	2.31
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	idle +25-30 s	234	234	259	33	8.6	2.31
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	1	idle +30-35 s	234	234	259	33	8.6	2.31
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	open	95	48	103	8	9.2	2.33
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	idle	153	153	169	12	9.2	2.33
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	keys	241	190	266	24	9.2	2.33
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	burst	234	207	259	33	9.2	2.33
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	idle after	234	234	259	33	9.2	2.33
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	idle +5-10 s	234	234	259	33	9.2	2.33
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	idle +10-15 s	234	234	259	33	9.2	2.33
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	idle +15-20 s	234	234	259	33	9.2	2.33
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	idle +20-25 s	234	234	259	33	9.2	2.33
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	idle +25-30 s	234	234	259	33	9.2	2.33
+2026-11-10	tail-a3cabae	taudot-universal	tau-live a3cabaedbf	arxiv-1512.03385	2	idle +30-35 s	234	234	259	33	9.2	2.33
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	open	85	43	81	7	8.4	1.65
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	idle	169	169	182	12	8.4	1.65
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	keys	219	173	238	17	8.4	1.65
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	burst	200	160	216	15	8.4	1.65
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	idle after	189	189	205	14	8.4	1.65
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	idle +5-10 s	189	189	205	14	8.4	1.65
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	idle +10-15 s	189	189	205	14	8.4	1.65
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	idle +15-20 s	189	189	205	14	8.4	1.65
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	idle +20-25 s	189	189	205	14	8.4	1.65
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	idle +25-30 s	189	189	205	14	8.4	1.65
+2026-11-10	tail-a3cabae	taudot-pdftex	pdftex-live a3cabaedbf	arxiv-1512.03385	2	idle +30-35 s	189	189	205	14	8.4	1.65

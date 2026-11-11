@@ -10,7 +10,7 @@ $ uv run --no-project --with pypdf bench/run.py all  # every system on every doc
 $ uv run --no-project bench/report.py                # tables into docs/bench.md, chart docs/bench.svg
 ```
 
-One system on one document: `bench/run.py SYSTEM DOC ENGINE` (e.g. `rtex synth-100 lualatex`); latexmk runs first
+One system on one document: `bench/run.py SYSTEM DOC ENGINE` (e.g. `rtex synth-100 lualatex`). `BENCH_IDLE_TAIL=30` adds 30 s of quiet sampling to `run.py memory`; latexmk runs first
 on a document, since its output after each edit is the reference the others are checked against.
 
 | File | |
