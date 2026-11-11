@@ -1088,7 +1088,9 @@ impl<'a> Gen<'a> {
                         let (a, b) = if j < i { (&l.glyphs[j], g) } else { (g, &l.glyphs[j]) };
                         m[j] && b.x - (a.x + a.adv) < 0.35 * g.size
                     };
-                    if roman && !letter && ((i > 0 && touch(i - 1)) || (i + 1 < n && touch(i + 1))) {
+                    // (a cmr comma, period or hyphen is text: in math those come from cmmi and cmsy)
+                    let text_punct = matches!(g.code, 44 | 45 | 46);
+                    if roman && !letter && !text_punct && ((i > 0 && touch(i - 1)) || (i + 1 < n && touch(i + 1))) {
                         m[i] = true;
                         changed = true;
                     }
