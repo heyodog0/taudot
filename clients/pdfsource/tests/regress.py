@@ -16,11 +16,11 @@ HERE = Path(__file__).resolve().parent.parent
 # paper: (pdf name, proven paragraphs reached) — one CM text, two-column CVPR, microtype + math, microtype + lists
 CASES = {
     "synthetic-page": ("main.pdf", 3),
-    "1512.03385": ("residual_v1_arxiv_release.pdf", 82),
-    "2006.11239": ("main.pdf", 54),
-    "1910.10683": ("20-074.pdf", 123),
-    "1810.04805": ("main.pdf", 79),
-    "2302.13971": ("acl2023.pdf", 178),
+    "1512.03385": ("residual_v1_arxiv_release.pdf", 128),
+    "2006.11239": ("main.pdf", 66),
+    "1910.10683": ("20-074.pdf", 180),
+    "1810.04805": ("main.pdf", 144),
+    "2302.13971": ("acl2023.pdf", 239),
 }
 
 def main():

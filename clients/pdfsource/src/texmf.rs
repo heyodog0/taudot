@@ -44,6 +44,8 @@ pub struct Vf {
     pub fonts: HashMap<u32, (String, f64)>,
     /// VF char → (base font name, base char) for packets that set exactly one char.
     pub single: HashMap<u32, (String, u32)>,
+    /// The scale of the base font each single packet sets from (small caps: lowercase from the base at ~0.8).
+    pub single_scale: HashMap<u32, f64>,
 }
 
 static MISSES: std::sync::Mutex<Option<std::collections::HashSet<String>>> = std::sync::Mutex::new(None);
@@ -327,6 +329,11 @@ pub fn parse_vf(b: &[u8]) -> Option<Vf> {
                     j += 1 + n
                 }
                 141 | 142 => j += 1,
+                // Horizontal moves around the char (letterspaced small caps): pdfTeX keeps them; the mapping holds.
+                147 | 152 => j += 1,
+                143..=146 => j += 1 + (o - 142) as usize,
+                148..=151 => j += 1 + (o - 147) as usize,
+                153..=156 => j += 1 + (o - 152) as usize,
                 _ => {
                     ok = false;
                     break;
@@ -334,8 +341,9 @@ pub fn parse_vf(b: &[u8]) -> Option<Vf> {
             }
         }
         if ok && set.len() == 1 {
-            if let Some((name, _)) = v.fonts.get(&font) {
+            if let Some((name, sc)) = v.fonts.get(&font) {
                 v.single.insert(cc, (name.clone(), set[0]));
+                v.single_scale.insert(cc, *sc);
             }
         }
     }

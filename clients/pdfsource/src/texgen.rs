@@ -88,33 +88,47 @@ pub fn candidates(tx: &mut Texmf, f: &Font, size_bp: f64, used: &[u32]) -> Vec<T
         });
         // Text through a virtual font first (LaTeX's way), the raw font last.
         let mut opts: Vec<(String, HashMap<u32, u32>, f64)> = vec![];
+        let mut scaled: Vec<(String, HashMap<u32, u32>, f64)> = vec![];
         for v in vfs.iter().take(12) {
             let Some(vf) = tx.vf(v) else { continue };
             if vf.fonts.values().all(|(n, _)| *n != raw) {
                 continue;
             }
-            let scale = vf.fonts.values().find(|(n, _)| *n == raw).map(|x| x.1).unwrap_or(1.0);
-            let mut inv: HashMap<u32, u32> = HashMap::new();
-            for (vc, (n, rc)) in &vf.single {
-                if *n == raw {
-                    let e = inv.entry(*rc).or_insert(*vc);
-                    if (*vc == *rc && *e != *rc) || (*e != *rc && *vc < *e) {
-                        *e = *vc;
+            // Packets by the scale of the base font they set from: 1 (ordinary text), or less (small caps' lowercase,
+            // drawn from the base font at ~0.8: such glyphs show at the smaller size in the PDF).
+            let mut scales: Vec<f64> = vf.single.iter().filter(|(_, (n, _))| *n == raw).map(|(vc, _)| vf.single_scale.get(vc).copied().unwrap_or(1.0)).collect();
+            scales.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            scales.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+            for scale in scales {
+                let mut inv: HashMap<u32, u32> = HashMap::new();
+                for (vc, (n, rc)) in &vf.single {
+                    if *n == raw && (vf.single_scale.get(vc).copied().unwrap_or(1.0) - scale).abs() < 1e-6 {
+                        let e = inv.entry(*rc).or_insert(*vc);
+                        if (*vc == *rc && *e != *rc) || (*e != *rc && *vc < *e) {
+                            *e = *vc;
+                        }
                     }
                 }
-            }
-            // A VF needn't map every code (a bullet may come from TS1 while text is OT1): codes it lacks fail only the
-            // paragraphs that use them. Rank by coverage.
-            let cover = used.iter().filter(|c| inv.contains_key(c)).count();
-            if cover * 2 >= used.len() && (scale - 1.0).abs() < 1e-6 {
-                opts.push((v.clone(), inv, scale));
+                // A VF needn't map every code (a bullet may come from TS1 while text is OT1): codes it lacks fail only
+                // the paragraphs that use them. Rank by coverage.
+                let cover = used.iter().filter(|c| inv.contains_key(c)).count();
+                if (scale - 1.0).abs() < 1e-6 {
+                    if cover * 2 >= used.len() {
+                        opts.push((v.clone(), inv, scale));
+                    }
+                } else if cover > 0 && scale > 0.5 {
+                    scaled.push((v.clone(), inv, scale));
+                }
             }
         }
         opts.sort_by_key(|o| std::cmp::Reverse(used.iter().filter(|c| o.1.contains_key(c)).count()));
         if tx.has(&format!("{raw}.tfm")) {
             opts.push((raw.clone(), used.iter().map(|&c| (c, c)).collect(), 1.0));
         }
-        for (name, map, _) in opts {
+        // Scaled ones last: tried when a paragraph's positions point at this font (small caps).
+        opts.extend(scaled);
+        for (name, map, scale) in opts {
+            let pt = pt / scale;
             let tfm_name = name.clone();
             let Some(tfm) = tx.tfm(&name).cloned() else { continue };
             let mut input = HashMap::new();
@@ -191,6 +205,9 @@ pub struct Params {
     pub hang_sp: i64,
     /// \newblock's shrink is −.07em (some venue styles) instead of .07em.
     pub newblock_neg: bool,
+    /// A hanging paragraph set as a LaTeX list item (natbib's bibliography): every line at the indent by \parshape,
+    /// the first opening with the label box, here empty and as wide as minus the indent.
+    pub list_form: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -307,7 +324,7 @@ impl<'a> Gen<'a> {
 
     /// A bibliography entry "[n] text" (hanging indent, label at the line start, the text after it exactly at the
     /// indent): the number of label glyphs, else 0. Styles box the label (left-aligned) in \labelwidth + \labelsep.
-    fn bib_label(&self, p: &Para) -> usize {
+    pub fn bib_label(&self, p: &Para) -> usize {
         if p.hang <= 0.0 || p.label > 0 || p.label_box > 0.0 || p.lines.len() < 2 {
             return 0;
         }
@@ -405,7 +422,15 @@ impl<'a> Gen<'a> {
                             t += "\u{3}\u{3}\u{1})\u{3}";
                             Some(format!("\u{0}{t}"))
                         } else {
-                            Some(crate::math::span_source(&self.pdf.fonts, sg, l.y, l.size)?)
+                            let text = |x: &crate::pdf::Glyph| -> Option<(String, String)> {
+                                let k = self.k(x);
+                                let chars: String = tf(k)?.input.get(&x.code)?.iter().map(|&c| match char::from_u32(c) {
+                                    Some(ch) if ch.is_ascii_alphanumeric() || "-.,:;()[]/'!?*+=<>@`|\"".contains(ch) => ch.to_string(),
+                                    _ => format!("\\char{c} "),
+                                }).collect();
+                                Some((font_cs(k), chars))
+                            };
+                            Some(crate::math::span_source(&self.pdf.fonts, sg, l.y, l.size, &text)?)
                         }
                     }
                     _ => None,
@@ -435,7 +460,12 @@ impl<'a> Gen<'a> {
                     sep = if prev_hy { 2 } else { 1 };
                 } else if gi > 0 {
                     let pg = &l.glyphs[gi - 1];
-                    if g.x - (pg.x + pg.adv) > 0.12 * g.size {
+                    let gap = g.x - (pg.x + pg.adv);
+                    // Right after a formula, a gap narrower than the tightest interword space (space − shrink) is
+                    // no space: TeX ends a formula with its last letter's italic correction ("$T$.").
+                    let after_math = spans.iter().any(|s| gi - 1 >= s.0 && gi - 1 < s.1) && !spans.iter().any(|s| gi >= s.0 && gi < s.1);
+                    let tightest = tf(main_font).map_or(0.0, |f| (f.space[0] - f.space[2]) * 72.0 / 72.27);
+                    if gap > 0.12 * g.size && !(after_math && gap < tightest - 0.05) {
                         sep = 1;
                     }
                 }
@@ -510,6 +540,10 @@ impl<'a> Gen<'a> {
             if head_num > 0 && i == 0 {
                 // (\@hangfrom{\hskip<indent>\@svsec}: glue first in the box, which stops protrusion)
                 let _ = write!(s, "{ESC}hbox\u{2}{ESC}hskip0pt{ESC}relax ");
+            }
+            if hyp.params.list_form && i == 0 {
+                // \@item's \box\@labels (\hskip\itemindent, an empty label: width -\leftmargin), then \penalty0
+                let _ = write!(s, "{ESC}hbox\u{2}{ESC}hskip-{}sp\u{3}{ESC}penalty0 ", hyp.params.hang_sp);
             }
             if bib > 0 && i == 0 {
                 // A bibliography label left-aligned in a box as wide as the hanging indent: the text starts there.
@@ -764,11 +798,13 @@ pub fn para_page(body: &str, p: &Para, hyp: &Hyp, sel: &[(usize, usize)]) -> Str
     let _ = writeln!(
         s,
         "\\setbox0\\vbox{{\\hsize={}sp \\parindent={}sp \\leftskip=0pt \\rightskip=0pt \\parfillskip=0pt plus 1fil \
-         \\tolerance={} \\pretolerance={} \\emergencystretch={}pt \\looseness=0 \\hangindent={}sp \\hangafter=1 \\parshape=0 \
+         \\tolerance={} \\pretolerance={} \\emergencystretch={}pt \\looseness=0 \\hangindent={}sp \\hangafter=1 \\parshape={} \
          \\spaceskip=0pt \\xspaceskip=0pt {} \\language=0 \\lefthyphenmin=2 \\righthyphenmin=3 \\uchyph=1 \
          \\hyphenpenalty=50 \\exhyphenpenalty=50 \\linepenalty=10 \\adjdemerits=10000 \\doublehyphendemerits=10000 \
          \\finalhyphendemerits=5000 \\PSeverypar={{}} \\baselineskip=12pt \\lineskip=1pt \\lineskiplimit=0pt",
-        pr.hsize_sp, pr.parindent_sp, pr.tolerance, pr.pretolerance, pr.emergencystretch_pt, pr.hang_sp, if pr.french { "\\frenchspacing" } else { "\\nonfrenchspacing" }
+        pr.hsize_sp, pr.parindent_sp, pr.tolerance, pr.pretolerance, pr.emergencystretch_pt, if pr.list_form { 0 } else { pr.hang_sp },
+        if pr.list_form { format!("1 {}sp {}sp", pr.hang_sp, pr.hsize_sp - pr.hang_sp) } else { "0".into() },
+        if pr.french { "\\frenchspacing" } else { "\\nonfrenchspacing" }
     );
     s.push_str("\\PScats ");
     let start = if p.start == crate::layout::Start::Indented { "\u{1}PSindent " } else { "\u{1}PSnoindent " };
@@ -780,7 +816,7 @@ pub fn para_page(body: &str, p: &Para, hyp: &Hyp, sel: &[(usize, usize)]) -> Str
     // An empty page-mode literal before each line ends the text object, so each line starts afresh (see line_place).
     for i in 0..p.lines.len() + 4 {
         // \lastbox drops a line's shift (TeX §1080), so a hanging indent is added back here.
-        let l = line_place(p, hyp, i) + if i > 0 { hyp.params.hang_sp } else { 0 };
+        let l = line_place(p, hyp, i) + if i > 0 || hyp.params.list_form { hyp.params.hang_sp } else { 0 };
         if p.display {
             // \lastbox dropped the display's shift too: TeX centres the formula (half(z - w), §1202) or, with a
             // number, ends the box at the right edge (it packs formula, kern and number: width z - d, §1204).

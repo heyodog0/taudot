@@ -1,6 +1,6 @@
 # pdfsource: PDF → source, proven by re-typesetting
 
-Status: text paragraphs and single-row displays proven (52.4 % of lines), 2026-11-11; closing summary in section 10. Code: `clients/pdfsource/` (Rust, standalone crate).
+Status: text paragraphs and single-row displays proven (56.8 % of lines), 2026-11-11; closing summary in section 10, tries on a parked engine and later fixes in section 11. Code: `clients/pdfsource/` (Rust, standalone crate).
 Log: `docs/agents/pdfsource.log.md`. Brief: `docs/agents/pdfsource.md`.
 
 ## The claim
@@ -235,6 +235,75 @@ wrong because a figure, table or float sits in the column.
 5. Tables (in the brief, not started), then whole-document source and its pages-identical measure.
 6. Fonts outside `pdftex.map` (Type 3, renamed subsets): 40 paragraphs.
 7. Unexplained: equation numbers in 2006.11239 end 0.67 bp past the column edge; detection tolerates it.
+
+### 11. Tries on a parked engine; bibliographies, headings, accents (2026-11-11)
+
+**Speed.** Where the 154 ms per paragraph went (1512.03385, per phase, now reported in `prove --json` as `ms`):
+pdfLaTeX start, format load and preamble 44 % (every batch was a fresh process, ~0.2 s), failed TeX Live store
+fetches 24 % (files in `ls-R` the store couldn't serve, one fetch process per lookup), quadratic text generation and
+page-tree walks 23 %, typesetting 11 %. Now:
+
+- **One parked engine per LaTeX setup** (`src/park.rs`, libtau from `clients/universal`, stock pdfLaTeX): the main
+  file is the preamble, `\@@input pbody`, `\PSend`; libtau forks once as TeX reads the input line (`TAU_MARK`),
+  and each batch resumes that snapshot in a fresh child, up to 4 at once (`PDFSOURCE_JOBS`). A try costs its own
+  page. `PDFSOURCE_PARK=0` runs stock processes as before.
+- **Still a proof by stock pdfTeX:** every paragraph proven on the parked engine is typeset again by a plain
+  pdfLaTeX process at the end and must match (else it is reported unproven). Corpus: 3 183/3 183 agree. Verdicts
+  parked vs stock on 1512.03385: identical paragraph by paragraph.
+- Store misses remembered (a day), paragraph text cached by the hypothesis fields it depends on, page tree read
+  once, our own content-stream tokenizer (lopdf's parser as fallback; equal on every corpus stream).
+
+Same 32 papers, same machine and load: **118 → 16 ms per paragraph** (1.5 → 0.2 s per page; the 154 ms of
+section 10 was under heavier load). Most of what is left is pdfTeX typesetting the batches (11 ms per paragraph).
+
+**Proof rate.**
+
+| all sizes, 32 papers, 580 pages | proven | of | % | section 10 |
+|---|---|---|---|---|
+| paragraphs | 3 187 | 6 845 | 46.6 | 39.5 |
+| paragraphs of 2+ lines | 2 272 | 4 235 | 53.6 | 47.2 |
+| lines | 14 468 | 25 461 | 56.8 | 52.4 |
+| words | 146 509 | 255 521 | 57.3 | 52.9 |
+| displays | 42 | 245 | 17.1 | 16.7 |
+
+19 ms per paragraph; stock recheck 3 229/3 229. Why the rest fail: positions 3 032, stray glyphs 503, math 119,
+glyphs 98, breaks 58, font not found 41, accent or overlap 10. Paragraph counts fall (7 437 → 6 845) because pieces that layout used to cut apart are whole paragraphs
+now (bibliography entries, lines split at an accent); a few such pieces had been "proven" alone.
+
+- **`[n]` bibliography labels** sit in a box as wide as the hanging indent (`\hbox to<hang>{[n]\hss}`): the text
+  after the label starts at the indent, not after an interword space (1512.03385: 101 → 123 paragraphs).
+- **Hanging entries at any indent** (natbib's `\bibhang`, not only `\parindent`) are joined into one paragraph; the
+  indent is measured to ~30 sp, so a hanging line that is a little off gets a per-paragraph indent search (±64 sp).
+- **A paragraph's last line** is set at its natural width: its glue ratio is 0 even with no ordinary space to solve
+  it from (space factors and `\newblock` gaps there were guessed from nothing).
+- **`\newblock` with a negative shrink** (some styles) is tried before French spacing; a spacing guess that gets
+  less far than before is taken back (French spacing used to stay on and hide the real first failure).
+- **Numbered headings:** LaTeX sets the number and its `\quad`/`\enspace` in a box that starts with glue
+  (`\@hangfrom{\hskip<indent>\@svsec}`), so microtype doesn't protrude the number; reproduced that way.
+- **Accents:** a base glyph that moves back under its accent stays in the line (lines were cut there, and the rest
+  showed up as stray glyphs: 650 → 503); a text accent raised a little over its base (`\'a` in Times) is no
+  longer a superscript.
+- **Math:** `\%` (cmr `%`), and a cmr comma, period or hyphen next to math is text (in math those come from cmmi
+  and cmsy). Text-font glyphs inside a formula (`BERT$_{\textsc{base}}$`, `\text`) become `\mbox{...\/}` (the text
+  commands end with an italic correction). Right after a formula, a gap narrower than the tightest interword space
+  (space − shrink) is no space: TeX ends a formula with its last letter's italic correction (`$T$.`); typing a space
+  there changed the line's expansion under microtype.
+- **Small caps** through a scaled virtual font (`ptmrc7t`: lowercase drawn from the base font at 0.8, letterspaced
+  by moves in each packet, which the VF reader skipped): offered as a candidate for the smaller size and tried when
+  a paragraph's positions fail at such a glyph.
+- **Bibliographies as lists:** natbib sets each entry as a list item (every line at `\bibhang` by `\parshape`, line 0
+  opening with an empty label box of width −`\bibhang`, then `\penalty0`); tried for a failing hanging paragraph,
+  kept when it gets further. Hanging entries: 1 309 paragraphs (4 199 lines), 389 proven before this.
+
+**Left in positions** (3 039): microtype expansion off on a line (~570). In 1910.10683 the paper's own text, typeset in
+our harness, gives our expansion, not the original's: the setup differs there (the paper asks for `lmr`, the build's
+TeX Live lacks `T1lmr.fd`, LaTeX substitutes `T1/cmr`, and microtype then treats the body font differently): an
+artifact of the corpus build. Elsewhere (2006.11239) lines with math expand differently: some width in the line,
+likely in the math, differs; the comparison stops at the scale and doesn't say where. Also one-TJ-unit misses that the residual, geometry and indent searches don't fix (~330),
+bibliography entries in natbib's list form under microtype (the empty label box at the line start stops
+protrusion; `\hangindent` doesn't reproduce that), `\text`/`\mbox` inside math, single-line table cells and
+headings that layout takes for paragraphs. Verdicts move by a few paragraphs between runs of one build (hash order
+in the prover); not fixed yet.
 
 ### Baselines (prior art, not run here)
 
