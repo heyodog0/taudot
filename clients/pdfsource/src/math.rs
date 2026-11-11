@@ -167,8 +167,9 @@ pub fn token(mf: MathFont, code: u32) -> Option<String> {
 
 /// Math source for a span of glyphs on one line (baseline `y0`, text size `size0`): nuclei on the baseline, smaller
 /// glyphs above or below attached as superscripts or subscripts. Err: why not.
-pub fn span_source(fonts: &[Font], glyphs: &[Glyph], y0: f64, size0: f64) -> Result<String, String> {
-    resolve_delims(&span_source_raw(fonts, glyphs, y0, size0)?)
+/// `text` gives a glyph of a text font its font macro and its input characters (for `\mbox` inside math).
+pub fn span_source(fonts: &[Font], glyphs: &[Glyph], y0: f64, size0: f64, text: &dyn Fn(&Glyph) -> Option<(String, String)>) -> Result<String, String> {
+    resolve_delims(&span_source_raw(fonts, glyphs, y0, size0, text)?)
 }
 
 /// `\left`/`\right` for the symmetric delimiters (`|`, `\|`): a `\right` where one is open. Err if unbalanced.
@@ -202,19 +203,52 @@ fn resolve_delims(s: &str) -> Result<String, String> {
     Ok(out)
 }
 
-fn span_source_raw(fonts: &[Font], glyphs: &[Glyph], y0: f64, size0: f64) -> Result<String, String> {
+fn span_source_raw(fonts: &[Font], glyphs: &[Glyph], y0: f64, size0: f64, text: &dyn Fn(&Glyph) -> Option<(String, String)>) -> Result<String, String> {
     #[derive(Default)]
     struct Atom {
         nuc: String,
         sup: String,
         sub: String,
+        /// The \mbox a text glyph last went into (where, font): the next one of that font joins it if it touches.
+        text_in: Option<(u8, String)>,
     }
     let mut atoms: Vec<Atom> = vec![];
     let mut accent: Option<&str> = None;
     let mut end: Option<f64> = None; // right end of what's set so far
+    let mut last_end = f64::MIN;
     for g in glyphs {
         let f = &fonts[g.font];
-        let Some(mf) = math_font(f) else { return Err("math: text font in math".into()) };
+        let Some(mf) = math_font(f) else {
+            // Text in math (\mbox, \text, \textsubscript): a box of the text font, its glyphs that touch together.
+            let Some((cs, chars)) = text(g) else { return Err("math: text font in math".into()) };
+            let touching = g.x - last_end < 0.05 * size0;
+            let script = g.size < size0 - 0.01 && (g.y - y0).abs() > 0.01;
+            if !script && ((g.y - y0).abs() > 0.01 || (g.size - size0).abs() > 0.01) {
+                return Err("math: text font in math".into());
+            }
+            let place = if !script { 0u8 } else if g.y > y0 { 1 } else { 2 };
+            if script && atoms.is_empty() {
+                atoms.push(Atom { nuc: "{}".into(), ..Default::default() });
+            }
+            let join = touching && atoms.last().is_some_and(|a| a.text_in.as_ref().is_some_and(|t| t.0 == place && t.1 == cs));
+            if !script && !join {
+                atoms.push(Atom::default());
+            }
+            let a = atoms.last_mut().unwrap();
+            let slot = match place { 0 => &mut a.nuc, 1 => &mut a.sup, _ => &mut a.sub };
+            if join {
+                slot.pop();
+                slot.push_str(&chars);
+                slot.push('}');
+            } else {
+                slot.push_str(&format!("\\mbox{{\\{cs}{{}}{chars}}}"));
+            }
+            a.text_in = Some((place, cs));
+            last_end = g.x + g.adv;
+            end = Some(end.map_or(g.x + g.adv, |e: f64| e.max(g.x + g.adv)));
+            continue;
+        };
+        last_end = g.x + g.adv;
         // A math accent: a text-size accent glyph above the baseline; it comes just before its nucleus.
         // (Over a letter no taller than the x-height it sits on the baseline itself, TeX §738.)
         if (g.size - size0).abs() < 0.01 && g.y > y0 - 0.01 && (g.y > y0 + 0.01 || mf == MathFont::Roman) {
@@ -259,6 +293,7 @@ fn span_source_raw(fonts: &[Font], glyphs: &[Glyph], y0: f64, size0: f64) -> Res
                 atoms.push(Atom { nuc: "{}".into(), ..Default::default() });
             }
             let a = atoms.last_mut().unwrap();
+            a.text_in = None;
             let s = if g.y > y0 { &mut a.sup } else { &mut a.sub };
             if t == "\\prime" && g.y > y0 && s.is_empty() {
                 // x' is x^{\prime}
@@ -292,7 +327,7 @@ fn span_source_raw(fonts: &[Font], glyphs: &[Glyph], y0: f64, size0: f64) -> Res
         if let Some(op) = OPS.iter().find(|o| **o == run) {
             let last = k + op.len() - 1;
             let (sup, sub) = (std::mem::take(&mut atoms[last].sup), std::mem::take(&mut atoms[last].sub));
-            ops.push(Atom { nuc: format!("\\{op}"), sup, sub });
+            ops.push(Atom { nuc: format!("\\{op}"), sup, sub, ..Default::default() });
             k = last + 1;
             continue;
         }
@@ -450,7 +485,7 @@ pub fn display_source(fonts: &[Font], glyphs: &[Glyph], rules: &[crate::pdf::Rul
         // The part's own baseline: its largest glyphs'.
         let big = v.iter().map(|g| g.size).fold(0.0, f64::max);
         let by = v.iter().filter(|g| (g.size - big).abs() < 0.01).map(|g| g.y).fold(f64::MAX, f64::min);
-        span_source_raw(fonts, &v, by, big)
+        span_source_raw(fonts, &v, by, big, &|_| None)
     };
     let mut out = String::new();
     let mut seg: Vec<Glyph> = vec![];
@@ -461,7 +496,7 @@ pub fn display_source(fonts: &[Font], glyphs: &[Glyph], rules: &[crate::pdf::Rul
             Some(id) if !done[id] => {
                 done[id] = true;
                 if !seg.is_empty() {
-                    out.push_str(&span_source_raw(fonts, &seg, y0, size0)?);
+                    out.push_str(&span_source_raw(fonts, &seg, y0, size0, &|_| None)?);
                     seg.clear();
                 }
                 if id < fracs.len() {
@@ -489,7 +524,7 @@ pub fn display_source(fonts: &[Font], glyphs: &[Glyph], rules: &[crate::pdf::Rul
         }
     }
     if !seg.is_empty() {
-        out.push_str(&span_source_raw(fonts, &seg, y0, size0)?);
+        out.push_str(&span_source_raw(fonts, &seg, y0, size0, &|_| None)?);
     }
     resolve_delims(&out)
 }

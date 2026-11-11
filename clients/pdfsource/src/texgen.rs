@@ -405,7 +405,15 @@ impl<'a> Gen<'a> {
                             t += "\u{3}\u{3}\u{1})\u{3}";
                             Some(format!("\u{0}{t}"))
                         } else {
-                            Some(crate::math::span_source(&self.pdf.fonts, sg, l.y, l.size)?)
+                            let text = |x: &crate::pdf::Glyph| -> Option<(String, String)> {
+                                let k = self.k(x);
+                                let chars: String = tf(k)?.input.get(&x.code)?.iter().map(|&c| match char::from_u32(c) {
+                                    Some(ch) if ch.is_ascii_alphanumeric() || "-.,:;()[]/'!?*+=<>@`|\"".contains(ch) => ch.to_string(),
+                                    _ => format!("\\char{c} "),
+                                }).collect();
+                                Some((font_cs(k), chars))
+                            };
+                            Some(crate::math::span_source(&self.pdf.fonts, sg, l.y, l.size, &text)?)
                         }
                     }
                     _ => None,
