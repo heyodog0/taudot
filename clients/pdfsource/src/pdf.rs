@@ -64,6 +64,8 @@ pub struct Pdf {
     pub fonts: Vec<Font>,
     font_ids: HashMap<ObjectId, usize>,
     pub producer: String,
+    /// Page number → object (the page tree walked once).
+    pages: std::collections::BTreeMap<u32, ObjectId>,
 }
 
 fn num(o: &Object) -> f64 {
@@ -110,11 +112,12 @@ impl Pdf {
                 }
             }
         }
-        Ok(Pdf { doc, fonts: vec![], font_ids: HashMap::new(), producer })
+        let pages = doc.get_pages();
+        Ok(Pdf { doc, fonts: vec![], font_ids: HashMap::new(), producer, pages })
     }
 
     pub fn page_count(&self) -> usize {
-        self.doc.get_pages().len()
+        self.pages.len()
     }
 
     fn deref<'a>(&'a self, o: &'a Object) -> &'a Object {
@@ -221,8 +224,7 @@ impl Pdf {
     }
 
     pub fn page(&mut self, number: usize) -> Result<Page, String> {
-        let pages = self.doc.get_pages();
-        let pid = *pages.get(&(number as u32)).ok_or("no such page")?;
+        let pid = *self.pages.get(&(number as u32)).ok_or("no such page")?;
         let pd = self.doc.get_dictionary(pid).map_err(|e| e.to_string())?.clone();
         let mut page = Page { number, ..Default::default() };
         let mb = self.inherited(&pd, b"MediaBox");
@@ -269,9 +271,20 @@ impl Pdf {
     }
 
     fn run(&mut self, content: &[u8], res: &Dictionary, ctm0: M, page: &mut Page, depth: usize) {
-        let ops = match Content::decode(content) {
-            Ok(c) => c.operations,
-            Err(_) => return,
+        let fast = fast_ops(content);
+        if std::env::var("PDFSOURCE_CHECKOPS").is_ok() {
+            if let (Some(f), Ok(c)) = (&fast, Content::decode(content)) {
+                if format!("{f:?}") != format!("{:?}", c.operations) {
+                    eprintln!("fast_ops differs from lopdf on a stream of {} bytes", content.len());
+                }
+            }
+        }
+        let ops = match fast {
+            Some(o) => o,
+            None => match Content::decode(content) {
+                Ok(c) => c.operations,
+                Err(_) => return,
+            },
         };
         let fonts = self.fonts_of(res);
         let xobjects = res.get(b"XObject").ok().and_then(|o| self.dict(o)).cloned().unwrap_or_default();
@@ -600,4 +613,193 @@ pub fn divide_scaled_bp(s: i64) -> (i64, i64) {
         r -= m;
     }
     (sign * q, sign * (s - r / 100000))
+}
+
+/// Content stream operations, as `Content::decode` gives them, for the subset pdfTeX writes (numbers, names, strings,
+/// arrays of those, operators); anything else (comments, dictionaries, inline images, NUL or form feed outside a
+/// string, references) returns None and the caller uses lopdf's parser. Several times faster on large batches.
+pub fn fast_ops(b: &[u8]) -> Option<Vec<lopdf::content::Operation>> {
+    let mut ops = vec![];
+    let mut operands = vec![];
+    let mut i = 0;
+    let ws = |c: u8| c == b' ' || c == b'\t' || c == b'\r' || c == b'\n';
+    while i < b.len() {
+        let c = b[i];
+        if ws(c) {
+            i += 1;
+            continue;
+        }
+        if c.is_ascii_alphabetic() || c == b'*' || c == b'\'' || c == b'"' {
+            let s = i;
+            while i < b.len() && (b[i].is_ascii_alphabetic() || b[i] == b'*' || b[i] == b'\'' || b[i] == b'"') {
+                i += 1;
+            }
+            let w = &b[s..i];
+            match w {
+                b"true" | b"false" | b"null" | b"BI" => return None,
+                _ => {}
+            }
+            ops.push(lopdf::content::Operation { operator: String::from_utf8(w.to_vec()).ok()?, operands: std::mem::take(&mut operands) });
+            continue;
+        }
+        let (o, n) = fast_operand(b, i, 0)?;
+        operands.push(o);
+        i = n;
+    }
+    // Trailing operands without an operator: lopdf stops before them.
+    Some(ops)
+}
+
+fn fast_operand(b: &[u8], mut i: usize, depth: usize) -> Option<(Object, usize)> {
+    let c = b[i];
+    match c {
+        b'0'..=b'9' | b'+' | b'-' | b'.' => {
+            let s = i;
+            if c == b'+' || c == b'-' {
+                i += 1;
+            }
+            let d0 = i;
+            while i < b.len() && b[i].is_ascii_digit() {
+                i += 1;
+            }
+            let int_digits = i - d0;
+            if i < b.len() && b[i] == b'.' {
+                i += 1;
+                let f0 = i;
+                while i < b.len() && b[i].is_ascii_digit() {
+                    i += 1;
+                }
+                if int_digits == 0 && i == f0 {
+                    return None;
+                }
+                let v: f32 = std::str::from_utf8(&b[s..i]).ok()?.parse().ok()?;
+                Some((Object::Real(v), i))
+            } else {
+                if int_digits == 0 {
+                    return None;
+                }
+                let v: i64 = std::str::from_utf8(&b[s..i]).ok()?.parse().ok()?;
+                Some((Object::Integer(v), i))
+            }
+        }
+        b'/' => {
+            i += 1;
+            let s = i;
+            while i < b.len() && !b" \t\n\r\0\x0C()<>[]{}/%".contains(&b[i]) {
+                if b[i] == b'#' {
+                    return None;
+                }
+                i += 1;
+            }
+            Some((Object::Name(b[s..i].to_vec()), i))
+        }
+        b'(' => {
+            let mut out = vec![];
+            let mut level = 0usize;
+            i += 1;
+            loop {
+                let c = *b.get(i)?;
+                match c {
+                    b'\\' => {
+                        i += 1;
+                        let e = *b.get(i)?;
+                        match e {
+                            b'0'..=b'7' => {
+                                let mut v: u16 = 0;
+                                let mut k = 0;
+                                while k < 3 && i < b.len() && (b'0'..=b'7').contains(&b[i]) {
+                                    v = v * 8 + (b[i] - b'0') as u16;
+                                    i += 1;
+                                    k += 1;
+                                }
+                                out.push(v as u8);
+                                continue;
+                            }
+                            b'\r' => {
+                                i += 1;
+                                if b.get(i) == Some(&b'\n') {
+                                    i += 1;
+                                }
+                                continue;
+                            }
+                            b'\n' => {}
+                            b'n' => out.push(b'\n'),
+                            b'r' => out.push(b'\r'),
+                            b't' => out.push(b'\t'),
+                            b'b' => out.push(0x08),
+                            b'f' => out.push(0x0C),
+                            _ => out.push(e),
+                        }
+                        i += 1;
+                    }
+                    b'(' => {
+                        level += 1;
+                        out.push(c);
+                        i += 1;
+                    }
+                    b')' => {
+                        i += 1;
+                        if level == 0 {
+                            break;
+                        }
+                        level -= 1;
+                        out.push(c);
+                    }
+                    _ => {
+                        out.push(c);
+                        i += 1;
+                    }
+                }
+            }
+            Some((Object::String(out, lopdf::StringFormat::Literal), i))
+        }
+        b'<' => {
+            if b.get(i + 1) == Some(&b'<') {
+                return None;
+            }
+            i += 1;
+            let mut out = vec![];
+            let mut half = false;
+            loop {
+                let c = *b.get(i)?;
+                i += 1;
+                if c == b'>' {
+                    break;
+                }
+                if b" \t\n\r\0\x0C".contains(&c) {
+                    continue;
+                }
+                let v = (c as char).to_digit(16)? as u8;
+                if half {
+                    *out.last_mut().unwrap() |= v;
+                } else {
+                    out.push(v << 4);
+                }
+                half = !half;
+            }
+            Some((Object::String(out, lopdf::StringFormat::Hexadecimal), i))
+        }
+        b'[' if depth < 4 => {
+            i += 1;
+            let mut v = vec![];
+            loop {
+                while i < b.len() && b" \t\n\r".contains(&b[i]) {
+                    i += 1;
+                }
+                let c = *b.get(i)?;
+                if c == b']' {
+                    i += 1;
+                    break;
+                }
+                if c.is_ascii_alphabetic() {
+                    return None;
+                }
+                let (o, n) = fast_operand(b, i, depth + 1)?;
+                v.push(o);
+                i = n;
+            }
+            Some((Object::Array(v), i))
+        }
+        _ => None,
+    }
 }

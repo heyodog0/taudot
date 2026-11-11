@@ -46,6 +46,8 @@ pub struct Vf {
     pub single: HashMap<u32, (String, u32)>,
 }
 
+static MISSES: std::sync::Mutex<Option<std::collections::HashSet<String>>> = std::sync::Mutex::new(None);
+
 impl Texmf {
     pub fn new() -> Texmf {
         let root = std::env::var("PDFSOURCE_TLROOT").map(PathBuf::from).unwrap_or_else(|_| {
@@ -84,6 +86,25 @@ impl Texmf {
         if p.exists() {
             return Some(p.clone());
         }
+        // A file the store doesn't have for this image stays missing: remembered (in memory and on disk) so a run
+        // doesn't pay a fetch process per lookup.
+        let image = std::env::var("TEXSTORE_IMAGE").unwrap_or("2026.1@r79468".into());
+        let misses = ref_dir().join("pdfsource").join(format!("fetch-misses-{}.txt", image.replace(['/', '@'], "_")));
+        let key = p.display().to_string();
+        {
+            let mut m = MISSES.lock().unwrap();
+            if m.is_none() {
+                // (a day at most: a miss may be the store being unreachable, not the file being absent)
+                let fresh = std::fs::metadata(&misses).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|age| age.as_secs() < 86400);
+                if !fresh {
+                    let _ = std::fs::remove_file(&misses);
+                }
+                *m = Some(std::fs::read_to_string(&misses).unwrap_or_default().lines().map(String::from).collect());
+            }
+            if m.as_ref().unwrap().contains(&key) {
+                return None;
+            }
+        }
         let fetch = std::env::var("PDFSOURCE_FETCH").map(PathBuf::from).unwrap_or_else(|_| {
             fetch_tool()
         });
@@ -95,7 +116,15 @@ impl Texmf {
             .output()
             .map(|o| o.status.success())
             .unwrap_or(false);
-        (ok && p.exists()).then(|| p.clone())
+        if ok && p.exists() {
+            return Some(p.clone());
+        }
+        MISSES.lock().unwrap().as_mut().unwrap().insert(key.clone());
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&misses) {
+            use std::io::Write;
+            let _ = writeln!(f, "{key}");
+        }
+        None
     }
 
     pub fn tfm(&mut self, name: &str) -> Option<&Tfm> {

@@ -6,7 +6,7 @@
 uv run tests/measure.py [paper...]     (needs `cargo build --release` and tests/corpus.py build first)
 Results: $PDFSOURCE_CACHE/results/<paper>.json and a summary on stdout.
 """
-import json, os, subprocess, sys, time
+import json, os, shutil, subprocess, sys, time
 from collections import Counter
 from pathlib import Path
 
@@ -29,6 +29,7 @@ def main(papers):
     papers = papers or sorted(p.name for p in (CACHE / "build").iterdir() if p.is_dir())
     tot = Counter()
     reasons = Counter()
+    phases = Counter()
     rows = []
     for p in papers:
         if p in EXCLUDE:
@@ -53,6 +54,8 @@ def main(papers):
             print(f"{p}: failed {e}", flush=True)
             continue
           j["wall_s"] = time.time() - t
+          if not os.environ.get("PDFSOURCE_KEEP"):
+              shutil.rmtree(work, ignore_errors=True)  # the batches' PDFs (disk is tight)
           (out / f"{p}.json").write_text(json.dumps(j))
         for k in ("paras", "proven", "lines", "lines_proven", "words", "words_proven", "pages", "doc_lines"):
             tot[k] += j[k]
@@ -68,6 +71,11 @@ def main(papers):
                 tot["words"] -= d.get("words", 0)
                 tot["words_proven"] -= d.get("words", 0) * d["proven"]
         tot["ms"] += j["ms_total"]
+        for k, v in j.get("ms", {}).items():
+            phases[k] += v
+        rc = j.get("recheck", [0, 0])
+        tot["recheck"] += rc[0]
+        tot["recheck_ok"] += rc[1]
         for d in j.get("detail", []):
             if d.get("lines", 0) >= 2 and d.get("kind") != "display":
                 tot["multi"] += 1
@@ -87,6 +95,10 @@ def main(papers):
         print(f"paragraphs of 2+ lines: {tot['multi_proven']}/{tot['multi']} ({100*tot['multi_proven']/tot['multi']:.1f}%)")
     if tot["disp"]:
         print(f"displays: {tot['disp_proven']}/{tot['disp']} ({100*tot['disp_proven']/tot['disp']:.1f}%)")
+    if phases:
+        print("time (ms/paragraph): " + ", ".join(f"{k} {v/tot['paras']:.1f}" for k, v in sorted(phases.items(), key=lambda e: -e[1])))
+    if tot["recheck"]:
+        print(f"stock pdfLaTeX recheck of proven paragraphs: {tot['recheck_ok']}/{tot['recheck']} agree")
     for k, v in reasons.most_common():
         print(f"  {v:5}  {k}")
 
