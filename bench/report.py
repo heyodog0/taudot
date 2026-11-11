@@ -161,6 +161,38 @@ def interleave_table():
     return "\n".join(out)
 
 
+def burst_table():
+    """The burst script: one row per document, system and engine, both rounds pooled (60 keys)."""
+    kp, rp = f"{RESULTS}/burst.tsv", f"{RESULTS}/burst_runs.tsv"
+    if not os.path.exists(rp):
+        return ""
+    keys, runs = list(csv.DictReader(open(kp), delimiter="\t")), list(csv.DictReader(open(rp), delimiter="\t"))
+    out = ["| document | system | cores busy elsewhere (load), per run | key → first pixels p50 / p90 | "
+           "key → exact page p50 / p90 | keys never shown exact (preview) | outputs = stock | settled PDFs = stock |",
+           "|---|---|---|---|---|---|---|---|"]
+    name = {("taudot-pdftex", "pdflatex"): "patched", ("taudot-universal", "pdflatex"): "universal",
+            ("taudot-universal", "xelatex"): "universal XeLaTeX", ("taudot-universal", "lualatex"): "universal LuaLaTeX"}
+    seen = []
+    for r in runs:
+        g = (r["doc"], r["system"], r["engine"])
+        if g not in seen:
+            seen.append(g)
+    for doc, system, engine in seen:
+        rs = [r for r in runs if (r["doc"], r["system"], r["engine"]) == (doc, system, engine)]
+        ks = [k for k in keys if (k["doc"], k["system"], k["engine"]) == (doc, system, engine)]
+        px = [float(k["pixels_ms"]) for k in ks if k["pixels_ms"]]
+        ex = [float(k["exact_ms"]) for k in ks if k["exact_ms"]]
+        never = sum(k["own_exact"] != "True" for k in ks)
+        nprev = sum(k["own_preview"] != "True" for k in ks)
+        tot = lambda c: sum(int(r[c]) for r in rs)
+        d = doc.replace("synth-", "").replace("arxiv-", "") + (" pp" if doc.startswith("synth") else "")
+        noise = ", ".join(f"{r['other_cpu']} ({r['load']})" for r in rs)
+        out.append(f"| {d} | {name[(system, engine)]} | {noise} | "
+                   f"{f(pct(px, 50))} / {f(pct(px, 90))} | {f(pct(ex, 50))} / {f(pct(ex, 90))} | {never}/{len(ks)} "
+                   f"({nprev}) | {tot('outputs_exact')}/{tot('outputs')} | {tot('finals_exact')}/{tot('finals')} |")
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------------------------------------- chart
 LIGHT = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
 DARK = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181"]
@@ -270,6 +302,15 @@ def main():
         "The tables below pool both rounds (60 keys per document for these two).",
         "",
         interleave_table(),
+        "",
+        "### Burst typing (8 keys a second)",
+        "",
+        "Each spot's word typed at 8 keys a second without waiting, then the compile settles and the next spot "
+        "follows; two runs per row (pdfLaTeX: ABBA, as above), 60 keys. Times from each key to the first output that "
+        "contains it. Outputs = stock: every early, display and tau-pdfmx page sent, checked against latexmk after "
+        "as many keys as the output contains.",
+        "",
+        burst_table(),
         "",
         "### Edit → paragraph preview",
         "",

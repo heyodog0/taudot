@@ -30,6 +30,27 @@ elsewhere, load average 8–19. 6 documents × 2 rounds × 30 keys each; per-run
 - **Behind**: first page on open 294–481 ms against 230–412 ms (+60–90 ms; one 978 ms outlier, universal's first
   run of the series); memory 165–560 MB against 130–515 MB (summed RSS, an upper bound).
 
+### Burst typing: 8 keys a second (2026-11-10, main fcb58ce)
+
+The same 30 keys typed as a burst, at 8 keys a second, with no waiting for output, so each key lands while the last
+one is still being typed (method below). pdfLaTeX patched and universal interleaved (ABBA); universal XeLaTeX and
+LuaLaTeX twice each. Load average 10–33, 3.9–6.6 cores busy elsewhere, recorded per run in the burst table.
+
+- **Every output was exact.** 3,008 early, display and tau-pdfmx outputs sent during bursts were each checked
+  against latexmk after the number of keys the output contains, and every one matched. All 180 settled PDFs also
+  match stock.
+- **Almost no keys are skipped.** Neither driver merges a burst into one output. Every key's own state reached an
+  exact page, except for one case in universal pdfLaTeX (10 of 60 keys on synth-10, below).
+- **Key → first pixels** (preview, display page or page, whichever comes first), p50: patched 3.1–3.5 ms (29.6 and
+  41.3 ms on 1706.03762 and 2103.00020, where previews are rare), universal 2.6–10.2 ms. XeLaTeX 2.8–8.9 ms,
+  LuaLaTeX 4.0–5.1 ms.
+- **Key → exact page**, p50 / p90: universal pdfLaTeX 6.3–28.8 / 15–77 ms (its display page) against patched
+  34–61 / 42–88 ms. XeLaTeX 14–28 / 26–54 ms, LuaLaTeX 12–14 / 23–68 ms.
+- **One stall in universal pdfLaTeX.** When the edit is on page 1 of synth-10, every key restarts the run from
+  page 0 (no snapshot before it). That run needs ~140 ms to ship its first page, longer than the 125 ms between
+  keys, so nothing appears (no preview either) until 130–160 ms after the last key: up to 0.8 s for the word's
+  first key. Patched shows each of these keys in 61–88 ms.
+
 ### All engines
 
 - **Exact page after a key: only Taudot is under 100 ms, on all three engines**, and it barely grows with the
@@ -78,6 +99,14 @@ include the system's own process hand-offs, not drawing.
 | **memory** | Peak resident size summed over the system's process tree, sampled every 200 ms with `ps` (latexmk: the peak of its child processes). Forked snapshots share copy-on-write pages, which this sum counts once per process: for Taudot, TeXpresso and Rosina it's an upper bound. |
 
 p50 and p90 are over the 30 edits of one document.
+
+**Burst typing** (`bench/run.py burst`). The same spots and keys, but at each spot the six keys go out 125 ms apart
+(8 a second), whatever the system is doing; after the last key the harness waits for the compile to settle, rests
+300 ms and moves to the next spot. Every output is kept with its `applied` count and timed against each key it
+contains: **key → first pixels** is the first preview, display page or page holding the edit; **key → exact page**
+is the first display page or page holding the edit. A key is **skipped** when no exact output contains exactly its
+state (a later one covers it). Each output is checked against latexmk's after that many keys (references exist
+for every key): new pages for early PDFs, the display check for display pages, tau-pdfmx pages as above.
 
 ## Documents
 
@@ -168,6 +197,31 @@ Per document: patched, universal, universal, patched (ABBA), back to back; one r
 | 2103.00020 | universal 1 | 3.98 (16.8) | 7.6 (12) | 24.5 (30, 30) | 61.6 | 420 | 431 |
 | 2103.00020 | universal 2 | 3.90 (16.6) | 9.1 (11) | 27.5 (30, 30) | 69.3 | 428 | 481 |
 | 2103.00020 | patched 2 | 4.14 (16.7) | 6.8 (14) | – | 58.4 | 442 | 412 |
+
+### Burst typing (8 keys a second)
+
+Each spot's word typed at 8 keys a second without waiting, then the compile settles and the next spot follows; two runs per row (pdfLaTeX: ABBA, as above), 60 keys. Times from each key to the first output that contains it. Outputs = stock: every early, display and tau-pdfmx page sent, checked against latexmk after as many keys as the output contains.
+
+| document | system | cores busy elsewhere (load), per run | key → first pixels p50 / p90 | key → exact page p50 / p90 | keys never shown exact (preview) | outputs = stock | settled PDFs = stock |
+|---|---|---|---|---|---|---|---|
+| 10 pp | patched | 6.39 (10.3), 4.11 (12.5) | 3.3 / 34.9 | 35.9 / 68.0 | 0/60 (10) | 209/209 | 10/10 |
+| 10 pp | universal | 3.90 (12.8), 3.88 (12.3) | 2.8 / 410 | 6.3 / 410 | 10/60 (19) | 144/144 | 10/10 |
+| 100 pp | patched | 4.37 (13.4), 5.30 (15.7) | 3.2 / 35.5 | 34.2 / 41.8 | 0/60 (10) | 208/208 | 10/10 |
+| 100 pp | universal | 4.94 (15.6), 5.10 (15.5) | 2.9 / 22.8 | 6.9 / 22.8 | 0/60 (20) | 165/165 | 10/10 |
+| 300 pp | patched | 6.09 (16.3), 4.97 (17.0) | 3.5 / 40.0 | 41.4 / 52.0 | 0/60 (10) | 205/205 | 10/10 |
+| 300 pp | universal | 4.78 (16.7), 4.63 (16.3) | 2.6 / 15.2 | 6.4 / 15.2 | 0/60 (8) | 155/155 | 10/10 |
+| 1512.03385 | patched | 4.86 (16.8), 4.95 (19.1) | 3.1 / 39.0 | 37.1 / 50.2 | 0/60 (10) | 166/166 | 10/10 |
+| 1512.03385 | universal | 5.18 (17.1), 4.66 (18.2) | 3.2 / 18.3 | 10.5 / 20.0 | 0/60 (17) | 153/153 | 10/10 |
+| 1706.03762 | patched | 5.01 (19.6), 4.86 (18.9) | 29.6 / 73.4 | 60.6 / 87.9 | 0/60 (30) | 165/165 | 10/10 |
+| 1706.03762 | universal | 4.58 (19.3), 4.82 (19.0) | 6.8 / 77.1 | 28.8 / 77.1 | 0/60 (26) | 155/155 | 10/10 |
+| 2103.00020 | patched | 4.69 (27.0), 5.96 (27.7) | 41.3 / 65.1 | 52.7 / 65.6 | 0/60 (30) | 194/194 | 10/10 |
+| 2103.00020 | universal | 5.24 (33.2), 5.65 (28.9) | 10.2 / 22.1 | 17.2 / 25.7 | 0/60 (37) | 186/186 | 10/10 |
+| 10 pp | universal XeLaTeX | 4.94 (26.6), 5.03 (25.8) | 2.8 / 22.6 | 14.0 / 26.1 | 0/60 (20) | 120/120 | 10/10 |
+| 100 pp | universal XeLaTeX | 5.02 (23.9), 5.59 (22.4) | 4.7 / 30.9 | 19.5 / 33.7 | 0/60 (20) | 111/111 | 10/10 |
+| 300 pp | universal XeLaTeX | 4.64 (21.2), 4.63 (19.0) | 8.9 / 53.8 | 28.3 / 53.8 | 0/60 (29) | 121/121 | 10/10 |
+| 10 pp | universal LuaLaTeX | 4.04 (17.1), 4.34 (16.0) | 4.0 / 67.5 | 11.7 / 67.5 | 0/60 (18) | 158/158 | 10/10 |
+| 100 pp | universal LuaLaTeX | 5.13 (15.2), 6.03 (17.1) | 5.1 / 20.9 | 12.3 / 23.0 | 0/60 (16) | 167/167 | 10/10 |
+| 300 pp | universal LuaLaTeX | 6.57 (17.9), 5.41 (16.3) | 4.8 / 33.4 | 14.3 / 42.1 | 0/60 (8) | 226/226 | 10/10 |
 
 ### Edit → paragraph preview
 
