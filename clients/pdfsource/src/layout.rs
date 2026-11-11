@@ -141,7 +141,11 @@ pub fn lines_of(page: usize, glyphs: &[Glyph]) -> Vec<Line> {
             let forward = g.x >= last.x + last.adv - 0.5 * sz;
             let script = (g.y - base).abs() < 0.6 * sz && (g.size.abs() < cur[0].size.abs() * 0.95 || forward);
             // A script stacked under or over another one (x^a_b) moves left; that stays in the line.
-            let back = g.x < last.x + last.adv - 0.5 * sz && !(same_base && g.x > last.x - 0.01) && !(script && g.x > cur[0].x);
+            // An accent set before its base (\accent, \~N, \hat x): the base moves back under the accent, but not
+            // before the glyph that came before the accent.
+            let prev_end = if cur.len() >= 2 { cur[cur.len() - 2].x + cur[cur.len() - 2].adv } else { cur[0].x };
+            let under_accent = g.x + 0.01 >= prev_end && g.x < last.x + 0.01 && g.x + g.adv > last.x && (g.y - base).abs() < 0.6 * sz;
+            let back = g.x < last.x + last.adv - 0.5 * sz && !(same_base && g.x > last.x - 0.01) && !(script && g.x > cur[0].x) && !under_accent;
             let far = g.x > last.x + last.adv + 3.0 * sz; // a gutter
             if !(same_base || script) || back || far || (g.size < 0.0) != (last.size < 0.0) {
                 flush(&mut cur, &mut out);

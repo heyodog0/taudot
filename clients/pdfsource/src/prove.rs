@@ -468,7 +468,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         .map(|p| State { hyp: base(p, &hsize, parindent, &lefts), break_set: 0, flipped: vec![], tries: 0, done: None, last_reason: String::new(), searched: Default::default(), undo: None })
         .collect();
     for (i, p) in doc.paras.iter().enumerate() {
-        if let Some(r) = precheck(pdf, p).or_else(|| strays(doc, p)) {
+        if let Some(r) = precheck(pdf, p).or_else(|| strays(pdf, doc, p)) {
             states[i].done = Some(Outcome { proven: false, reason: r, max_dx: 0.0, tries: 0, source: String::new(), hyp: None, pre: String::new() });
         }
     }
@@ -1309,7 +1309,7 @@ fn derive_blocks(doc: &Doc, hsize: &mut HashMap<i64, i64>, lefts: &mut HashMap<i
 
 /// Glyphs inside a paragraph's region that aren't in its lines (an accent split off, an overlay): the comparison
 /// wouldn't see them, so the paragraph can't be proven.
-fn strays(doc: &Doc, p: &Para) -> Option<String> {
+fn strays(pdf: &Pdf, doc: &Doc, p: &Para) -> Option<String> {
     for part in p.lines.chunk_by(|a, b| a.page == b.page && a.left == b.left) {
         let first = &part[0];
         let last = &part[part.len() - 1];
@@ -1322,7 +1322,10 @@ fn strays(doc: &Doc, p: &Para) -> Option<String> {
             for g in &l.glyphs {
                 let cx = g.x + g.adv / 2.0;
                 if g.y < top && g.y > bottom && cx > x0 && cx < x1 && part.iter().all(|q| (q.y - g.y).abs() > 0.3 * q.size || cx < q.x0 || cx > q.x1) {
-                    return Some(format!("stray glyphs: a glyph at y {:.2} inside the paragraph", g.y));
+                    // (what it is, and how far from the nearest line of the paragraph: for the report)
+                    let near = part.iter().map(|q| g.y - q.y).min_by(|a, b| a.abs().partial_cmp(&b.abs()).unwrap()).unwrap_or(0.0);
+                    let t = crate::layout::glyph_text(&pdf.fonts[g.font], g.code);
+                    return Some(format!("stray glyphs: a glyph at y {:.2} inside the paragraph ({t:?} {} {:.2}, dy {near:+.2})", g.y, pdf.fonts[g.font].name, g.size));
                 }
             }
         }
