@@ -1,6 +1,6 @@
 # pdfsource: PDF → source, proven by re-typesetting
 
-Status: text paragraphs and single-row displays proven (56.0 % of lines), 2026-11-11; closing summary in section 10, tries on a parked engine and later fixes in section 11. Code: `clients/pdfsource/` (Rust, standalone crate).
+Status: text paragraphs and single-row displays proven (56.6 % of lines), 2026-11-11; closing summary in section 10, tries on a parked engine and later fixes in section 11. Code: `clients/pdfsource/` (Rust, standalone crate).
 Log: `docs/agents/pdfsource.log.md`. Brief: `docs/agents/pdfsource.md`.
 
 ## The claim
@@ -260,14 +260,14 @@ section 10 was under heavier load). Most of what is left is pdfTeX typesetting t
 
 | all sizes, 32 papers, 580 pages | proven | of | % | section 10 |
 |---|---|---|---|---|
-| paragraphs | 3 141 | 6 845 | 45.9 | 39.5 |
-| paragraphs of 2+ lines | 2 230 | 4 235 | 52.7 | 47.2 |
-| lines | 14 267 | 25 461 | 56.0 | 52.4 |
-| words | 144 260 | 255 521 | 56.5 | 52.9 |
+| paragraphs | 3 180 | 6 845 | 46.5 | 39.5 |
+| paragraphs of 2+ lines | 2 265 | 4 235 | 53.5 | 47.2 |
+| lines | 14 418 | 25 461 | 56.6 | 52.4 |
+| words | 145 944 | 255 521 | 57.1 | 52.9 |
 | displays | 42 | 245 | 17.1 | 16.7 |
 
-18 ms per paragraph. Why the rest fail: positions 2 993, stray glyphs 503, math 207, glyphs 96, breaks 57, font not
-found 41. Paragraph counts fall (7 437 → 6 845) because pieces that layout used to cut apart are whole paragraphs
+18 ms per paragraph; stock recheck 3 222/3 222. Why the rest fail: positions 3 039, stray glyphs 503, math 119,
+glyphs 98, breaks 58, font not found 41, accent or overlap 10. Paragraph counts fall (7 437 → 6 845) because pieces that layout used to cut apart are whole paragraphs
 now (bibliography entries, lines split at an accent); a few such pieces had been "proven" alone.
 
 - **`[n]` bibliography labels** sit in a box as wide as the hanging indent (`\hbox to<hang>{[n]\hss}`): the text
@@ -284,10 +284,20 @@ now (bibliography entries, lines split at an accent); a few such pieces had been
   showed up as stray glyphs: 650 → 503); a text accent raised a little over its base (`\'a` in Times) is no
   longer a superscript.
 - **Math:** `\%` (cmr `%`), and a cmr comma, period or hyphen next to math is text (in math those come from cmmi
-  and cmsy).
+  and cmsy). Text-font glyphs inside a formula (`BERT$_{\textsc{base}}$`, `\text`) become `\mbox{...\/}` (the text
+  commands end with an italic correction).
+- **Small caps** through a scaled virtual font (`ptmrc7t`: lowercase drawn from the base font at 0.8, letterspaced
+  by moves in each packet, which the VF reader skipped): offered as a candidate for the smaller size and tried when
+  a paragraph's positions fail at such a glyph.
+- **Bibliographies as lists:** natbib sets each entry as a list item (every line at `\bibhang` by `\parshape`, line 0
+  opening with an empty label box of width −`\bibhang`, then `\penalty0`); tried for a failing hanging paragraph,
+  kept when it gets further. Hanging entries: 1 309 paragraphs (4 199 lines), 389 proven before this.
 
-**Left in positions** (2 993): microtype expansion one step off on a line (~570; same text, the line's stretch
-differs by a hair), one-TJ-unit misses that the residual, geometry and indent searches don't fix (~330),
+**Left in positions** (3 039): microtype expansion off on a line (~570). In 1910.10683 the paper's own text, typeset in
+our harness, gives our expansion, not the original's: the setup differs there (the paper asks for `lmr`, the build's
+TeX Live lacks `T1lmr.fd`, LaTeX substitutes `T1/cmr`, and microtype then treats the body font differently): an
+artifact of the corpus build. Elsewhere (2006.11239) lines with math expand differently: some width in the line,
+likely in the math, differs; the comparison stops at the scale and doesn't say where. Also one-TJ-unit misses that the residual, geometry and indent searches don't fix (~330),
 bibliography entries in natbib's list form under microtype (the empty label box at the line start stops
 protrusion; `\hangindent` doesn't reproduce that), `\text`/`\mbox` inside math, single-line table cells and
 headings that layout takes for paragraphs. Verdicts move by a few paragraphs between runs of one build (hash order
