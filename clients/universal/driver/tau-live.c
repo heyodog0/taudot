@@ -29,6 +29,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <limits.h>
+#include <malloc/malloc.h>
 
 extern char **environ;
 
@@ -140,6 +141,7 @@ typedef struct {
   long cur_pos;
   pid_t warm;    // its warm pass, parked (0: none)
   int pages;     // pages shipped before it
+  int dense;     // taken at a line near an edit (it parked a warm pass child: W)
 } snap;
 
 typedef struct {
@@ -219,6 +221,12 @@ static long para_end(const text *t, long k) {
 }  // bytes before the edit with a snapshot at every line
 static snap *snaps;
 static int nsnaps, capsnaps;
+static int nreaps;  // idle reaps done (reap)
+static long reap_ms = 2500;  // --reap-ms: quiet this long (no edit, the run settled) and the session gives memory back
+static int64_t t_quiet;      // the last edit (or open)
+static int reaped = 1;       // done since then
+static char last_rel[1024];  // the last edit: its snapshots near it are kept (the next key is likely there)
+static long last_k = -1;
 static pid_t runner = -1, root = -1;
 static pid_t fins[256];
 static int nfins;
@@ -478,6 +486,7 @@ static void read_extents(snap *s) {
   s->cur_pos = -1;
   s->warm = 0;
   s->pages = 0;
+  s->dense = 0;
   if (!f) return;
   int cap = 0;
   while (fgets(line, sizeof line, f)) {
@@ -745,6 +754,7 @@ static void apply(change *ch, int nch, const char *why) { apply_run(ch, nch, why
 static void apply_run(change *ch, int nch, const char *why, int rerun) {
   if (rerun) run_no++;
   else { seq++; run_no = 1; blg_this[0] = 0; }
+  if (!rerun && nch >= 1) snprintf(last_rel, sizeof last_rel, "%s", ch[0].rel), last_k = ch[0].k;
   drop_deferred();
   if (!rerun) applied_at_run = applied;
   t_apply = now_us();
@@ -1673,6 +1683,7 @@ static void on_msg(char *line) {
       if (snaps[i].pid == a) {
         if (snaps[i].warm > 0 && snaps[i].warm != b) kill(snaps[i].warm, SIGKILL);
         snaps[i].warm = b;
+        snaps[i].dense = 1;
         // one warm child: this newest one (a line snapshot's, nearest the edit; or the one just used, parked anew).
         // A key elsewhere in the paragraph forks its pass from its snapshot (ctl-para). SIGTERM: not replaced.
         for (int j = 0; j < nsnaps; j++)
@@ -1753,17 +1764,91 @@ static void on_msg(char *line) {
   (void)kind;
 }
 
+static uint64_t pid_fp(pid_t p);
+// Reap (docs/universal.md, "Giving memory back"): when typing stops, the session keeps what the next key needs and
+// lets the rest go. Each edit leaves a snapshot at every line near it (dense: the next key there resumes at its own
+// line), and those stay until an edit before them; over many spots they add up (+50-80 MB, flat). Kept: the
+// snapshots a plain run leaves (at most one per --snapshot-ms of the run that took them), and of the dense ones only
+// the one the next key at the last edit resumes from, with the one warm pass child. A key at another spot resumes
+// from the snapshot before it, as a first key there does. Then tau-live and the reader return freed memory.
+static void reap(void) {
+  reaped = 1;
+  kill_doomed();  // (finishers exit by themselves; a stale pid is never signalled here)
+  long lo = -1;
+  text *t = last_k >= 0 ? get_text(last_rel) : NULL;
+  if (t) {  // the last edit's dense range (as apply_run's)
+    lo = last_k > dense ? last_k - dense : 0;
+    long ls = last_k;
+    while (ls > 0 && (size_t)ls <= t->len && t->data[ls - 1] != '\n') ls--;
+    if (ls < lo) lo = ls;
+  }
+  int w = 0, before = nsnaps, at = -1;
+  for (int i = 0; i < nsnaps; i++)  // the snapshot the next key there resumes from: the newest at or before the edit
+    if (t && snaps[i].cur && !strcmp(snaps[i].cur, last_rel) && snaps[i].cur_pos >= lo && snaps[i].cur_pos <= last_k)
+      at = i;
+  int64_t t_kept = 0;
+  uint64_t freed = 0;
+  for (int i = 0; i < nsnaps; i++) {
+    snap *x = &snaps[i];
+    int keep = i == 0 || i == at || (!x->dense && (x->t - t_kept < 0 || x->t - t_kept >= snapshot_ms * 1000));
+    if (keep) { t_kept = x->t; snaps[w++] = *x; continue; }
+    freed += pid_fp(x->pid) + pid_fp(x->warm);
+    kill(x->pid, SIGKILL);
+    free_snap(x);
+  }
+  nsnaps = w;
+  int warm = 0;
+  for (int i = 0; i < nsnaps; i++) warm += snaps[i].warm > 0;
+  for (int k = 1; k < 8 && k < nouts; k++) sx_free(&sxs[(nouts - 1 - k) % 8]);  // older outputs' SyncTeX (reloaded
+                                                                                  // from its file if ever needed)
+  if (reader_in >= 0 && njobs < 16) {  // (no answer: not a job)
+    static const char req[] = "idle\n";
+    if (write(reader_in, req, sizeof req - 1) < 0) {}
+  }
+  malloc_zone_pressure_relief(NULL, 0);
+  nreaps++;
+  if (dbg)
+    fprintf(dbg, "%lld reap: snapshots %d -> %d (%llu MB), warm %d, last edit %s@%ld\n", (long long)now_us(), before,
+            nsnaps, (unsigned long long)(freed >> 20), warm, last_rel, last_k), fflush(dbg);
+}
+
+static uint64_t pid_fp(pid_t p) {  // phys_footprint: what macOS charges the process (a shared copy-on-write page once)
+  struct rusage_info_v4 ri;
+  return p > 0 && proc_pid_rusage(p, RUSAGE_INFO_V4, (rusage_info_t *)&ri) == 0 ? ri.ri_phys_footprint : 0;
+}
 static void stats(void) {
   uint64_t foot = 0, maxf = 0;
   for (int i = 0; i < nsnaps; i++) {
-    struct rusage_info_v4 ri;
-    if (proc_pid_rusage(snaps[i].pid, RUSAGE_INFO_V4, (rusage_info_t *)&ri) == 0) {
-      foot += ri.ri_phys_footprint;
-      if (ri.ri_phys_footprint > maxf) maxf = ri.ri_phys_footprint;
-    }
+    uint64_t f = pid_fp(snaps[i].pid);
+    foot += f;
+    if (f > maxf) maxf = f;
   }
-  emit("{\"ev\":\"stats\",\"snapshots\":%d,\"footprint\":%llu,\"max_footprint\":%llu,\"fresh_runs\":%d}", nsnaps,
-       (unsigned long long)foot, (unsigned long long)maxf, fresh_runs);
+  // and every process of the session the driver knows (reap checks: what is kept, and what each one costs)
+  FILE *o = EVO;
+  fprintf(o, "{\"ev\":\"stats\",\"snapshots\":%d,\"footprint\":%llu,\"max_footprint\":%llu,\"fresh_runs\":%d,"
+             "\"reaps\":%d,\"procs\":[", nsnaps, (unsigned long long)foot, (unsigned long long)maxf, fresh_runs, nreaps);
+  int first = 1;
+  for (int i = 0; i < nsnaps; i++) {
+    fprintf(o, "%s{\"role\":\"snapshot\",\"pid\":%d,\"fp\":%llu,\"pages\":%d,\"dense\":%d,\"pos\":%ld,\"file\":",
+            first ? "" : ",", snaps[i].pid, (unsigned long long)pid_fp(snaps[i].pid), snaps[i].pages, snaps[i].dense,
+            snaps[i].cur_pos);
+    jstr(o, snaps[i].cur ? snaps[i].cur : "", snaps[i].cur ? strlen(snaps[i].cur) : 0);
+    fputc('}', o);
+    first = 0;
+    if (snaps[i].warm > 0)
+      fprintf(o, ",{\"role\":\"warm\",\"pid\":%d,\"fp\":%llu}", snaps[i].warm, (unsigned long long)pid_fp(snaps[i].warm));
+  }
+  struct { const char *r; pid_t p; } others[] = {{"driver", getpid()}, {"runner", runner}, {"reader", reader},
+                                                 {"pdfmx", pdfmx}};
+  for (int i = 0; i < 4; i++)
+    if (others[i].p > 0)
+      fprintf(o, "%s{\"role\":\"%s\",\"pid\":%d,\"fp\":%llu}", first ? "" : ",", others[i].r, others[i].p,
+              (unsigned long long)pid_fp(others[i].p)), first = 0;
+  for (int i = 0; i < nfins; i++)
+    fprintf(o, "%s{\"role\":\"finisher\",\"pid\":%d,\"fp\":%llu}", first ? "" : ",", fins[i],
+            (unsigned long long)pid_fp(fins[i])), first = 0;
+  fputs("]}\n", o);
+  fflush(o);
 }
 
 static void on_cmd(char *line) {
@@ -1774,6 +1859,7 @@ static void on_cmd(char *line) {
     return;
   }
   const char *c = v[0].s;
+  if (!strcmp(c, "change") || !strcmp(c, "open") || !strcmp(c, "rescan")) t_quiet = now_us(), reaped = 0;
   if (!strcmp(c, "change") && n == 5 && v[1].is_str && !v[2].is_str && !v[3].is_str && v[4].is_str) {
     applied++;
     text *t = get_text(v[1].s);
@@ -1975,6 +2061,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--park") && i + 1 < argc) snprintf(park_sock, sizeof park_sock, "%s", argv[++i]);
     else if (!strcmp(argv[i], "--parked") && i + 1 < argc) snprintf(parked_sock, sizeof parked_sock, "%s", argv[++i]);
     else if (!strcmp(argv[i], "--dense") && i + 1 < argc) dense = atol(argv[++i]);
+    else if (!strcmp(argv[i], "--reap-ms") && i + 1 < argc) reap_ms = atol(argv[++i]);  // (0: never)
     else { fprintf(stderr, "tau-live: unknown option %s\n", argv[i]); return 2; }
   }
   static char *pk_args[4];
@@ -2150,7 +2237,8 @@ int main(int argc, char **argv) {
     fflush(stdout);
   }
   seq = 0;
-  t_apply = now_us();
+  t_apply = t_quiet = now_us();
+  reaped = 0;
   spawn_engine();
   emit("{\"ev\":\"run\",\"seq\":0,\"run\":1,\"applied\":0,\"why\":\"open\",\"from_page\":0}");
   static char ibuf[1 << 22], mbuf[1 << 16];
@@ -2159,8 +2247,14 @@ int main(int argc, char **argv) {
     while (waitpid(-1, NULL, WNOHANG) > 0) {}
     if (ndoomed && (pass.seq != seq || (pass_out_seq == seq && !njobs) || now_us() - doomed_at > 50000)) kill_doomed();
     display_pump();  // (display pages held while the pass ran: after its reader request)
+    int timeout = ndoomed || (dq_seq == seq && dq_at < dq_n && display_seq != seq) ? 10 : 200;
+    if (reap_ms > 0 && !reaped) {  // quiet since the last edit, and the compile settled: give memory back
+      int64_t left = t_quiet + reap_ms * 1000 - now_us();
+      if (left <= 0 && !run_open && !njobs && !noq && ndeferred == 0) reap();
+      else if (left > 0 && left / 1000 + 1 < timeout) timeout = (int)(left / 1000 + 1);
+    }
     struct pollfd pf[4] = {{0, POLLIN, 0}, {msg_r, POLLIN, 0}, {reader_out, POLLIN, 0}, {pdfmx_out, POLLIN, 0}};
-    if (poll(pf, 4, ndoomed || (dq_seq == seq && dq_at < dq_n && display_seq != seq) ? 10 : 200) < 0 && errno != EINTR) die("poll");  // (negative fds are skipped)
+    if (poll(pf, 4, timeout) < 0 && errno != EINTR) die("poll");  // (negative fds are skipped)
     if (pdfmx_out >= 0 && (pf[3].revents & (POLLIN | POLLHUP))) {
       static char xbuf[4096];
       static size_t xlen;

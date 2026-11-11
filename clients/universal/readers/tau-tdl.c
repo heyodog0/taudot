@@ -15,6 +15,7 @@
 //       "dy" in the answer is how far the lines were moved (null: no line matched; the lines stay where the pass
 //       shipped them and the overlay is unplaced).
 // Prints one JSON line: {"ok":true,"page":N,"ops":K,"fonts":F,"bytes":B,"us":T} or {"ok":false,"error":...}.
+#include <malloc/malloc.h>
 #include <kpathsea/kpathsea.h>
 #include <stdint.h>
 #include <sys/stat.h>
@@ -1066,6 +1067,10 @@ int main(int argc, char **argv)
       else if (n == 2 && !strcmp(w[0], "warm"))  // the document's own last page, drawn and dropped: every font it
         cmd_xdv(w[1], w[1], "/dev/null", 0, 0);  // defines is loaded before the first pass needs it
       else if (n == 5 && !strcmp(w[0], "page")) cmd_page(w[1], atol(w[2]), w[3], w[4]);
+      else if (n == 1 && !strcmp(w[0], "idle")) {  // the session went quiet (tau-live's reap): freed memory back to
+        malloc_zone_pressure_relief(NULL, 0);       // the system; the caches stay (the next key's pass uses them)
+        continue;                                   // (no answer)
+      }
       else if (n == 2 && !strcmp(w[0], "warmpdf")) {  // an exact PDF read ahead of the passes drawn against it
         int64_t t0 = now_us();
         if (exact_get(w[1])) exact_prep(&exc), printf("{\"ok\":true,\"us\":%lld}\n", (long long)(now_us() - t0));
