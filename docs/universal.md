@@ -749,3 +749,36 @@ Open → first PDF through tau-live (pdfLaTeX, settled `.aux`, 6 runs each, patc
 `done` (the settled first compile) drops alike (synth-300 1354 → 1190 ms, 2103.00020 1152 → 1028). The 0.6–1 s
 outliers on a first run are macOS checking newly written binaries: rewriting tau-live and tau-tdl (or libtau) added
 130–180 ms to the next run only.
+
+## Burst typing on the first page (2026-11-10)
+
+Bench's burst (8 keys a second) on synth-10's first page: each key restarted a run that needed ~140 ms to ship page 1,
+longer than the 125 ms between keys, so nothing showed until 130–160 ms after the word's last key (0.8 s for its first),
+and no paragraph preview ever came (a pass before the first page was refused). Patched: 61–88 ms per key, previews in
+3 ms. Three causes, three fixes:
+
+- The run's speed: the unlocked getc above. Exact page per key 139–769 → 62–93 ms (patched 65–70); keys never shown
+  exact 5/30 → 0/30.
+- The pass refused before the first page (`s->pages > 0`): first-page passes read the font map at their ship-out (50–90
+  ms, longer than the exact page). Now the warm child, which only ever runs a pass, looks every loaded font up while it
+  waits (`hasfmentry`, found by symbol, pdfTeX only; as patched pdfTeX's paragraph snapshot does). Exact runners don't,
+  so their output can't change. Pass on the first page 50–90 → 2 ms.
+- The pass's output before the first page: libtau took the pass's bytes from the output file as it was when the pass
+  began; with no page shipped yet there was none, so the overlay was empty ("no content stream"). Now the file is found
+  at the pass's end and taken whole.
+
+Burst on synth-10 (one run each, load ~15), key → first pixels on the first-page spot's six keys: before 769 640 517
+389 264 139 ms, after 62 3 3 3 3 3 (the first key has no snapshot near the edit yet). `uni.py paragraph` takes
+`PARA_SPAN=N` (edits within N bytes after `\begin{document}`): synth-10's first page 19/19 previews byte-identical and
+placed at 0 px.
+
+Found on the way, and fixed in the reader: pdfTeX names a font resource `/F<k>` after the first font of its name the
+run uses (fonts of one name share one object). A pass before the first page uses the paragraph's font first (`/F58`);
+the exact run used another of that name first, on the title (`/F89`). The bytes differ only in that name, but the
+overlay took `/F58` from the exact PDF's other pages: another subset (1512.03385's first page: 8 of 12 previews
+marked exact were misplaced, worst 23,766 px). `tau-tdl pdf` now checks the pass as `page` checks a display page:
+every (font, code) it shows is drawn somewhere in the exact PDF under that name, and every resource it names is
+there, else no overlay ("glyph"/"resource"). This also stops overlays of characters the subsets lack (a new letter),
+which were marked exact before. Title-page documents get no first-page preview on pdfLaTeX for now (1512.03385,
+2103.00020: refused, none wrong); synth-10's first page 19/19 at 0 px; elsewhere coverage unchanged (1512.03385 8,
+2103.00020 11 exact, all at 0 px).

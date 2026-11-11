@@ -29,6 +29,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <dlfcn.h>
 #include <pthread/qos.h>
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
@@ -578,7 +579,19 @@ static long pretouch(void) {  // returns the pages written
   return n;
 }
 
+// pdfTeX reads its font map (pdftex.map, 5.5 MB) at a run's first font lookup, in its first ship-out. A pass from a
+// snapshot before any page has shipped (an edit on the first page) read it on every key: 50-90 ms, longer than the
+// exact page. The warm child, which only ever runs a pass, looks up every loaded font while it waits (as patched
+// pdfTeX does in its paragraph snapshot); exact runners never do. Found by symbol: pdfTeX only.
+static void warm_fonts(void) {
+  int *fontptr = dlsym(RTLD_DEFAULT, "fontptr");
+  int (*hasfmentry)(int) = (int (*)(int))dlsym(RTLD_DEFAULT, "hasfmentry");
+  if (!fontptr || !hasfmentry || !dlsym(RTLD_DEFAULT, "pdffontmap")) return;
+  for (int f = 1; f <= *fontptr; f++) hasfmentry(f);
+}
+
 static void warm_wait(void) {
+  warm_fonts();
   const char *qos = getenv("TAU_WARM_QOS");
   int qerr = 0;
   if (qos && !strcmp(qos, "ui")) qerr = pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
@@ -909,6 +922,9 @@ static int magic(const char *path) {  // 1 if PATH is a TeX-side signal (handled
     if (para_stop) {  // the pass's page(s): the bytes the engine appended to its output since the pass began
       int64_t t_stop = now_us();
       fflush(NULL);
+      if (!para_out)  // before the first page the output didn't exist when the pass began: all of it is the pass's
+        for (int i = 0; i < nfiles; i++)
+          if (files[i]->written && is_output(files[i])) para_out = files[i], para_base = 0;
       int64_t t_flushed = now_us();
       char p[2048];
       snprintf(p, sizeof p, "%s/para-%d-%d.bin", out, seq, getpid());
