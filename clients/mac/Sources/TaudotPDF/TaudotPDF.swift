@@ -44,6 +44,12 @@ import TaudotShared
   /// `sources` split into lines, made on first use after a change (the issues list asks for many lines per log).
   private var sourceLinesCache: [String: [String]] = [:]
   private var syncGen = 0
+  /// Outside edits waiting for the typeset with them (EditMarks.swift), and how many went up.
+  var editMarks: [PendingEditMark] = []
+  public internal(set) var editMarksShown = 0
+  var syncGenForMarks: Int { syncGen }
+  var syncInstalledForMarks: Int { syncInstalled }
+  func relativePath(_ p: String) -> String { relative(p) }
   /// The report generation whose SyncTeX is installed: an older one's, slower to come, never replaces it.
   private var syncInstalled = 0
   /// The pane's session: `close()` bumps it, so work started for one folder (a version) never lands on the next.
@@ -649,6 +655,7 @@ import TaudotShared
           self.placeChanges()
         }
         self.synctexForCursor(text)
+        self.placeEditMarks()
         if let j = self.pendingJump {
           self.pendingJump = nil
           self.jump(path: j.path, line: j.line, column: j.column, deliberate: j.deliberate)

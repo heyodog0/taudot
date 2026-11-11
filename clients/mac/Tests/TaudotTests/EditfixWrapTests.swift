@@ -179,8 +179,14 @@ func fontChangeKeepsTheTopPosition(width: Double, delta: Double) async throws {
     var st = v.style
     st.fontSize += CGFloat(delta)
     v.apply(style: st)
-    try await Task.sleep(for: .milliseconds(300))
-    let b = topChar()
+    // settled: the top character the same for 4 polls in a row (a loaded machine lays out later), at most 3 s
+    var b = topChar(), same = 0
+    for _ in 0..<60 where same < 4 {
+      try await Task.sleep(for: .milliseconds(50))
+      let n = topChar()
+      same = n == b ? same + 1 : 0
+      b = n
+    }
     // the same visual row: a's row (after the rewrap) is the one at the top
     if lay.visualLine(at: a) != lay.visualLine(at: b) {
       report.append("w\(Int(width)) \(delta > 0 ? "+" : "")\(Int(delta)) at \(frac): top char \(a) → \(b) (rows \(lay.visualLine(at: a)) vs \(lay.visualLine(at: b))); a's row top \(lay.caretRect(a).minY - lay.spacing), view top \(clip.bounds.minY), line height \(lay.lineHeight)")

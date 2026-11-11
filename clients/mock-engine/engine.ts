@@ -62,6 +62,7 @@ export interface Doc {
   subscribers: Set<Conn>;
   ranges: Range[];
   writeTimer?: ReturnType<typeof setTimeout>;
+  written?: Uint8Array; // what this engine last wrote to the file
 }
 
 interface Presence extends User {
@@ -440,6 +441,8 @@ export class Engine {
     } catch {
       return;
     }
+    // our own write (possibly behind d.text by edits since): not an edit made on disk
+    if (d.written && d.written.length === now.length && d.written.every((b, i) => b === now[i])) return;
     const old = d.text;
     let a = 0;
     while (a < old.length && a < now.length && old[a] === now[a]) a++;
@@ -457,6 +460,7 @@ export class Engine {
     if (d.writeTimer !== undefined) return;
     d.writeTimer = setTimeout(async () => {
       d.writeTimer = undefined;
+      d.written = d.text;  // (the watcher ignores the file while it is what we wrote)
       await Deno.writeFile(join(this.folder, d.path), d.text);
     }, 300);
   }

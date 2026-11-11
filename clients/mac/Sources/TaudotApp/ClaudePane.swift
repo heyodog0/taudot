@@ -12,6 +12,8 @@ import TaudotShared
   let view: EditorView
   var exited = false
   var onExit: (() -> Void)?
+  /// claude wrote to the terminal (at most twice a second): a disk edit now is Claude's (OutsideEdits).
+  var onOutput: (() -> Void)?
 
   /// The command run in the terminal: $TAUDOT_CLAUDE (tests), else `claude`.
   static var command: String { ProcessInfo.processInfo.environment["TAUDOT_CLAUDE"] ?? "claude" }
@@ -50,6 +52,14 @@ import TaudotShared
     if let found, let t = ClaudeSession.tool { run = Self.quote(t) + " attach " + Self.quote(found.sock) }
     _ = try await nvim.execLua(Self.lua, [.string(run), .int(Int64(chan)), .string(command)])
     nvim.notify("taudot_claude_exit") { [weak self] _ in self?.exited = true; self?.onExit?() }
+    nvim.notify("taudot_claude_output") { [weak self] _ in self?.onOutput?() }
+    _ = try? await nvim.execLua("""
+      local chan, last = ..., 0
+      vim.api.nvim_buf_attach(0, false, { on_lines = function()
+        local now = vim.uv.now()
+        if now - last > 500 then last = now; vim.rpcnotify(chan, 'taudot_claude_output') end
+      end })
+      """, [.int(Int64(chan))])
   }
 
   /// Type `text` at the prompt (no Return): written to the terminal's input as if typed. Waits (≤ 5 s) for the
@@ -351,6 +361,7 @@ extension ProjectWindow {
         if now - self.lastClaudeEsc < 0.35 { self.lastClaudeEsc = 0; self.focus(pane: 1); return true }
         return false
       }
+      c.onOutput = { [weak self] in self?.claudeOutputAt = CACurrentMediaTime() }
       c.onExit = { [weak self, weak c] in
         guard let self, let c, self.claude === c else { return }
         if self.focusedPane == 3 { self.focus(pane: 1) }
@@ -380,6 +391,7 @@ extension ProjectWindow: NSMenuItemValidation {
     case #selector(setClaudeDocked(_:)): item.state = dockedNow ? .on : .off
     case #selector(findNext(_:)), #selector(findPrevious(_:)): return find?.bar.query.text.isEmpty == false
     case #selector(togglePDFComments(_:)): item.state = pdf.showComments ? .on : .off
+    case #selector(toggleFollowEdits(_:)): item.state = followEdits ? .on : .off
     case #selector(toggleCommentsInText(_:)): item.state = TaudotSettings.shared.commentsHiddenInText ? .off : .on
     case #selector(reviewShow(_:)): item.state = sidebar.kinds.rawValue == item.tag ? .on : .off
     case #selector(reviewPreview(_:)):
