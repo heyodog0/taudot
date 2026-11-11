@@ -88,33 +88,47 @@ pub fn candidates(tx: &mut Texmf, f: &Font, size_bp: f64, used: &[u32]) -> Vec<T
         });
         // Text through a virtual font first (LaTeX's way), the raw font last.
         let mut opts: Vec<(String, HashMap<u32, u32>, f64)> = vec![];
+        let mut scaled: Vec<(String, HashMap<u32, u32>, f64)> = vec![];
         for v in vfs.iter().take(12) {
             let Some(vf) = tx.vf(v) else { continue };
             if vf.fonts.values().all(|(n, _)| *n != raw) {
                 continue;
             }
-            let scale = vf.fonts.values().find(|(n, _)| *n == raw).map(|x| x.1).unwrap_or(1.0);
-            let mut inv: HashMap<u32, u32> = HashMap::new();
-            for (vc, (n, rc)) in &vf.single {
-                if *n == raw {
-                    let e = inv.entry(*rc).or_insert(*vc);
-                    if (*vc == *rc && *e != *rc) || (*e != *rc && *vc < *e) {
-                        *e = *vc;
+            // Packets by the scale of the base font they set from: 1 (ordinary text), or less (small caps' lowercase,
+            // drawn from the base font at ~0.8: such glyphs show at the smaller size in the PDF).
+            let mut scales: Vec<f64> = vf.single.iter().filter(|(_, (n, _))| *n == raw).map(|(vc, _)| vf.single_scale.get(vc).copied().unwrap_or(1.0)).collect();
+            scales.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            scales.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+            for scale in scales {
+                let mut inv: HashMap<u32, u32> = HashMap::new();
+                for (vc, (n, rc)) in &vf.single {
+                    if *n == raw && (vf.single_scale.get(vc).copied().unwrap_or(1.0) - scale).abs() < 1e-6 {
+                        let e = inv.entry(*rc).or_insert(*vc);
+                        if (*vc == *rc && *e != *rc) || (*e != *rc && *vc < *e) {
+                            *e = *vc;
+                        }
                     }
                 }
-            }
-            // A VF needn't map every code (a bullet may come from TS1 while text is OT1): codes it lacks fail only the
-            // paragraphs that use them. Rank by coverage.
-            let cover = used.iter().filter(|c| inv.contains_key(c)).count();
-            if cover * 2 >= used.len() && (scale - 1.0).abs() < 1e-6 {
-                opts.push((v.clone(), inv, scale));
+                // A VF needn't map every code (a bullet may come from TS1 while text is OT1): codes it lacks fail only
+                // the paragraphs that use them. Rank by coverage.
+                let cover = used.iter().filter(|c| inv.contains_key(c)).count();
+                if (scale - 1.0).abs() < 1e-6 {
+                    if cover * 2 >= used.len() {
+                        opts.push((v.clone(), inv, scale));
+                    }
+                } else if cover > 0 && scale > 0.5 {
+                    scaled.push((v.clone(), inv, scale));
+                }
             }
         }
         opts.sort_by_key(|o| std::cmp::Reverse(used.iter().filter(|c| o.1.contains_key(c)).count()));
         if tx.has(&format!("{raw}.tfm")) {
             opts.push((raw.clone(), used.iter().map(|&c| (c, c)).collect(), 1.0));
         }
-        for (name, map, _) in opts {
+        // Scaled ones last: tried when a paragraph's positions point at this font (small caps).
+        opts.extend(scaled);
+        for (name, map, scale) in opts {
+            let pt = pt / scale;
             let tfm_name = name.clone();
             let Some(tfm) = tx.tfm(&name).cloned() else { continue };
             let mut input = HashMap::new();

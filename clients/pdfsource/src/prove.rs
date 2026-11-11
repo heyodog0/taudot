@@ -61,6 +61,8 @@ struct State {
     searched: std::collections::HashSet<usize>,
     /// A spacing guess to take back if it gets less far: the hypothesis before it, and that try's result.
     undo: Option<(Hyp, Cmp)>,
+    /// Font keys whose other candidates were tried for a position failure.
+    fonts_tried: std::collections::HashSet<usize>,
 }
 
 fn tex_env() -> Vec<(String, String)> {
@@ -78,6 +80,27 @@ fn pdflatex() -> PathBuf {
     std::env::var("PDFSOURCE_PDFLATEX").map(PathBuf::from).unwrap_or_else(|_| {
         crate::texmf::ref_dir().join("universal/bin-static/pdflatex")
     })
+}
+
+/// For a position failure at "line L glyph K": a font of that glyph or the one before it with another candidate
+/// (after the current one) that maps every code the paragraph uses in it, not tried yet: (font key, candidate).
+fn alt_font(tg: &Gen, fonts: &HashMap<usize, Vec<TexFont>>, p: &Para, why: &str, hyp: &Hyp, tried: &std::collections::HashSet<usize>) -> Option<(usize, usize)> {
+    let num = |tag: &str| -> Option<usize> { why.split(tag).nth(1)?.split_whitespace().next()?.parse().ok() };
+    let (li, gi) = (num("line ")?, num("glyph ")?);
+    let l = p.lines.get(li)?;
+    for g in [l.glyphs.get(gi), gi.checked_sub(1).and_then(|j| l.glyphs.get(j))].into_iter().flatten() {
+        let k = tg.k(g);
+        if tried.contains(&k) {
+            continue;
+        }
+        let Some(cands) = fonts.get(&k).filter(|c| c.len() > 1) else { continue };
+        let codes: Vec<u32> = p.lines.iter().flat_map(|q| q.glyphs.iter()).filter(|x| tg.k(x) == k).map(|x| x.code).collect();
+        let cur = *hyp.font_choice.get(&k).unwrap_or(&0);
+        if let Some(ni) = (cur + 1..cands.len()).find(|&ci| codes.iter().all(|c| cands[ci].input.contains_key(c)) && (cands[ci].size_pt - cands[cur].size_pt).abs() > 0.01) {
+            return Some((k, ni));
+        }
+    }
+    None
 }
 
 /// Removes a batch's PDF once read.
@@ -465,7 +488,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
     let mut states: Vec<State> = doc
         .paras
         .iter()
-        .map(|p| State { hyp: base(p, &hsize, parindent, &lefts), break_set: 0, flipped: vec![], tries: 0, done: None, last_reason: String::new(), searched: Default::default(), undo: None })
+        .map(|p| State { hyp: base(p, &hsize, parindent, &lefts), break_set: 0, flipped: vec![], tries: 0, done: None, last_reason: String::new(), searched: Default::default(), undo: None, fonts_tried: Default::default() })
         .collect();
     for (i, p) in doc.paras.iter().enumerate() {
         if let Some(r) = precheck(pdf, p).or_else(|| strays(pdf, doc, p)) {
@@ -684,6 +707,13 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                     st.flipped.clear();
                     moved = true;
                 }
+            } else if let Some(k) = c.why.starts_with("positions").then(|| alt_font(&cx.tg, &fonts, p, &c.why, &st.hyp, &st.fonts_tried)).flatten() {
+                // Glyphs off from a font with another candidate that maps this paragraph's codes (small caps through
+                // a scaled virtual font): try it.
+                st.fonts_tried.insert(k.0);
+                st.undo = Some((st.hyp.clone(), c.clone()));
+                st.hyp.font_choice.insert(k.0, k.1);
+                moved = true;
             } else if c.why.starts_with("positions") && !c.why.contains(" dy ") && p.hang > 0.0 && c.bad_line.is_some_and(|l| l >= 1) && c.first_dx < 0.1 && st.searched.insert(usize::MAX - 3) {
                 // A hanging line off by a little: the indent is measured to ~30 sp and sets those lines' width.
                 hsearch.push(i);

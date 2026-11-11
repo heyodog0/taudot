@@ -236,12 +236,13 @@ fn span_source_raw(fonts: &[Font], glyphs: &[Glyph], y0: f64, size0: f64, text: 
             }
             let a = atoms.last_mut().unwrap();
             let slot = match place { 0 => &mut a.nuc, 1 => &mut a.sup, _ => &mut a.sub };
+            // (\textsc, \textbf... end with an italic correction, \check@icr: \/ before the box closes)
             if join {
-                slot.pop();
+                slot.truncate(slot.len() - 3);
                 slot.push_str(&chars);
-                slot.push('}');
+                slot.push_str("\\/}");
             } else {
-                slot.push_str(&format!("\\mbox{{\\{cs}{{}}{chars}}}"));
+                slot.push_str(&format!("\\mbox{{\\{cs}{{}}{chars}\\/}}"));
             }
             a.text_in = Some((place, cs));
             last_end = g.x + g.adv;
