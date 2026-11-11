@@ -202,3 +202,19 @@ func orphanBusyNvim(watchdog: Bool) throws -> pid_t {
   try await Task.sleep(for: .milliseconds(300))
   #expect(await termState(nv).mode == "t")
 }
+
+/// A double-click on a word in Neovim: a deliberate jump (the mark goes to the word) whose mark fades by itself, the
+/// cursor staying on that line (the user: it never went away). ⌘⌥J's still stays (pdfClickHighlightFadesAfterClicksInARow).
+@MainActor @Test func editorDoubleClickHighlightFades() async throws {
+  // (the default hold, and no statics set: pdfClickHighlightFadesAfterClicksInARow sets them, in parallel)
+  let pdf = TaudotPDFPane()
+  pdf.pane.setSizes([CGSize(width: 612, height: 792)])
+  pdf.cursorMoved(path: "main.tex", line: 12, column: 4, deliberate: true, fades: true)
+  // (no SyncTeX here: the jump waits; the mark as the jump would put it)
+  pdf.pane.reveal(page: 0, rects: [CGRect(x: 200, y: 300, width: 30, height: 10)], lines: [CGRect(x: 108, y: 300, width: 396, height: 9)])
+  #expect(pdf.pane.markShown && pdf.markFor?.line == 12)
+  // the cursor stays on the line (its follow reports are not deliberate)
+  pdf.cursorMoved(path: "main.tex", line: 12, column: 6, deliberate: false)
+  try await Task.sleep(for: .milliseconds(Int(TaudotPDFPane.clickMarkHold * 1000) + 700))
+  #expect(!pdf.pane.markShown && pdf.markFor == nil, "the double-click's highlight is still up")
+}

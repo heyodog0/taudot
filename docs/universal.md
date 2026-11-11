@@ -667,3 +667,62 @@ then show an old page before the display page). Interleaved, same load (3–8), 
 At this load the two are within noise; the bench's regression needs a loaded machine to show, where the hold keeps
 the reader off the cores during the pass. `uni.py display` after the change: 40/40 (1512.03385, paper-b pdfLaTeX and
 LuaLaTeX), 29/40 synth-300, all 0 px, novel-glyph keys refused.
+
+## Parked sessions: lifeline, duplicate runners (2026-11-10)
+
+From a stall in the app (pdfLaTeX, parked engine on, edits through the app): no PDF after an edit; ~600 engine
+processes from earlier sessions still alive (parent 1); three runners in lockstep for one edit (page and finisher files
+in triples from consecutive pids).
+
+- **Lifeline.** libtau unset `TAU_FD` after reading it but not `TAU_LIFE`. A session's engine forked from the parked
+  one set its lifeline to the session's pipe, then `tau_config()` read the parked engine's stale `TAU_LIFE` (fd 5: in
+  the child its own kqueue or `/dev/null`, which kqueue refuses as a read filter). So no process of a parked session
+  watched its lifeline: when tau-live died without cleaning up (the app quitting or restarting), they lived on.
+  Fixed (the session's pipes set after `tau_config`, `TAU_LIFE` unset with `TAU_FD`). `uni.py parked` now types in a
+  parked session, SIGKILLs its tau-live, and counts the engine's processes left: 56 before, 0 now.
+- **Two runners for one edit.** A woken snapshot forked the runner, and the runner read `ctl-<snapshot>` after the
+  fork. Two resumes of one snapshot back to back (fast typing) gave two wakes, and both runners could read the newest
+  orders: two runners for the same edit, one unknown to tau-live, writing to the session's pipe. Now the snapshot reads
+  its orders once, before forking, and passes them to the runner; each resume's orders carry a stamp (`go N`), and a
+  wake for orders already served forks nothing. Fast typing (96 keys in bursts, 8 ms apart): duplicate runners per
+  session 4–6 before, 0 after (the one remaining pair is edit 0's two latexmk reruns, each with its own orders).
+- The stall itself didn't reproduce here (fast typing, parked typing; both builds). Duplicate runners are the likely
+  route: a resume of a snapshot from the untracked chain.
+
+Checked after: `edits` 8/8 (pdfLaTeX, LuaLaTeX), `finish` 10/10 (3 engines), `paragraph` pdfLaTeX 11/11 at 0 px,
+`display` 40/40, `parked` XeLaTeX and LuaLaTeX ok (with the new checks). `rule` on paper-b had failed on both builds: the
+test's own reference ran BibTeX on a `.bbl`-only project (no `.bib`) and emptied the `.bbl`; fixed (latexmk's
+`-bibtex-cond`, as `stock_rule`). Now identical to stock in 3 runs, pdfLaTeX and LuaLaTeX.
+
+## List items: the preview stood 25 pt left (2026-11-10, editfix item 8)
+
+The user saw the PDF jitter while typing in a long `\item` (universal pdfLaTeX). Off screen (the app's pane, every
+frame of the page composited from its layers: `EditfixJitterTests.swift`), each key moved the item's lines sideways
+twice: the preview drew them 24.9 pt left of the page's, and the display page put them back. The pass takes its lines
+off with `\lastbox`, which drops each line's shift (a list's indent comes from `\parshape`, as a shift of every line
+box), and shipped them at the text's left edge (`\moveright\dimen0`). `uni.py paragraph` never had a list item.
+
+Now the driver passes the old lines' left edge from SyncTeX (`\taudotxb`, sp less 1in, beside `\taudotyb`) and the
+pass ships its lines there (`\moveright\dimexpr\taudotxb sp-\hoffset`): the engine rounds positions as on the page,
+the reader is unchanged. Old lines that don't share one left edge (a hanging indent) get no preview (`none`/`shape`).
+`uni.py paragraph` on a list-heavy document (14 sections of three long `\item`s and a nested `enumerate` item; 24
+edits): exact previews placed at 0 px, before → after: pdfLaTeX 4/17 (worst 44,063 px) → 17/17; LuaLaTeX 7/7 and
+XeLaTeX 7/7 (baselines) after. synth-10: 9/9 at 0 px, as before.
+
+The app side of the same report (`LiveTex.stale`, `retirePara`): tau-live's first-run finisher PDF could land after
+the run's finished PDF and `done` and put the older page back (and keep SyncTeX from installing); and the preview
+was taken down on the edit's second PDF (`changed` []), before the display page's tiles were up, so the old text
+showed for a frame at every key.
+
+## A finisher after its run's end (2026-11-10)
+
+The Mac test `paneChoosesUniversal` (XeLaTeX) sometimes waited its 60 s with no SyncTeX (1 in 42 runs here). Captured
+live: in the last latexmk rerun the first-page finisher (forked at page 2, the document's last) reported after the
+run's own end, so its early `pdf` went out after the final one and `done`; the pane installs SyncTeX only once reports
+have been quiet for 250 ms after `done`, and the early one cancelled it with no `done` to follow. Fixed: a finisher's
+output that comes after its run's final output isn't sent (its pages are no newer), and the first-page finish applies
+to a fresh engine's own run only (reruns resumed from its snapshots had it too). `uni.py latefinish` holds the first
+finisher 0.5 s (TAU_DEBUG_SAMPLE) on a two-page document with a settled `.aux`: the previous build sent an early `pdf`
+after `done` on all three engines, this one none. The Mac test: 30/30 after (the race was too rare to show by count).
+Checked: `finish` 10/10 ×3, first PDF on open pdfLaTeX 0.40 s and XeLaTeX 0.29 s, `edits` 8/8, `display`, `parked`,
+`rule`.

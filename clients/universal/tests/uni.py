@@ -668,7 +668,7 @@ def rule(engine, src, main):
         run_stock(engine, ref, main)
         a = open(f"{ref}/{st}.aux", "rb").read() if os.path.exists(f"{ref}/{st}.aux") else b""
         bl = b"\n".join(l for l in a.split(b"\n") if l.startswith((b"\\citation", b"\\bibdata", b"\\bibstyle")))
-        bib_changed = b"\\bibdata" in a and bl != bib_lines_last
+        bib_changed = b"\\bibdata" in a and bl != bib_lines_last and bib_files_exist(ref, a)  # (as latexmk -bibtex-cond)
         if bib_changed:
             subprocess.run([f"{USTOCK}/bibtex", st], cwd=ref, env=stock_env(), stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL)
@@ -1003,10 +1003,84 @@ def parked(engine, src, main, n=3):
     _, ms_o, how = session(["--parked", sock], dict(env, TEXINPUTS=".:"))
     ok &= how == "spawned"
     print(f"  started differently (TEXINPUTS): {how}")
+
+    # typing in a parked session: every key's run ends (a resumed snapshot once quit on its own SIGUSR1: its lifeline
+    # was a stale fd, its own kqueue), and once the session is closed none of its processes is left
+    engine_pid = int(subprocess.run(["pgrep", "-P", str(pk.pid)], capture_output=True, text=True).stdout.split()[0])
+
+    def engines():  # every process of this engine binary (orphans included: their parent is pid 1 by then)
+        return set(subprocess.run(["pgrep", "-f", f"^{eng} "], capture_output=True, text=True).stdout.split())
+    before = engines()
+
+    def left():
+        return sorted(engines() - before - {str(engine_pid)})
+    out = f"{WORK}/park-out"
+    shutil.rmtree(out, ignore_errors=True)
+    lv = Live.__new__(Live)
+    lv.events = []
+    lv.p = subprocess.Popen([f"{UBIN}/tau-live", "--parked", sock, "--serve", "--engine", eng, clean, main, out],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
+    lv.until(lambda e: e["ev"] == "done", timeout=600)
+    text = open(f"{clean}/{main}", "rb").read()
+    at = text.find(b"\\begin{document}")
+    at = text.find(b". ", text.find(b"\n\n", at + 1)) + 2
+    stalls = 0
+    for i, ch in enumerate("Typing goes here, one key at a time. Again."):
+        time.sleep(0.12)
+        lv.send("change", main, at + i, 0, ch)
+        run = newer_run(lv)
+        import threading
+        th = threading.Thread(target=lambda: lv.until(lambda e: e["ev"] == "done" and e["seq"] == run["seq"]),
+                              daemon=True)  # (until's own timeout is checked between lines only)
+        th.start()
+        th.join(15)
+        if th.is_alive():
+            stalls += 1
+            print(f"  key {i}: no done in 15 s (a stall)")
+            break
+    lv.p.kill()  # (as when the app quits or restarts: only the lifeline tells its processes)
+    lv.p.wait(20)
+    for _ in range(50):
+        if not left():
+            break
+        time.sleep(0.1)
+    rest = left()
+    ok &= stalls == 0 and not rest
+    print(f"  typing, parked: {i + 1 - stalls} keys settled, {stalls} stalls; after its tau-live was killed: {len(rest)} of its processes left")
     pk.stdin.close()
     pk.wait(20)
     print(f"parked {engine} {name}: unparked {ms_ref:.0f} ms, parked p50 {statistics.median(times):.0f} ms: "
           f"{'ok' if ok else 'FAILED'}")
+    return ok
+
+
+def latefinish(engine):
+    """A finisher done after its run's own output (the first-page finish forked at the last page of a short document,
+    held here 0.5 s by TAU_DEBUG_SAMPLE) must not send an early `pdf` after the final one and `done`: the app installs
+    SyncTeX only once reports have been quiet after `done`, and waited for ever (a Mac test's 60 s stall)."""
+    d = f"{WORK}/late-src"
+    shutil.rmtree(d, ignore_errors=True)
+    os.makedirs(d)
+    open(f"{d}/main.tex", "w").write("\\documentclass{article}\n\\begin{document}\nPage one.\n\\newpage\nPage two.\n"
+                                     "\\end{document}\n")
+    run_stock(engine, d, "main.tex")
+    run_stock(engine, d, "main.tex")  # (a settled .aux: the first run is the last)
+    for f in os.listdir(d):
+        if not f.endswith((".tex", ".aux")):
+            os.remove(f"{d}/{f}")
+    smp = f"{WORK}/late-sample"
+    shutil.rmtree(smp, ignore_errors=True)
+    os.environ["TAU_DEBUG_SAMPLE"] = smp
+    try:
+        live = Live(engine, d, "main.tex", f"{WORK}/late-out", "--hook")
+    finally:
+        del os.environ["TAU_DEBUG_SAMPLE"]
+    live.until(lambda e: e["ev"] == "done")
+    time.sleep(1.5)
+    live.close()
+    late = [json.loads(x)["ev"] for x in live.p.stdout.read().splitlines() if x.strip()]  # (it has exited: to EOF)
+    ok = not late
+    print(f"latefinish {engine}: events after done: {late or 'none'}: {'ok' if ok else 'FAILED'}")
     return ok
 
 
@@ -1101,6 +1175,8 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["paragraph"]:
         paragraph(*sys.argv[2:5], *(int(x) for x in sys.argv[5:6]))
         sys.exit(0)
+    if sys.argv[1:2] == ["latefinish"]:
+        sys.exit(0 if latefinish(sys.argv[2]) else 1)
     if sys.argv[1:2] == ["display"]:
         sys.exit(0 if display(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["parked"]:
