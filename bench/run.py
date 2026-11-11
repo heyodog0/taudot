@@ -127,7 +127,8 @@ class TaudotDriver(System):
         shutil.rmtree(self.keep, ignore_errors=True)
         os.makedirs(self.keep)
         self.p = subprocess.Popen(self.argv(proj, engine, main, out), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                  stderr=open(f"{out}.stderr", "w"), env=self.env(), text=True, bufsize=1)
+                                  stderr=open(f"{out}.stderr", "w"), env=self.env(), text=True, bufsize=1,
+                                  start_new_session=True)  # its own process group: memory counts what it leaves
         self.t0 = time.monotonic()
         threading.Thread(target=self.reader, daemon=True).start()
         self.applied = 0

@@ -170,7 +170,7 @@ class TreeRSS:
 
     def __init__(self, pid):
         self.pid, self.peak, self.peak_n, self.stop = pid, 0, 0, False
-        self.phases, self.cur = {}, None
+        self.phases, self.cur, self.groups = {}, None, set()
         import threading
         self.t = threading.Thread(target=self.loop, daemon=True)
         self.t.start()
@@ -180,20 +180,26 @@ class TreeRSS:
         self.phases.setdefault(name, dict(rss=0, fp=0, procs=0, fp_sum=0, n=0))
 
     def sample(self):
-        out = subprocess.run(["ps", "-axo", "pid=,ppid=,rss="], capture_output=True, text=True).stdout
-        kids, rss = {}, {}
+        """The driver's process tree, plus every process in a process group a member of the tree has had: a process
+        the driver reaps or leaves (reparented to launchd) keeps its group, so it is still counted. The harness
+        starts drivers in their own session, so the driver's group is not the harness's."""
+        out = subprocess.run(["ps", "-axo", "pid=,ppid=,pgid=,rss="], capture_output=True, text=True).stdout
+        kids, rss, group = {}, {}, {}
         for line in out.splitlines():
-            p, pp, r = map(int, line.split())
+            p, pp, g, r = map(int, line.split())
             kids.setdefault(pp, []).append(p)
-            rss[p] = r
-        tot, fp, n, todo = 0, 0, 0, [self.pid]
+            rss[p], group[p] = r, g
+        tree, todo = set(), [self.pid]
         while todo:
             p = todo.pop()
-            tot += rss.get(p, 0)
-            fp += footprint(p)
-            n += 1
+            tree.add(p)
             todo += kids.get(p, [])
-        return tot * 1024, n, fp
+        mine = os.getpgid(0)
+        self.groups |= {group[p] for p in tree if p in group and group[p] != mine}
+        procs = tree | {p for p, g in group.items() if g in self.groups}
+        tot = sum(rss.get(p, 0) for p in procs)
+        fp = sum(footprint(p) for p in procs)
+        return tot * 1024, len(procs), fp
 
     def loop(self):
         while not self.stop:
