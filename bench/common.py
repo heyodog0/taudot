@@ -147,14 +147,37 @@ def pct(xs, p):
 
 
 # ---------------------------------------------------------------------------------------------- memory
+_libc = None
+
+
+def footprint(pid):
+    """A process's phys_footprint (proc_pid_rusage, RUSAGE_INFO_V2): the memory macOS charges it, counting a page
+    shared copy-on-write with a forked parent once, in the process that dirtied it. 0 when it's gone."""
+    global _libc
+    import ctypes
+    if _libc is None:
+        _libc = ctypes.CDLL("/usr/lib/libSystem.dylib")
+    buf = (ctypes.c_uint64 * 40)()
+    if _libc.proc_pid_rusage(pid, 2, ctypes.byref(buf)) != 0:
+        return 0
+    return buf[9]  # after ri_uuid (2 words): user, system, idle wakeups, interrupt wakeups, pageins, wired, resident
+
+
 class TreeRSS:
-    """Peak resident memory of a process and all its descendants, sampled every 200 ms with ps."""
+    """Memory of a process and all its descendants, sampled every 200 ms: resident size summed (ps; pages shared
+    between forks counted once per process, an upper bound) and phys_footprint summed (proc_pid_rusage), with the
+    process count. `phase(name)` starts a named stretch; `phases` holds each one's peaks and mean footprint."""
 
     def __init__(self, pid):
         self.pid, self.peak, self.peak_n, self.stop = pid, 0, 0, False
+        self.phases, self.cur = {}, None
         import threading
         self.t = threading.Thread(target=self.loop, daemon=True)
         self.t.start()
+
+    def phase(self, name):
+        self.cur = name
+        self.phases.setdefault(name, dict(rss=0, fp=0, procs=0, fp_sum=0, n=0))
 
     def sample(self):
         out = subprocess.run(["ps", "-axo", "pid=,ppid=,rss="], capture_output=True, text=True).stdout
@@ -163,19 +186,25 @@ class TreeRSS:
             p, pp, r = map(int, line.split())
             kids.setdefault(pp, []).append(p)
             rss[p] = r
-        tot, n, todo = 0, 0, [self.pid]
+        tot, fp, n, todo = 0, 0, 0, [self.pid]
         while todo:
             p = todo.pop()
             tot += rss.get(p, 0)
+            fp += footprint(p)
             n += 1
             todo += kids.get(p, [])
-        return tot * 1024, n
+        return tot * 1024, n, fp
 
     def loop(self):
         while not self.stop:
-            tot, n = self.sample()
+            tot, n, fp = self.sample()
             if tot > self.peak:
                 self.peak, self.peak_n = tot, n
+            ph = self.phases.get(self.cur)
+            if ph is not None:
+                ph["rss"], ph["fp"], ph["procs"] = max(ph["rss"], tot), max(ph["fp"], fp), max(ph["procs"], n)
+                ph["fp_sum"] += fp
+                ph["n"] += 1
             time.sleep(0.2)
 
     def done(self):

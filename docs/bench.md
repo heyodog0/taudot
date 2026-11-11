@@ -33,7 +33,14 @@ elsewhere, load average 8–19. 6 documents × 2 rounds × 30 keys each; per-run
   225 / 225 / 231, and 334–370 ms against 359–398 ms on the three papers. Settled: 7 % faster than patched on
   the papers, 2 % faster at 10 pages, 5 % slower at 100 and 300 pages. The first-page table below has every document. Two documents
   were rerun because a burst of other work (10–12 cores) hit both drivers' runs.
-- **Behind**: memory, 165–560 MB against 130–515 MB (summed RSS, an upper bound).
+- **Memory: less when idle, more while typing** (main 0318961; phys_footprint summed over the driver's processes,
+  which counts a page shared copy-on-write with a fork once; two runs per driver in ABBA order, 3.2–5.3 cores busy
+  elsewhere; table below). Idle after opening, universal uses 5–15 % less than patched (96 against 110 MB at
+  10 pages, 168–426 against 183–440 MB on the papers; on par at 300 pages). While typing it keeps more: +50–135 MB at
+  10 pages and on the papers (e.g. 252–263 against 202 MB on 1512.03385), and it stays there when typing stops
+  (idle afterwards 185 against 113–133 MB at 10 pages). At 100 pages it is lower (311–354 against 368–529 MB). At
+  300 pages the two runs disagree (universal's burst peak 504 and 947 MB, patched's 462 and 660 MB): there, both
+  fork up to 99–125 processes. Universal always runs more processes (21–125 against 13–99).
 
 ### Burst typing: 8 keys a second (2026-11-10, main fcb58ce)
 
@@ -102,6 +109,7 @@ include the system's own process hand-offs, not drawing.
 | **edit → whole exact PDF** | The whole document's PDF, checked byte for byte against latexmk's (PDF `/ID` masked, since LuaTeX hashes the output path into it; XeTeX's XDV compared page by page). rtex: `export_pdf` (its clean LuaLaTeX build), sent with the edit. TeXpresso: its `done` (no file). |
 | **first compile** | Start → first page available, and start → settled, from a project whose `.aux` is already settled (a reopened project). |
 | **memory** | Peak resident size summed over the system's process tree, sampled every 200 ms with `ps` (latexmk: the peak of its child processes). Forked snapshots share copy-on-write pages, which this sum counts once per process: for Taudot, TeXpresso and Rosina it's an upper bound. |
+| **memory (phys_footprint)** | `bench/run.py memory`: one session per run (open, 5 s idle, the 30 isolated keys, the same spots again as bursts at 8 keys a second, 5 s idle). Every 200 ms, each process in the driver's tree is sampled with `proc_pid_rusage` (`ri_phys_footprint`, the memory macOS charges it: anonymous and compressed pages it dirtied, so a page shared copy-on-write with a fork counts once), and the sum is kept per phase with the summed RSS and the process count. |
 
 p50 and p90 are over the 30 edits of one document.
 
@@ -202,6 +210,25 @@ Per document: patched, universal, universal, patched (ABBA), back to back; one r
 | 2103.00020 | universal 1 | 3.98 (16.8) | 7.6 (12) | 24.5 (30, 30) | 61.6 | 420 | 431 |
 | 2103.00020 | universal 2 | 3.90 (16.6) | 9.1 (11) | 27.5 (30, 30) | 69.3 | 428 | 481 |
 | 2103.00020 | patched 2 | 4.14 (16.7) | 6.8 (14) | – | 58.4 | 442 | 412 |
+
+### Memory, pdfLaTeX (phys_footprint)
+
+One session per run: open, 5 s idle, the 30 isolated keys, the same spots again as bursts at 8 keys a second, 5 s idle. phys_footprint (`proc_pid_rusage`) summed over the driver's process tree, MB: mean over the idle phases, peak over the typing ones. Two runs per driver in ABBA order; each cell their range (one figure when within 10 MB).
+
+| document | driver | cores busy elsewhere | idle | isolated keys | bursts | idle after | summed RSS, peak | processes, most |
+|---|---|---|---|---|---|---|---|---|
+| 10 pp | patched | 3.20, 3.69 | 110 | 113 | 120–146 | 113–133 | 118–149 | 13 |
+| 10 pp | universal | 3.61, 3.98 | 96 | 193 | 185 | 185 | 149–189 | 21 |
+| 100 pp | patched | 4.30, 5.30 | 230 | 439–529 | 368–424 | 262–312 | 371–520 | 77 |
+| 100 pp | universal | 4.26, 4.61 | 202 | 312–354 | 311–330 | 307–320 | 275–278 | 45 |
+| 300 pp | patched | 4.73, 5.27 | 427–491 | 505–701 | 462–660 | 446–611 | 491–610 | 99 |
+| 300 pp | universal | 4.77, 4.79 | 481–491 | 607–663 | 504–947 | 470–686 | 661–1022 | 125 |
+| 1512.03385 | patched | 4.06, 4.36 | 183–193 | 202 | 197 | 187 | 209–222 | 16 |
+| 1512.03385 | universal | 4.41, 4.48 | 168 | 252–263 | 258–269 | 257 | 227–250 | 28 |
+| 1706.03762 | patched | 3.43, 3.46 | 207–223 | 225 | 219 | 216 | 232–240 | 17 |
+| 1706.03762 | universal | 3.72, 4.12 | 184 | 329–358 | 328–344 | 307–322 | 302–358 | 36 |
+| 2103.00020 | patched | 4.49, 4.61 | 440 | 472–527 | 454–507 | 454 | 481–517 | 45 |
+| 2103.00020 | universal | 4.95, 5.19 | 414–426 | 564–622 | 564–600 | 547 | 536–550 | 57 |
 
 ### First page on open, pdfLaTeX
 

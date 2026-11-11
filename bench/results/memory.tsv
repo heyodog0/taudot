@@ -1,0 +1,121 @@
+date	tag	system	version	doc	round	phase	fp_peak_mb	fp_mean_mb	rss_peak_mb	procs	load	other_cpu
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-10	1	open	81	41	83	6	10.4	3.69
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-10	1	idle	110	110	118	8	10.4	3.69
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-10	1	keys	113	110	89	8	10.4	3.69
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-10	1	burst	120	105	85	9	10.4	3.69
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-10	1	idle after	114	113	77	8	10.4	3.69
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-10	1	open	95	27	105	8	10.7	3.61
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-10	1	idle	96	96	106	8	10.7	3.61
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-10	1	keys	199	155	148	20	10.7	3.61
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-10	1	burst	185	166	149	20	10.7	3.61
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-10	1	idle after	186	185	140	19	10.7	3.61
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-10	2	open	95	48	104	8	10.5	3.98
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-10	2	idle	96	96	106	8	10.5	3.98
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-10	2	keys	193	155	189	21	10.5	3.98
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-10	2	burst	190	169	136	20	10.5	3.98
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-10	2	idle after	188	187	98	19	10.5	3.98
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-10	2	open	91	46	94	7	10.7	3.20
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-10	2	idle	111	111	118	8	10.7	3.20
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-10	2	keys	120	110	121	9	10.7	3.20
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-10	2	burst	146	116	149	13	10.7	3.20
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-10	2	idle after	133	133	134	11	10.7	3.20
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-100	1	open	167	83	183	17	13.0	4.30
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-100	1	idle	230	230	253	24	13.0	4.30
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-100	1	keys	529	276	520	77	13.0	4.30
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-100	1	burst	424	244	375	67	13.0	4.30
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-100	1	idle after	263	262	250	28	13.0	4.30
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-100	1	open	171	85	191	18	16.6	4.26
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-100	1	idle	204	204	229	22	16.6	4.26
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-100	1	keys	312	257	275	42	16.6	4.26
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-100	1	burst	311	249	248	43	16.6	4.26
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-100	1	idle after	312	307	190	42	16.6	4.26
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-100	2	open	171	85	191	18	17.1	4.61
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-100	2	idle	204	202	229	22	17.1	4.61
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-100	2	keys	354	273	278	45	17.1	4.61
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-100	2	burst	330	267	257	44	17.1	4.61
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-100	2	idle after	325	320	235	43	17.1	4.61
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-100	2	open	160	80	176	16	18.4	5.30
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-100	2	idle	230	230	254	24	18.4	5.30
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-100	2	keys	439	267	371	59	18.4	5.30
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-100	2	burst	368	260	314	45	18.4	5.30
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-100	2	idle after	313	312	233	36	18.4	5.30
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-300	1	open	451	231	508	60	19.3	5.27
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-300	1	idle	492	491	550	62	19.3	5.27
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-300	1	keys	701	402	479	99	19.3	5.27
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-300	1	burst	660	395	610	87	19.3	5.27
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-300	1	idle after	612	611	555	79	19.3	5.27
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-300	1	open	454	229	513	59	18.4	4.77
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-300	1	idle	498	491	564	63	18.4	4.77
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-300	1	keys	607	425	522	77	18.4	4.77
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-300	1	burst	947	579	1022	125	18.4	4.77
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-300	1	idle after	726	686	621	89	18.4	4.77
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-300	2	open	453	231	515	59	16.9	4.79
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-300	2	idle	491	481	556	62	16.9	4.79
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-300	2	keys	663	447	661	81	16.9	4.79
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-300	2	burst	504	385	525	60	16.9	4.79
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	synth-300	2	idle after	485	470	421	55	16.9	4.79
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-300	2	open	380	197	426	49	18.8	4.73
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-300	2	idle	427	427	476	52	18.8	4.73
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-300	2	keys	505	364	491	65	18.8	4.73
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-300	2	burst	462	314	449	56	18.8	4.73
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	synth-300	2	idle after	446	446	448	53	18.8	4.73
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1512.03385	1	open	148	71	161	12	19.6	4.06
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1512.03385	1	idle	183	183	198	14	19.6	4.06
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1512.03385	1	keys	206	179	222	16	19.6	4.06
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1512.03385	1	burst	197	164	192	15	19.6	4.06
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1512.03385	1	idle after	187	187	181	14	19.6	4.06
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1512.03385	1	open	146	71	162	12	17.4	4.41
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1512.03385	1	idle	169	168	187	14	17.4	4.41
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1512.03385	1	keys	263	215	220	28	17.4	4.41
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1512.03385	1	burst	258	207	227	28	17.4	4.41
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1512.03385	1	idle after	258	258	227	27	17.4	4.41
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1512.03385	2	open	157	77	174	13	19.4	4.48
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1512.03385	2	idle	172	172	190	14	19.4	4.48
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1512.03385	2	keys	252	210	239	28	19.4	4.48
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1512.03385	2	burst	269	213	250	28	19.4	4.48
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1512.03385	2	idle after	258	257	230	27	19.4	4.48
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1512.03385	2	open	149	71	159	12	23.2	4.36
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1512.03385	2	idle	193	193	209	15	23.2	4.36
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1512.03385	2	keys	202	176	170	16	23.2	4.36
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1512.03385	2	burst	205	174	185	16	23.2	4.36
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1512.03385	2	idle after	195	194	167	15	23.2	4.36
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1706.03762	1	open	163	94	174	12	20.2	3.46
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1706.03762	1	idle	224	223	240	16	20.2	3.46
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1706.03762	1	keys	233	212	218	17	20.2	3.46
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1706.03762	1	burst	227	190	210	16	20.2	3.46
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1706.03762	1	idle after	226	223	210	16	20.2	3.46
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1706.03762	1	open	173	98	187	13	17.3	3.72
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1706.03762	1	idle	188	188	204	14	17.3	3.72
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1706.03762	1	keys	329	246	358	36	17.3	3.72
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1706.03762	1	burst	328	253	316	33	17.3	3.72
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1706.03762	1	idle after	307	307	283	32	17.3	3.72
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1706.03762	2	open	168	94	182	12	19.2	4.12
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1706.03762	2	idle	184	184	199	13	19.2	4.12
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1706.03762	2	keys	358	251	302	35	19.2	4.12
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1706.03762	2	burst	344	253	287	32	19.2	4.12
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-1706.03762	2	idle after	323	322	267	31	19.2	4.12
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1706.03762	2	open	155	90	165	11	18.4	3.43
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1706.03762	2	idle	207	207	220	14	18.4	3.43
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1706.03762	2	keys	225	202	232	16	18.4	3.43
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1706.03762	2	burst	219	182	205	15	18.4	3.43
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-1706.03762	2	idle after	216	216	202	15	18.4	3.43
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	1	open	360	172	395	31	20.2	4.61
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	1	idle	440	440	481	36	20.2	4.61
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	1	keys	527	423	472	45	20.2	4.61
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	1	burst	507	355	441	43	20.2	4.61
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	1	idle after	463	463	420	38	20.2	4.61
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-2103.00020	1	open	382	181	420	32	21.6	5.19
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-2103.00020	1	idle	428	426	471	35	21.6	5.19
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-2103.00020	1	keys	622	507	550	57	21.6	5.19
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-2103.00020	1	burst	600	467	442	54	21.6	5.19
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-2103.00020	1	idle after	555	552	432	51	21.6	5.19
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-2103.00020	2	open	392	183	431	33	20.2	4.95
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-2103.00020	2	idle	416	414	457	34	20.2	4.95
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-2103.00020	2	keys	564	464	536	52	20.2	4.95
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-2103.00020	2	burst	564	428	444	53	20.2	4.95
+2026-11-10	main-0318961	taudot-universal	tau-live 031896132c	arxiv-2103.00020	2	idle after	551	547	394	50	20.2	4.95
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	2	open	368	176	404	32	19.9	4.49
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	2	idle	449	449	491	37	19.9	4.49
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	2	keys	472	380	517	39	19.9	4.49
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	2	burst	454	331	437	37	19.9	4.49
+2026-11-10	main-0318961	taudot-pdftex	pdftex-live 031896132c	arxiv-2103.00020	2	idle after	454	454	437	37	19.9	4.49
