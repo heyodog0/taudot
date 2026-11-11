@@ -795,3 +795,54 @@ a new warm child after its old one exits unless that was SIGTERM (a pass that ra
 replaced). A key on another line of the paragraph forks its pass from its snapshot as before (`ctl-para`). Bench-style peak summed RSS
 245–292 → 232–235 MB, 25 → 15–18 engine processes; combined footprint (`footprint` over the tree, shared pages once) at
 rest after 30 keys 247–251 → 196–201 MB (two runs each, interleaved); preview p50 unchanged (2.3–2.6 ms).
+
+## Giving memory back (2026-11-11)
+
+After typing, universal kept ~50–80 MB more than after opening (bench, 1512.03385: 234 MB with 33 processes against
+patched's 180–189 with 12), flat: line snapshots near every spot typed at (each edit leaves one at every line near it,
+and they stay until an edit before them), their warm pass children, and the rollbacks' 20 ms grids on top of the
+open run's. Now when no edit has come for `--reap-ms` (2500 by default; 0: never) and the run has settled, tau-live
+reaps (`reap`):
+
+- Kept: the first snapshot; the one the next key at the last edit resumes from (as `apply_run` picks: the newest
+  that hasn't read past the edit; a line snapshot of the edit's, or, when the edit's run was a rerun from before it
+  because the .aux changed, one of the rerun's), with its warm child; and the others spaced at least
+  `--reap-snapshot-ms` (50) apart in **engine time along the run** (`rc`: the time from the run's start through each
+  snapshot's ancestors, not the wall clock, whose gaps across rollbacks kept one more snapshot per rerun). 50, not
+  the 20 the engine snapshots at: a run resumed from a snapshot takes copy-on-write faults and covers less than half
+  the text per ms that the open run does, so 50 ms of it is about the open run's 20 in the document.
+- Let go (SIGKILL): every other snapshot (any can be resumed alone; a killed one's kept descendants are reparented
+  but stay in the session's process group and exit when the lifeline closes), stopped runners, the SyncTeX of all but
+  the newest output (reloaded from its file if needed), and freed malloc memory (`malloc_zone_pressure_relief`) in
+  tau-live and, by a new `idle` command, in tau-tdl. Finishers exit on their own; a finished one's pid is never
+  signalled (it may be reused).
+- `stats` lists every process the driver knows (`procs`: role, pid, phys_footprint) and the number of reaps.
+
+`uni.py reap ENGINE SRC MAIN` (the app's form, `--serve --engine`, in its own process group so that orphaned
+snapshots count): opens, rests, types 8 keys at 4 spots, rests, and compares the summed phys_footprint and process
+count of the whole group with an unreaped session's after opening; then 8 times a pause, a key and two more at typing
+pace, a jump to the first spot after a pause, every settled output against stock, and no process of the group left
+once the session closes. Synth-10 and 1512.03385, pdfLaTeX unless named (MB, processes):
+
+| | after opening (no reap) | after typing, rest, reaped | not reaped |
+|---|---|---|---|
+| synth-10 pdfLaTeX | 83 / 6 | 86 / 7 | 146 / 16 |
+| synth-10 XeLaTeX | 251 / 8 | 266 / 10 | 313 / 17 |
+| synth-10 LuaLaTeX | 276 / 9 | 288 / 10 | 392 / 18 |
+| 1512.03385 | 155 / 12 | 142 / 11 | 159 / 18 |
+
+The first key after a reap is as fast as the keys after it (p50, reaped / not): key → preview 9.6 / 9.8 ms, →
+display page 19.1 / 19.4, → exact page 49.3 / 48.8 on synth-10 pdfLaTeX; LuaLaTeX 16.6 / 17.2, 33.9 / 33.6, 75.2 /
+74.5; 1512.03385 display 73.0 / 74.5, page 95.0 / 96.0. A jump to another spot after a reap resumes further back:
+its exact page 13–27 ms later (synth-10 pdfLaTeX 54 against 41 ms, LuaLaTeX 78 / 56, 1512.03385 148 / 121), about a
+first key there after opening. Outputs = stock in every run, no process left after any session.
+
+Bench's memory session (`run.py memory`'s phases, the whole process group summed, `before` = the commit before the
+reap; two sessions each, ABBA): at rest after the typing synth-10 **123–129 → 84–85 MB**, 13–14 → 7 processes (after
+opening 83–89); 1512.03385 **249–270 → 116–122 MB**, 28–34 → 8–9 processes (after opening 152–158; patched pdfTeX
+180–189 in docs/bench.md). Bench's own tree sum (`TreeRSS`, the driver's descendants) undercounts after a reap:
+reaped snapshots' kept descendants leave the driver's tree (45–50 MB counted of 84–122); count by process group.
+The first key after the pause, p50 (after / before, 8 keys each, one at the last spot after 4 s of quiet): 1512.03385
+display 15.4 / 13.7 ms, page 38.8 / 38.5; synth-10 display 15.1 / 9.3, page 38.4 / 28.6 (in a run of the reap's
+steps one by one on synth-10, the full reap 10.2 / 31.4 against no reap 11.3 / 29.0: within the sessions' spread;
+open). The key after it is as fast as before (synth-10 7.7 / 10.2, 24.1 / 31.4).

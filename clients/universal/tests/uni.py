@@ -1247,8 +1247,10 @@ def reap(engine, src, main, spots=4, keys=8, cycles=8, seed=6):
 
         # spots in document order, so each one's line snapshots outlive the typing at the next (an edit before them
         # would replace them anyway)
+        spots_at = []
         for s, q in enumerate(sorted(rng.sample(pos, spots))):
             p = lo + q + s * keys
+            spots_at.append(p)
             for i in range(keys):
                 time.sleep(0.15)
                 r = key(p + i, "abcdefgh"[i % 8])
@@ -1271,10 +1273,22 @@ def reap(engine, src, main, spots=4, keys=8, cycles=8, seed=6):
                         (first if j == 0 else later)[k].append(r[k])
                 time.sleep(0.3)
         same &= settled(r["done"], text)
+        # a jump after a reap: a key at the first spot (its line snapshots are gone; it resumes from one before it)
+        time.sleep(rest)
+        r = key(spots_at[0], "j")
+        text = text[:spots_at[0]] + b"j" + text[spots_at[0]:]
+        jump = {k: r[k] for k in ("para", "display", "page") if k in r}
+        same &= settled(r["done"], text)
         lv.p.stdin.close()
         lv.p.wait(20)
+        # every process of the session exits with it (reaped snapshots' children were reparented, outside the
+        # driver's tree; they go when its lifeline closes)
+        t0 = time.monotonic()
+        while (left := group_memory(lv.p.pid)[1]) and time.monotonic() - t0 < 10:
+            time.sleep(0.2)
+        ok &= left == 0
         shutil.rmtree(out, ignore_errors=True)
-        return m_open, m_idle, st, first, later, same
+        return m_open, m_idle, st, first, later, same, jump, left
 
     def p50(v):
         return f"{statistics.median(v):5.1f}" if v else "    -"
@@ -1282,18 +1296,21 @@ def reap(engine, src, main, spots=4, keys=8, cycles=8, seed=6):
     res = {}
     for reap_ms in (2500, 0):
         res[reap_ms] = session(reap_ms)
-        (fo, no), (fi, ni), st, first, later, same = res[reap_ms]
+        (fo, no), (fi, ni), st, first, later, same, jump, left = res[reap_ms]
         kinds = collections.Counter(x["role"] + ("/dense" if x.get("dense") else "") for x in st.get("procs", []))
         print(f"  --reap-ms {reap_ms}: post-open {fo:.0f} MB, {no} processes; after typing and a rest {fi:.0f} MB, "
               f"{ni} processes ({dict(kinds)}); settled outputs = stock: {same}")
         for k in ("para", "display", "page"):
             print(f"    key -> {k:7s} p50: first after a pause {p50(first[k])} ms ({len(first[k])}), "
                   f"keys after it {p50(later[k])} ms ({len(later[k])})")
-    (fo, no), (fi, ni), st = res[2500][:3]
+        print(f"    a jump to the first spot after a pause: {({k: round(v, 1) for k, v in jump.items()})} ms; "
+              f"processes left after it closed: {left}")
+    (fi, ni), st = res[2500][1:3]
+    fo, no = res[0][0]  # after opening, not reaped (the session with --reap-ms reaps after opening too)
     kinds = collections.Counter(x["role"] + ("/dense" if x.get("dense") else "") for x in st.get("procs", []))
-    # near: of the line snapshots only the next key's resume point and its warm child; the other snapshots as a run
-    # leaves them (rollbacks shift their 20 ms grid: one or two more or fewer than after opening)
-    near = kinds["snapshot/dense"] <= 1 and kinds["warm"] <= 1 and fi <= fo * 1.25 + 10 and ni <= no + 4
+    # near: of the line snapshots only the next key's resume point and its warm child; the other snapshots spaced as
+    # an open run leaves them
+    near = kinds["snapshot/dense"] <= 1 and kinds["warm"] <= 1 and fi <= fo * 1.1 + 10 and ni <= no + 2
     print(f"reap {engine} {name}: after a rest {fi:.0f} MB / {ni} processes against {fo:.0f} / {no} after opening "
           f"({'near' if near else 'NOT near'}); without reaping {res[0][1][0]:.0f} MB / {res[0][1][1]}; outputs = stock: "
           f"{ok}")

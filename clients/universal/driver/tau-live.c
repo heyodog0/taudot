@@ -1,6 +1,7 @@
 // MIT. tau-live: drives an UNMODIFIED TeX engine under libtau (the interposer) for live typesetting.
 //
 //   tau-live [--lib LIBTAU] [--snapshot-ms N] [--finish every|none] [--max-snapshots N] [--keep N]
+//            [--reap-ms N] [--reap-snapshot-ms N]
 //            DIR MAIN OUT -- ENGINE ARGS...
 //
 // DIR is never written: the engine runs in OUT/work, an APFS clone. Commands on stdin, events on stdout, both
@@ -135,6 +136,7 @@ typedef struct {
   pid_t pid;
   int seq;
   int64_t t;
+  int64_t rc;    // run clock: the engine time from the run's start to it (along its lineage; reap spaces by it)
   int n;
   extent *e;
   char *cur;     // the file being read when it was taken, and where (a line start)
@@ -223,6 +225,9 @@ static snap *snaps;
 static int nsnaps, capsnaps;
 static int nreaps;  // idle reaps done (reap)
 static long reap_ms = 2500;  // --reap-ms: quiet this long (no edit, the run settled) and the session gives memory back
+static long reap_snap_ms = 50;  // the reap's spacing, in engine time (a resumed run, slowed by copy-on-write faults,
+                                // covers less text per ms: 50 ms of it is about the open run's 20)
+static int64_t t_resume;     // when the runner started (spawned, or a snapshot woken)
 static int64_t t_quiet;      // the last edit (or open)
 static int reaped = 1;       // done since then
 static char last_rel[1024];  // the last edit: its snapshots near it are kept (the next key is likely there)
@@ -665,6 +670,7 @@ static void spawn_engine(void) {
   if (dbg) fprintf(dbg, "%lld engine %d %s\n", (long long)now_us(), root, pk > 0 ? "from the parked engine" : "spawned"), fflush(dbg);
   free(env);
   runner = root;
+  t_resume = now_us();
   run_open = 1;
   fresh_runs++;
   pages_now = 0;
@@ -865,6 +871,7 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
   fprintf(f, "finish %s\n", finish_every ? "every" : "rule");
   fprintf(f, "snapms %ld\n", snapshot_ms);
   fclose(f);
+  t_resume = now_us();
   kill(s->pid, SIGUSR1);
   if (dbg) {
     fprintf(dbg, "%lld apply seq %d -> snapshot %d (%d of %d) edit %s@%ld snapshot extent %ld; next %ld\n",
@@ -1665,6 +1672,11 @@ static void on_msg(char *line) {
     if (nsnaps == capsnaps) snaps = realloc(snaps, (capsnaps = capsnaps ? capsnaps * 2 : 64) * sizeof *snaps);
     snap *s = &snaps[nsnaps++];
     s->pid = a, s->seq = c, s->t = t;
+    {  // the one before it is its ancestor (the runner's own last, or the one it resumed from)
+      snap *pv = nsnaps > 1 ? &snaps[nsnaps - 2] : NULL;
+      int64_t from = pv && pv->t > t_resume ? pv->t : t_resume;
+      s->rc = (pv ? pv->rc : 0) + (t > from ? t - from : 0);
+    }
     read_extents(s);
     runner = b;
     if (nsnaps > max_snaps) {  // thin: drop every other one between the first and the last
@@ -1768,30 +1780,24 @@ static uint64_t pid_fp(pid_t p);
 // Reap (docs/universal.md, "Giving memory back"): when typing stops, the session keeps what the next key needs and
 // lets the rest go. Each edit leaves a snapshot at every line near it (dense: the next key there resumes at its own
 // line), and those stay until an edit before them; over many spots they add up (+50-80 MB, flat). Kept: the
-// snapshots a plain run leaves (at most one per --snapshot-ms of the run that took them), and of the dense ones only
+// snapshots a plain run leaves (at most one per --reap-snapshot-ms of engine time along the run, rc), and of the dense ones only
 // the one the next key at the last edit resumes from, with the one warm pass child. A key at another spot resumes
 // from the snapshot before it, as a first key there does. Then tau-live and the reader return freed memory.
 static void reap(void) {
   reaped = 1;
   kill_doomed();  // (finishers exit by themselves; a stale pid is never signalled here)
-  long lo = -1;
-  text *t = last_k >= 0 ? get_text(last_rel) : NULL;
-  if (t) {  // the last edit's dense range (as apply_run's)
-    lo = last_k > dense ? last_k - dense : 0;
-    long ls = last_k;
-    while (ls > 0 && (size_t)ls <= t->len && t->data[ls - 1] != '\n') ls--;
-    if (ls < lo) lo = ls;
-  }
   int w = 0, before = nsnaps, at = -1;
-  for (int i = 0; i < nsnaps; i++)  // the snapshot the next key there resumes from: the newest at or before the edit
-    if (t && snaps[i].cur && !strcmp(snaps[i].cur, last_rel) && snaps[i].cur_pos >= lo && snaps[i].cur_pos <= last_k)
-      at = i;
+  // the snapshot the next key there resumes from (as apply_run picks): the newest that hasn't read past the edit. A
+  // line snapshot of the edit's when it has one; when the run after the edit was a rerun from before it (the .aux
+  // changed), one of the rerun's.
+  for (int i = nsnaps - 1; i >= 0 && at < 0 && last_k >= 0; i--)
+    if (snap_extent(&snaps[i], last_rel) <= last_k) at = i;
   int64_t t_kept = 0;
   uint64_t freed = 0;
   for (int i = 0; i < nsnaps; i++) {
     snap *x = &snaps[i];
-    int keep = i == 0 || i == at || (!x->dense && (x->t - t_kept < 0 || x->t - t_kept >= snapshot_ms * 1000));
-    if (keep) { t_kept = x->t; snaps[w++] = *x; continue; }
+    int keep = i == 0 || i == at || (!x->dense && x->rc - t_kept >= reap_snap_ms * 1000);
+    if (keep) { t_kept = x->rc; snaps[w++] = *x; continue; }
     freed += pid_fp(x->pid) + pid_fp(x->warm);
     kill(x->pid, SIGKILL);
     free_snap(x);
@@ -2041,6 +2047,7 @@ int main(int argc, char **argv) {
   int use_pdfmx = 1, lua_presize = 1;
   for (; i < argc && argv[i][0] == '-' && strcmp(argv[i], "--"); i++) {
     if (!strcmp(argv[i], "--lib") && i + 1 < argc) snprintf(lib, sizeof lib, "%s", argv[++i]);
+    else if (!strcmp(argv[i], "--reap-snapshot-ms") && i + 1 < argc) reap_snap_ms = atol(argv[++i]);
     else if (!strcmp(argv[i], "--snapshot-ms") && i + 1 < argc) snapshot_ms = atol(argv[++i]);
     else if (!strcmp(argv[i], "--finish") && i + 1 < argc) finish_every = !strcmp(argv[++i], "every");
     else if (!strcmp(argv[i], "--max-snapshots") && i + 1 < argc) max_snaps = atoi(argv[++i]);
