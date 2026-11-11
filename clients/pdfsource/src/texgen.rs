@@ -480,6 +480,16 @@ impl<'a> Gen<'a> {
                 i += 1;
             }
         }
+        // A numbered heading ("3.4\quad Title"): LaTeX sets the number and its quad in a box (\@hangfrom), so
+        // microtype doesn't protrude the number. The number: up to 10 glyphs of digits, capitals and dots.
+        let head_num = (1..items.len().min(11))
+            .find(|&k| items[k].sep == 1 && matches!(items[k].sf, Some(4) | Some(5)))
+            .filter(|&k| {
+                let txt: Vec<char> = items[..k].iter().filter_map(|it| tf(it.font)?.input.get(&it.code)?.last().and_then(|&c| char::from_u32(c))).collect();
+                txt.len() == k && items[1..k].iter().all(|it| it.sep == 0) && txt.iter().any(|c| c.is_ascii_digit()) && txt.iter().all(|c| c.is_ascii_digit() || c.is_ascii_uppercase() || *c == '.')
+            })
+            .filter(|_| p.label == 0 && bib == 0 && p.label_box == 0.0)
+            .unwrap_or(0);
         let mut boxed_from: Option<Option<usize>> = None; // open box: the font before it
         for i in 0..items.len() {
             let it = &items[i];
@@ -496,6 +506,10 @@ impl<'a> Gen<'a> {
                 // \labelwidth, then \labelsep (the label width here is any; positions don't depend on it).
                 let g = texgen_label_sep(p.label_sep) + hyp.params.labelsep_adj;
                 let _ = write!(s, "\u{1}hskip-20pt\u{1}hskip-{g}sp\u{1}hbox to20pt\u{2}\u{1}hfil ");
+            }
+            if head_num > 0 && i == 0 {
+                // (\@hangfrom{\hskip<indent>\@svsec}: glue first in the box, which stops protrusion)
+                let _ = write!(s, "{ESC}hbox\u{2}{ESC}hskip0pt{ESC}relax ");
             }
             if bib > 0 && i == 0 {
                 // A bibliography label left-aligned in a box as wide as the hanging indent: the text starts there.
@@ -556,6 +570,10 @@ impl<'a> Gen<'a> {
                     }
                     Some(2) => {
                         let _ = write!(s, "{ESC} {ESC} ");
+                    }
+                    Some(q @ (4 | 5)) if i == head_num => {
+                        let _ = write!(s, "{ESC}{}\u{3}", if q == 4 { "quad" } else { "enspace" });
+                        cur = None;
                     }
                     Some(4) => {
                         let _ = write!(s, "{ESC}quad ");
@@ -1045,9 +1063,13 @@ impl<'a> Gen<'a> {
         let mut m: Vec<bool> = l
             .glyphs
             .iter()
-            .map(|g| {
+            .enumerate()
+            .map(|(i, g)| {
                 let mf = math_font(&self.pdf.fonts[g.font]);
-                (g.y - l.y).abs() > 0.01
+                // A text accent over the next glyph (\'a set by \accent, raised a little for the x-height) isn't a script.
+                let accent = self.pdf.fonts[g.font].names.get(&g.code).and_then(|n| accent_cmd(n)).is_some()
+                    && l.glyphs.get(i + 1).is_some_and(|b| b.x < g.x + g.adv && b.font == g.font && (b.y - l.y).abs() <= 0.01);
+                ((g.y - l.y).abs() > 0.01 && !accent)
                     || matches!(mf, Some(Italic | BoldItalic | Symbols | Ext | Msbm | Msam))
                     || (matches!(mf, Some(Roman | Bold)) && !cm_text)
             })
@@ -1066,7 +1088,9 @@ impl<'a> Gen<'a> {
                         let (a, b) = if j < i { (&l.glyphs[j], g) } else { (g, &l.glyphs[j]) };
                         m[j] && b.x - (a.x + a.adv) < 0.35 * g.size
                     };
-                    if roman && !letter && ((i > 0 && touch(i - 1)) || (i + 1 < n && touch(i + 1))) {
+                    // (a cmr comma, period or hyphen is text: in math those come from cmmi and cmsy)
+                    let text_punct = matches!(g.code, 44 | 45 | 46);
+                    if roman && !letter && !text_punct && ((i > 0 && touch(i - 1)) || (i + 1 < n && touch(i + 1))) {
                         m[i] = true;
                         changed = true;
                     }

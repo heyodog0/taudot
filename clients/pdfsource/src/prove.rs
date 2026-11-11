@@ -57,8 +57,10 @@ struct State {
     tries: usize,
     done: Option<Outcome>,
     last_reason: String,
-    /// Lines whose residual was searched.
+    /// Lines whose residual was searched (and markers from usize::MAX down for searches done once).
     searched: std::collections::HashSet<usize>,
+    /// A spacing guess to take back if it gets less far: the hypothesis before it, and that try's result.
+    undo: Option<(Hyp, Cmp)>,
 }
 
 fn tex_env() -> Vec<(String, String)> {
@@ -463,10 +465,10 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
     let mut states: Vec<State> = doc
         .paras
         .iter()
-        .map(|p| State { hyp: base(p, &hsize, parindent, &lefts), break_set: 0, flipped: vec![], tries: 0, done: None, last_reason: String::new(), searched: Default::default() })
+        .map(|p| State { hyp: base(p, &hsize, parindent, &lefts), break_set: 0, flipped: vec![], tries: 0, done: None, last_reason: String::new(), searched: Default::default(), undo: None })
         .collect();
     for (i, p) in doc.paras.iter().enumerate() {
-        if let Some(r) = precheck(pdf, p).or_else(|| strays(doc, p)) {
+        if let Some(r) = precheck(pdf, p).or_else(|| strays(pdf, doc, p)) {
             states[i].done = Some(Outcome { proven: false, reason: r, max_dx: 0.0, tries: 0, source: String::new(), hyp: None, pre: String::new() });
         }
     }
@@ -625,6 +627,16 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             if std::env::var("PDFSOURCE_TRACE").is_ok_and(|v| v == i.to_string()) {
                 eprintln!("trace {i}: {} | {:?} resid {:?}", c.why, st.hyp.params, st.hyp.resid);
             }
+            let mut c: Cmp = c.clone();
+            if let Some((h, old)) = st.undo.take() {
+                let (bl, ob) = (c.bad_line.unwrap_or(0), old.bad_line.unwrap_or(0));
+                let worse = !c.ok && (bl < ob || (bl == ob && c.misses > old.misses) || (c.why.starts_with("breaks") && !old.why.starts_with("breaks")));
+                if worse {
+                    st.hyp = h;
+                    c = old;
+                    st.last_reason = c.why.clone();
+                }
+            }
             let mut moved = false;
             if c.why.starts_with("breaks") {
                 let upto = c.bad_line.unwrap_or(p.lines.len()).min(p.lines.len() - 1);
@@ -695,17 +707,19 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             } else if c.why.starts_with("positions") && !c.why.contains(" dy ") && !c.why.contains("scale") && c.first_dx >= 0.0125 && !st.hyp.params.newblock_neg && c.text.contains("hskip.11em") && st.searched.insert(usize::MAX - 2) {
                 // Some bibliography styles give \newblock a negative shrink (−.07em): on a tight line the other
                 // spaces then shrink more.
+                st.undo = Some((st.hyp.clone(), c.clone()));
                 st.hyp.params.newblock_neg = true;
                 // The glue changed: line residuals are searched again.
                 st.hyp.resid.clear();
-                st.searched.retain(|&x| x >= usize::MAX - 2);
+                st.searched.retain(|&x| x >= usize::MAX - 8);
                 moved = true;
-            } else if c.why.starts_with("positions") && !c.why.contains(" dy ") && !c.why.contains("scale") && c.first_dx >= 0.0125 && !st.hyp.params.french && c.text.contains(". ") {
+            } else if c.why.starts_with("positions") && !c.why.contains(" dy ") && !c.why.contains("scale") && c.first_dx >= 0.0125 && !st.hyp.params.french && c.text.contains(". ") && st.searched.insert(usize::MAX - 4) {
                 // Bibliographies set \sfcode`\.=1000: try French spacing (without a \newblock guess that didn't help).
+                st.undo = Some((st.hyp.clone(), c.clone()));
                 st.hyp.params.french = true;
                 st.hyp.params.newblock_neg = false;
                 st.hyp.resid.clear();
-                st.searched.retain(|&x| x >= usize::MAX - 2);
+                st.searched.retain(|&x| x >= usize::MAX - 8);
                 moved = true;
             } else if c.why.contains(" dy ") && !st.hyp.params.ams_bold && c.text.contains("boldsymbol") {
                 // Scripts on bold math sit differently under bm and amsmath.
@@ -770,7 +784,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                 states[i].hyp.params.hang_sp += offs[k];
                 if offs[k] != 0 {
                     states[i].hyp.resid.clear();
-                    states[i].searched.retain(|&x| x >= usize::MAX - 3);
+                    states[i].searched.retain(|&x| x >= usize::MAX - 8);
                 }
             }
         }
@@ -813,7 +827,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                 states[i].hyp.params.left_sp += dl;
                 // Residuals found under the old geometry are searched again.
                 states[i].hyp.resid.clear();
-                states[i].searched.retain(|&x| x >= usize::MAX - 1);
+                states[i].searched.retain(|&x| x >= usize::MAX - 8);
             }
         }
         if !rsearch.is_empty() {
@@ -1295,7 +1309,7 @@ fn derive_blocks(doc: &Doc, hsize: &mut HashMap<i64, i64>, lefts: &mut HashMap<i
 
 /// Glyphs inside a paragraph's region that aren't in its lines (an accent split off, an overlay): the comparison
 /// wouldn't see them, so the paragraph can't be proven.
-fn strays(doc: &Doc, p: &Para) -> Option<String> {
+fn strays(pdf: &Pdf, doc: &Doc, p: &Para) -> Option<String> {
     for part in p.lines.chunk_by(|a, b| a.page == b.page && a.left == b.left) {
         let first = &part[0];
         let last = &part[part.len() - 1];
@@ -1308,7 +1322,10 @@ fn strays(doc: &Doc, p: &Para) -> Option<String> {
             for g in &l.glyphs {
                 let cx = g.x + g.adv / 2.0;
                 if g.y < top && g.y > bottom && cx > x0 && cx < x1 && part.iter().all(|q| (q.y - g.y).abs() > 0.3 * q.size || cx < q.x0 || cx > q.x1) {
-                    return Some(format!("stray glyphs: a glyph at y {:.2} inside the paragraph", g.y));
+                    // (what it is, and how far from the nearest line of the paragraph: for the report)
+                    let near = part.iter().map(|q| g.y - q.y).min_by(|a, b| a.abs().partial_cmp(&b.abs()).unwrap()).unwrap_or(0.0);
+                    let t = crate::layout::glyph_text(&pdf.fonts[g.font], g.code);
+                    return Some(format!("stray glyphs: a glyph at y {:.2} inside the paragraph ({t:?} {} {:.2}, dy {near:+.2})", g.y, pdf.fonts[g.font].name, g.size));
                 }
             }
         }
