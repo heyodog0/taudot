@@ -1,6 +1,6 @@
 # pdfsource: PDF → source, proven by re-typesetting
 
-Status: stage 1 (body paragraphs) working, 2026-11-07. Code: `clients/pdfsource/` (Rust, standalone crate).
+Status: text paragraphs and single-row displays proven (52.4 % of lines), 2026-11-11; closing summary in section 10. Code: `clients/pdfsource/` (Rust, standalone crate).
 Log: `docs/agents/pdfsource.log.md`. Brief: `docs/agents/pdfsource.md`.
 
 ## The claim
@@ -200,6 +200,41 @@ wrote by hand), text inside math 32 (`\text`, `\mbox`), glyphs off the main base
 
 Break repairs in bibliography entries (hanging or `[n]`-labelled) now try `\sloppy` before forbidding breaks.
 Text lines +55, words +601 over section 8; no paper loses a proven paragraph. 2.0 s per page.
+
+### 10. Where it stands (2026-11-11, commit 28d4793; closing summary)
+
+**Covered and proven when it matches:** body paragraphs in one or two columns, joined across columns and pages;
+captions, footnotes, references at every text size; inline math (fonts, sub/superscripts, accents, operator
+names); microtype expansion; footnote marks and citations; section headings with their number quad; lists,
+hanging indents and indented blocks; bibliographies (hanging or `[n]`); colour literals; ligatures and
+hyphenation rebuilt by TeX; single-row displays with fractions, roots, over/underlines, big operators with
+limits, `\left`/`\right` and `\eqno` numbers.
+
+| all sizes, 32 papers, 580 pages | proven | of | % |
+|---|---|---|---|
+| paragraphs | 2 936 | 7 437 | 39.5 |
+| paragraphs of 2+ lines | 1 942 | 4 118 | 47.2 |
+| lines | 13 280 | 25 347 | 52.4 |
+| words | 133 915 | 253 380 | 52.9 |
+| displays | 42 | 252 | 16.7 |
+
+Time: 154 ms per paragraph, 2.0 s per page (one pdfLaTeX run per document plus repairs; shared machine).
+
+Why the rest fail (first reason per paragraph, text and displays): positions 3 500, stray glyphs 650, math 274,
+glyphs 178, breaks 65, font not found 40, accent or overlap 4. "Positions" is the big one: glyphs right, x off,
+mostly from parameters we don't recover yet (`\parfillskip`/`\rightskip` variants, `\emergencystretch`,
+hand-written kerns and `\hspace`, `\looseness`, float-adjacent geometry) and from paragraphs whose line set is
+wrong because a figure, table or float sits in the column.
+
+**Left, roughly in order of payoff:**
+1. Paragraph parameters beyond the column: search `\emergencystretch`, `\looseness`, `\rightskip` per paragraph.
+2. Multi-row displays (`align`, `eqnarray`, `gather`): one baseline per row, alignment points at "=", a number
+   per row.
+3. `\text`/`\mbox` inside math, and extensible delimiters (`\left` built from pieces).
+4. Stray glyphs: page furniture, line numbers and float text that layout lets into paragraphs.
+5. Tables (in the brief, not started), then whole-document source and its pages-identical measure.
+6. Fonts outside `pdftex.map` (Type 3, renamed subsets): 40 paragraphs.
+7. Unexplained: equation numbers in 2006.11239 end 0.67 bp past the column edge; detection tolerates it.
 
 ### Baselines (prior art, not run here)
 
