@@ -449,7 +449,8 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             cite_spaces: true,
             labelsep_adj: 0,
             newblock_neg: false,
-            hang_sp: if p.hang > 0.0 { if (texgen::sp(p.hang) - parindent).abs() < 200 { parindent } else { texgen::sp(p.hang) } } else { 0 },
+            // (a hang measured from the PDF is good to ~30 sp; natbib's \bibhang is 1em, a short length)
+            hang_sp: if p.hang > 0.0 { if (texgen::sp(p.hang) - parindent).abs() < 200 { parindent } else { texgen::snap_short(texgen::sp(p.hang), 60) } } else { 0 },
         },
         font_choice: font_choice.clone(),
         hyph: HashMap::new(),
@@ -613,6 +614,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         let mut rsearch: Vec<(usize, usize)> = vec![];
         let mut lsearch: Vec<usize> = vec![];
         let mut gsearch: Vec<usize> = vec![];
+        let mut hsearch: Vec<usize> = vec![];
         for (&i, c) in todo.iter().zip(&res) {
             let st = &mut states[i];
             if st.done.is_some() {
@@ -670,6 +672,10 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                     st.flipped.clear();
                     moved = true;
                 }
+            } else if c.why.starts_with("positions") && !c.why.contains(" dy ") && p.hang > 0.0 && c.bad_line.is_some_and(|l| l >= 1) && c.first_dx < 0.1 && st.searched.insert(usize::MAX - 3) {
+                // A hanging line off by a little: the indent is measured to ~30 sp and sets those lines' width.
+                hsearch.push(i);
+                moved = true;
             } else if c.why.starts_with("positions") && c.first_dx < 0.0125 && c.bad_line.is_some() {
                 // One unit off: the line start's residual (known to a few sp) is searched below, once per line.
                 let li = c.bad_line.unwrap();
@@ -686,9 +692,20 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                     gsearch.push(i);
                     moved = true;
                 }
+            } else if c.why.starts_with("positions") && !c.why.contains(" dy ") && !c.why.contains("scale") && c.first_dx >= 0.0125 && !st.hyp.params.newblock_neg && c.text.contains("hskip.11em") && st.searched.insert(usize::MAX - 2) {
+                // Some bibliography styles give \newblock a negative shrink (−.07em): on a tight line the other
+                // spaces then shrink more.
+                st.hyp.params.newblock_neg = true;
+                // The glue changed: line residuals are searched again.
+                st.hyp.resid.clear();
+                st.searched.retain(|&x| x >= usize::MAX - 2);
+                moved = true;
             } else if c.why.starts_with("positions") && !c.why.contains(" dy ") && !c.why.contains("scale") && c.first_dx >= 0.0125 && !st.hyp.params.french && c.text.contains(". ") {
-                // Bibliographies set \sfcode`\.=1000: try French spacing.
+                // Bibliographies set \sfcode`\.=1000: try French spacing (without a \newblock guess that didn't help).
                 st.hyp.params.french = true;
+                st.hyp.params.newblock_neg = false;
+                st.hyp.resid.clear();
+                st.searched.retain(|&x| x >= usize::MAX - 2);
                 moved = true;
             } else if c.why.contains(" dy ") && !st.hyp.params.ams_bold && c.text.contains("boldsymbol") {
                 // Scripts on bold math sit differently under bm and amsmath.
@@ -734,6 +751,26 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                 let best = offs.iter().enumerate().map(|(k, &d)| (&res[n * offs.len() + k], d)).filter(|(c, _)| c.ok || c.bad_line.unwrap_or(0) > 0).min_by_key(|(c, d)| (!c.ok, d.abs()));
                 if let Some((_, d)) = best {
                     states[i].hyp.params.labelsep_adj = d;
+                }
+            }
+        }
+        if !hsearch.is_empty() {
+            let offs: Vec<i64> = (-64..=64).collect();
+            let mut items = vec![];
+            for &i in &hsearch {
+                for &d in &offs {
+                    let mut h = states[i].hyp.clone();
+                    h.params.hang_sp += d;
+                    items.push((i, h));
+                }
+            }
+            let res = cx.batch(&items);
+            for (n, &i) in hsearch.iter().enumerate() {
+                let k = (0..offs.len()).min_by_key(|&k| { let c = &res[n * offs.len() + k]; (!c.ok, std::cmp::Reverse(c.bad_line.unwrap_or(0)), c.misses, offs[k].abs()) }).unwrap();
+                states[i].hyp.params.hang_sp += offs[k];
+                if offs[k] != 0 {
+                    states[i].hyp.resid.clear();
+                    states[i].searched.retain(|&x| x >= usize::MAX - 3);
                 }
             }
         }

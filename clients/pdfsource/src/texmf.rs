@@ -94,6 +94,11 @@ impl Texmf {
         {
             let mut m = MISSES.lock().unwrap();
             if m.is_none() {
+                // (a day at most: a miss may be the store being unreachable, not the file being absent)
+                let fresh = std::fs::metadata(&misses).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|age| age.as_secs() < 86400);
+                if !fresh {
+                    let _ = std::fs::remove_file(&misses);
+                }
                 *m = Some(std::fs::read_to_string(&misses).unwrap_or_default().lines().map(String::from).collect());
             }
             if m.as_ref().unwrap().contains(&key) {

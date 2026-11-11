@@ -305,6 +305,23 @@ impl<'a> Gen<'a> {
         Ok(s)
     }
 
+    /// A bibliography entry "[n] text" (hanging indent, label at the line start, the text after it exactly at the
+    /// indent): the number of label glyphs, else 0. Styles box the label (left-aligned) in \labelwidth + \labelsep.
+    fn bib_label(&self, p: &Para) -> usize {
+        if p.hang <= 0.0 || p.label > 0 || p.label_box > 0.0 || p.lines.len() < 2 {
+            return 0;
+        }
+        let l = &p.lines[0];
+        let t = |g: &crate::pdf::Glyph| crate::layout::glyph_text(&self.pdf.fonts[g.font], g.code);
+        if l.glyphs.first().is_none_or(|g| t(g) != "[" || (g.x - l.left).abs() > 0.05) {
+            return 0;
+        }
+        match (1..l.glyphs.len().min(8)).find(|&k| t(&l.glyphs[k]) == "]") {
+            Some(k) if l.glyphs.get(k + 1).is_some_and(|g| (g.x - (l.left + p.hang)).abs() < 0.05) => k + 1,
+            _ => 0,
+        }
+    }
+
     pub fn para_input(&self, p: &Para, hyp: &Hyp, main_font: usize) -> Result<String, String> {
         if p.display {
             return self.display_input(p, hyp);
@@ -332,6 +349,7 @@ impl<'a> Gen<'a> {
             skip: bool,
         }
         let cm_text = self.name_of(main_font).starts_with("CM");
+        let bib = self.bib_label(p);
         let mut items: Vec<Item> = vec![];
         let mut all_spans = vec![];
         for l in &p.lines {
@@ -430,10 +448,11 @@ impl<'a> Gen<'a> {
                 let sep = if skip { 0 } else { sep };
                 // The text after a list label starts at the item's left edge: no space, the label is in an \llap.
                 let sep = if li == 0 && p.label > 0 && gi == p.label { 0 } else { sep };
+                let sep = if li == 0 && bib > 0 && gi == bib { 0 } else { sep };
                 items.push(Item { font, code, sep, drop, gap, sf: None, pre, boxed: boxed && span.is_none() && !(li == 0 && gi < p.label), math, skip });
             }
             let start = items.len() - l.glyphs.len();
-            self.space_factors(&mut items[start..], hyp, main_font, p.hang > 0.0 || p.label > 0, |it| (it.font, it.code, it.sep, it.gap), |it, v| it.sf = v);
+            self.space_factors(&mut items[start..], hyp, main_font, p.hang > 0.0 || p.label > 0, li + 1 == nlines, |it| (it.font, it.code, it.sep, it.gap), |it, v| it.sf = v);
         }
         // Citations: natbib and LaTeX's \cite put a control space after the commas and semicolons inside the
         // brackets (space factor 1000), not the 1250/1500 a typed space gets. A bracket span counts as a citation
@@ -477,6 +496,14 @@ impl<'a> Gen<'a> {
                 // \labelwidth, then \labelsep (the label width here is any; positions don't depend on it).
                 let g = texgen_label_sep(p.label_sep) + hyp.params.labelsep_adj;
                 let _ = write!(s, "\u{1}hskip-20pt\u{1}hskip-{g}sp\u{1}hbox to20pt\u{2}\u{1}hfil ");
+            }
+            if bib > 0 && i == 0 {
+                // A bibliography label left-aligned in a box as wide as the hanging indent: the text starts there.
+                let _ = write!(s, "{ESC}hbox to{}sp\u{2}", hyp.params.hang_sp);
+            }
+            if bib > 0 && i == bib {
+                let _ = write!(s, "{ESC}hss\u{3}");
+                cur = None;
             }
             if p.label_box > 0.0 && i == p.label {
                 s.push('\u{3}');
@@ -839,7 +866,7 @@ impl<'a> Gen<'a> {
 
     /// Mark spaces whose width shows a space factor other than TeX's default for the text (`\ `, `\@`, `~`).
     /// Each line's glue ratio is solved from its ordinary spaces (factor 1000) in its main font.
-    fn space_factors<T>(&self, items: &mut [T], hyp: &Hyp, main_font: usize, bib: bool, get: impl Fn(&T) -> (usize, u32, u8, f64), mut set: impl FnMut(&mut T, Option<u32>)) {
+    fn space_factors<T>(&self, items: &mut [T], hyp: &Hyp, main_font: usize, bib: bool, last: bool, get: impl Fn(&T) -> (usize, u32, u8, f64), mut set: impl FnMut(&mut T, Option<u32>)) {
         if hyp.params.french {
             return;
         }
@@ -882,13 +909,15 @@ impl<'a> Gen<'a> {
         let is_rigid = |g: f64| [quad, quad / 2.0].iter().any(|w| (g - w).abs() < 0.006);
         let only_rigid = !normal.is_empty() && normal.iter().all(|&g| is_rigid(g));
         normal.retain(|&g| !is_rigid(g));
-        if y <= 0.0 || (normal.is_empty() && other_r.is_empty() && !only_rigid) {
+        // A paragraph's last line is set at its natural width (\parfillskip takes the rest): ratio 0 even with no
+        // ordinary space to solve it from.
+        if y <= 0.0 || (normal.is_empty() && other_r.is_empty() && !only_rigid && !last) {
             return;
         }
         normal.sort_by(|a, b| a.partial_cmp(b).unwrap());
         other_r.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let r = if normal.is_empty() && other_r.is_empty() {
-            0.0 // only quads: a heading's natural width
+            0.0 // only quads (a heading's natural width), or a last line
         } else if normal.is_empty() {
             other_r[other_r.len() / 2]
         } else {
@@ -1083,6 +1112,11 @@ pub fn accent_cmd(name: &str) -> Option<&'static str> {
 }
 
 /// The label separation in sp: the measured gap, snapped to the nicest TeX length within 80 sp.
+/// A measured length snapped to a short TeX length (at most one decimal in some unit) within `reach` sp, else as is.
+pub fn snap_short(v: i64, reach: i64) -> i64 {
+    (v - reach..=v + reach).map(|c| (nice_rank(c), (c - v).abs(), c)).filter(|e| e.0 < 20).min().map_or(v, |e| e.2)
+}
+
 pub fn texgen_label_sep(gap_bp: f64) -> i64 {
     let c = sp(gap_bp);
     (c - 80..=c + 80).min_by_key(|v| (nice_rank(*v), (v - c).abs())).unwrap_or(c)

@@ -343,7 +343,25 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
     let mut taken = 0usize;
     let mut prev: Option<(usize, usize, f64)> = None; // page, column, y of the last body line
     for (j, l) in lines.iter().enumerate() {
-        let ci = if !is_body(l) { None } else if let Some((ix, _, _)) = item[j] { Some(ix) } else if block[j].is_some() { block[j] } else { in_col(l) };
+        // A line at a hanging indent other than \parindent (natbib's \bibhang) right after a full line of a flush
+        // paragraph that starts at the column edge: the entry goes on (lines after the first all at the indent;
+        // under microtype a line may start protruded, so the indent is the largest offset seen).
+        let hang_col = prev.filter(|_| is_body(l) && item[j].is_none()).and_then(|(pg, pc, py)| {
+            let p = open.as_ref()?;
+            let c = &columns[pc];
+            let h = l.x0 - c.left;
+            let ok = pg == l.page
+                && ((py - l.y) - baselineskip).abs() < 0.05
+                && p.start == Start::Flush
+                && !p.ends_short
+                && p.label == 0
+                // (a list item whose label wasn't recognised: a bullet or dash opens it)
+                && p.lines[0].glyphs.first().is_none_or(|g| !matches!(glyph_text(&pdf.fonts[g.font], g.code).as_str(), "•" | "–" | "—" | "-" | "∗" | "*" | "◦" | "·" | "⋅" | "▪"))
+                && l.x1 <= c.right + 0.25 * body_size
+                && if p.hang > 0.0 { h <= p.hang + 0.01 && h > p.hang - if microtype { 0.4 * body_size } else { 0.01 } } else { p.lines.len() == 1 && h > 0.3 * body_size && h < 3.0 * body_size };
+            ok.then_some(pc)
+        });
+        let ci = if !is_body(l) { None } else if hang_col.is_some() { hang_col } else if let Some((ix, _, _)) = item[j] { Some(ix) } else if block[j].is_some() { block[j] } else { in_col(l) };
         let Some(ci) = ci else {
             if let Some(p) = open.take() {
                 paras.push(p);
@@ -356,11 +374,11 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
         let follows = prev.is_some_and(|(pg, pc, py)| pg == l.page && pc == ci && ((py - l.y) - baselineskip).abs() < 0.05);
         let continues_open = open.as_ref().is_some_and(|p| !p.ends_short && p.hang == 0.0) && follows && !indented && item[j].is_none();
         // An indented line right after a full line of a flush paragraph: a hanging indent (a bibliography entry).
-        let hangs = indented && follows && open.as_ref().is_some_and(|p| !p.ends_short && p.start == Start::Flush && (p.lines.len() == 1 || p.hang > 0.0));
+        let hangs = hang_col.is_some() || (indented && follows && open.as_ref().is_some_and(|p| !p.ends_short && p.start == Start::Flush && (p.lines.len() == 1 || p.hang > 0.0)));
         if continues_open || hangs {
             let p = open.as_mut().unwrap();
             if hangs {
-                p.hang = l.x0 - c.left;
+                p.hang = p.hang.max(l.x0 - c.left);
             }
             p.ends_short = !full(l, &c);
             let mut l = l.clone();
