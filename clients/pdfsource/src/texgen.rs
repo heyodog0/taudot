@@ -480,6 +480,16 @@ impl<'a> Gen<'a> {
                 i += 1;
             }
         }
+        // A numbered heading ("3.4\quad Title"): LaTeX sets the number and its quad in a box (\@hangfrom), so
+        // microtype doesn't protrude the number. The number: up to 10 glyphs of digits, capitals and dots.
+        let head_num = (1..items.len().min(11))
+            .find(|&k| items[k].sep == 1 && matches!(items[k].sf, Some(4) | Some(5)))
+            .filter(|&k| {
+                let txt: Vec<char> = items[..k].iter().filter_map(|it| tf(it.font)?.input.get(&it.code)?.last().and_then(|&c| char::from_u32(c))).collect();
+                txt.len() == k && items[1..k].iter().all(|it| it.sep == 0) && txt.iter().any(|c| c.is_ascii_digit()) && txt.iter().all(|c| c.is_ascii_digit() || c.is_ascii_uppercase() || *c == '.')
+            })
+            .filter(|_| p.label == 0 && bib == 0 && p.label_box == 0.0)
+            .unwrap_or(0);
         let mut boxed_from: Option<Option<usize>> = None; // open box: the font before it
         for i in 0..items.len() {
             let it = &items[i];
@@ -496,6 +506,10 @@ impl<'a> Gen<'a> {
                 // \labelwidth, then \labelsep (the label width here is any; positions don't depend on it).
                 let g = texgen_label_sep(p.label_sep) + hyp.params.labelsep_adj;
                 let _ = write!(s, "\u{1}hskip-20pt\u{1}hskip-{g}sp\u{1}hbox to20pt\u{2}\u{1}hfil ");
+            }
+            if head_num > 0 && i == 0 {
+                // (\@hangfrom{\hskip<indent>\@svsec}: glue first in the box, which stops protrusion)
+                let _ = write!(s, "{ESC}hbox\u{2}{ESC}hskip0pt{ESC}relax ");
             }
             if bib > 0 && i == 0 {
                 // A bibliography label left-aligned in a box as wide as the hanging indent: the text starts there.
@@ -556,6 +570,10 @@ impl<'a> Gen<'a> {
                     }
                     Some(2) => {
                         let _ = write!(s, "{ESC} {ESC} ");
+                    }
+                    Some(q @ (4 | 5)) if i == head_num => {
+                        let _ = write!(s, "{ESC}{}\u{3}", if q == 4 { "quad" } else { "enspace" });
+                        cur = None;
                     }
                     Some(4) => {
                         let _ = write!(s, "{ESC}quad ");
