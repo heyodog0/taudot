@@ -33,6 +33,8 @@ pub struct Report {
     pub para_lines: Vec<usize>,
     /// Per paragraph: main (body column), block (indented), item, foot, small (another text size).
     pub kinds: Vec<&'static str>,
+    /// Per paragraph: a hanging indent (bibliography entries).
+    pub hangs: Vec<bool>,
     pub words: Vec<usize>,
     pub other_lines: usize,
     pub tex_runs: usize,
@@ -229,7 +231,7 @@ impl<'a> Ctx<'a> {
                 ti.sort();
                 let mut nh: Vec<_> = hyp.nohyph.iter().collect();
                 nh.sort();
-                format!("{i}|{fc:?}|{hy:?}|{ti:?}|{nh:?}|{} {} {} {} {} {}", pr.ams_bold, pr.cite_spaces, pr.italic_correction, pr.labelsep_adj, pr.newblock_neg, pr.french)
+                format!("{i}|{fc:?}|{hy:?}|{ti:?}|{nh:?}|{} {} {} {} {} {} {} {}", pr.ams_bold, pr.cite_spaces, pr.italic_correction, pr.labelsep_adj, pr.newblock_neg, pr.french, pr.list_form, pr.hang_sp)
             };
             let input = match self.gen_cache.get(&key) {
                 Some(r) => r.clone(),
@@ -474,6 +476,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             cite_spaces: true,
             labelsep_adj: 0,
             newblock_neg: false,
+            list_form: false,
             // (a hang measured from the PDF is good to ~30 sp; natbib's \bibhang is 1em, a short length)
             hang_sp: if p.hang > 0.0 { if (texgen::sp(p.hang) - parindent).abs() < 200 { parindent } else { texgen::snap_short(texgen::sp(p.hang), 60) } } else { 0 },
         },
@@ -713,6 +716,13 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
                 st.fonts_tried.insert(k.0);
                 st.undo = Some((st.hyp.clone(), c.clone()));
                 st.hyp.font_choice.insert(k.0, k.1);
+                moved = true;
+            } else if c.why.starts_with("positions") && p.hang > 0.0 && p.label == 0 && cx.tg.bib_label(p) == 0 && !st.hyp.params.list_form && st.searched.insert(usize::MAX - 5) {
+                // A hanging entry as LaTeX lists set it (natbib): under microtype the label box stops protrusion.
+                st.undo = Some((st.hyp.clone(), c.clone()));
+                st.hyp.params.list_form = true;
+                st.hyp.resid.clear();
+                st.searched.retain(|&x| x >= usize::MAX - 8);
                 moved = true;
             } else if c.why.starts_with("positions") && !c.why.contains(" dy ") && p.hang > 0.0 && c.bad_line.is_some_and(|l| l >= 1) && c.first_dx < 0.1 && st.searched.insert(usize::MAX - 3) {
                 // A hanging line off by a little: the indent is measured to ~30 sp and sets those lines' width.
@@ -960,6 +970,7 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             })
             .collect(),
         words: doc.paras.iter().map(words_in).collect(),
+        hangs: doc.paras.iter().map(|p| p.hang > 0.0).collect(),
         other_lines: doc.other_lines,
         tex_runs: cx.runs,
         ms_total: t0.elapsed().as_secs_f64() * 1000.0,
@@ -1178,7 +1189,7 @@ pub fn print(r: &Report, json: bool) {
         s += &r
             .paras
             .iter()
-            .map(|(i, o)| format!("{{\"i\":{},\"lines\":{},\"words\":{},\"proven\":{},\"reason\":\"{}\",\"tries\":{},\"max_dx\":{:.4},\"kind\":\"{}\"}}", i, r.para_lines[*i], r.words[*i], o.proven, esc(&o.reason), o.tries, o.max_dx, r.kinds[*i]))
+            .map(|(i, o)| format!("{{\"i\":{},\"lines\":{},\"words\":{},\"proven\":{},\"reason\":\"{}\",\"tries\":{},\"max_dx\":{:.4},\"kind\":\"{}\",\"hang\":{}}}", i, r.para_lines[*i], r.words[*i], o.proven, esc(&o.reason), o.tries, o.max_dx, r.kinds[*i], r.hangs[*i]))
             .collect::<Vec<_>>()
             .join(",");
         s += "]}";
