@@ -98,6 +98,8 @@ pub fn token(mf: MathFont, code: u32) -> Option<String> {
             0..=10 => format!("\\{}", UGREEK[c as usize]),
             48..=57 => ch.to_string(),
             40 | 41 | 43 | 61 | 91 | 93 | 59 | 58 | 33 | 63 => ch.to_string(),
+            // \% in math: \chardef'd to "25, whose mathcode is "0025 (cmr)
+            37 => "\\%".into(),
             65..=90 | 97..=122 => format!("\\mathrm{{{ch}}}"),
             _ => return None,
         },

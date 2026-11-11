@@ -1063,9 +1063,13 @@ impl<'a> Gen<'a> {
         let mut m: Vec<bool> = l
             .glyphs
             .iter()
-            .map(|g| {
+            .enumerate()
+            .map(|(i, g)| {
                 let mf = math_font(&self.pdf.fonts[g.font]);
-                (g.y - l.y).abs() > 0.01
+                // A text accent over the next glyph (\'a set by \accent, raised a little for the x-height) isn't a script.
+                let accent = self.pdf.fonts[g.font].names.get(&g.code).and_then(|n| accent_cmd(n)).is_some()
+                    && l.glyphs.get(i + 1).is_some_and(|b| b.x < g.x + g.adv && b.font == g.font && (b.y - l.y).abs() <= 0.01);
+                ((g.y - l.y).abs() > 0.01 && !accent)
                     || matches!(mf, Some(Italic | BoldItalic | Symbols | Ext | Msbm | Msam))
                     || (matches!(mf, Some(Roman | Bold)) && !cm_text)
             })
