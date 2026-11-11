@@ -782,3 +782,14 @@ there, else no overlay ("glyph"/"resource"). This also stops overlays of charact
 which were marked exact before. Title-page documents get no first-page preview on pdfLaTeX for now (1512.03385,
 2103.00020: refused, none wrong); synth-10's first page 19/19 at 0 px; elsewhere coverage unchanged (1512.03385 8,
 2103.00020 11 exact, all at 0 px).
+
+## Memory: one warm child (2026-11-10)
+
+Bench's typing peak (summed RSS, 1512.03385): universal 245–292 MB with 25 engine processes against patched's 219–222
+with 15. The tree at the peak: the snapshot chain, plus a warm pass child under every line snapshot near the edit
+(7 of them, ~7.8 MB each). The next key resumes from the newest of those (the edited line's), so only its warm child
+is used. Now tau-live keeps one: when a warm child is announced it lets the others go (SIGTERM), and a snapshot parks
+a new warm child after its old one exits unless that was SIGTERM (a pass that ran, or one killed as superseded, is still
+replaced). A key on another line of the paragraph forks its pass from its snapshot as before (`ctl-para`). Bench-style peak summed RSS
+245–292 → 232–235 MB, 25 → 15–18 engine processes; combined footprint (`footprint` over the tree, shared pages once) at
+rest after 30 keys 247–251 → 196–201 MB (two runs each, interleaved); preview p50 unchanged (2.3–2.6 ms).

@@ -1673,6 +1673,10 @@ static void on_msg(char *line) {
       if (snaps[i].pid == a) {
         if (snaps[i].warm > 0 && snaps[i].warm != b) kill(snaps[i].warm, SIGKILL);
         snaps[i].warm = b;
+        // one warm child: this newest one (a line snapshot's, nearest the edit; or the one just used, parked anew).
+        // A key elsewhere in the paragraph forks its pass from its snapshot (ctl-para). SIGTERM: not replaced.
+        for (int j = 0; j < nsnaps; j++)
+          if (j != i && snaps[j].warm > 0) { kill(snaps[j].warm, SIGTERM); snaps[j].warm = 0; }
         return;
       }
     defer(line);  // its snapshot's S may still be on its way (or it is gone: drop_deferred kills it)

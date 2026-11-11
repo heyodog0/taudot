@@ -654,7 +654,9 @@ static void fork_warm(int kq) {
     return;
   }
   warm_pid = c;
-  watch_child(kq, c);
+  struct kevent ev;  // (with its exit status: one the driver let go is not replaced)
+  EV_SET(&ev, c, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT | NOTE_EXITSTATUS, 0, 0);
+  kevent(kq, &ev, 1, NULL, 0, NULL);
   msg("W %d %d", getpid(), c);
 }
 
@@ -672,6 +674,8 @@ static void park(int kq) {
     if (got.filter == EVFILT_READ) _exit(0);  // the driver is gone
     if (got.filter == EVFILT_PROC && (pid_t)got.ident == warm_pid && dense_snap) {  // used: park a new one
       warm_pid = 0;
+      int ws = (int)got.data;  // SIGTERM: the driver keeps one warm child (a newer snapshot's), not this one
+      if (WIFSIGNALED(ws) && WTERMSIG(ws) == SIGTERM) continue;
       int me0 = getpid();
       fork_warm(kq);
       if (getpid() != me0) return;  // (the new warm child, once ordered: a pass)
