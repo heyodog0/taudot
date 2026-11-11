@@ -11,7 +11,9 @@ M.defaults = {
   end)(),
   -- Collaborators get these groups in order. Linked, never hex.
   author_groups = { 'DiagnosticInfo', 'DiagnosticWarn', 'DiagnosticOk', 'DiagnosticHint', 'Special', 'DiagnosticError' },
-  fade_ms = 3000,
+  -- Edits made on disk (an editor or an agent outside Neovim, the engine's `source: "disk"`): their own colour.
+  disk_group = 'Function',
+  fade_ms = 4000,
   underline_unconfirmed = true,
   -- 'inline' (initials right at the cursor), 'eol', or 'none'
   cursor_label = 'inline',
