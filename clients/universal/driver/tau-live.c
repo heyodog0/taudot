@@ -1,7 +1,7 @@
 // MIT. tau-live: drives an UNMODIFIED TeX engine under libtau (the interposer) for live typesetting.
 //
 //   tau-live [--lib LIBTAU] [--snapshot-ms N] [--finish every|none] [--max-snapshots N] [--keep N]
-//            [--reap-ms N] [--reap-snapshot-ms N]
+//            [--reap-ms N] [--reap-snapshot-ms N] [--reap-open-ms N]
 //            DIR MAIN OUT -- ENGINE ARGS...
 //
 // DIR is never written: the engine runs in OUT/work, an APFS clone. Commands on stdin, events on stdout, both
@@ -230,6 +230,8 @@ static long reap_snap_ms = 50;  // the reap's spacing, in engine time (a resumed
 static int64_t t_resume;     // when the runner started (spawned, or a snapshot woken)
 static int64_t t_quiet;      // the last edit (or open)
 static int reaped = 1;       // done since then
+static long reap_open_ms = 0;  // --reap-open-ms: after an open (no key typed since), reap this soon after it settles
+static int quiet_typed;        // the quiet started with a key (change), not an open or a rescan
 static char last_rel[1024];  // the last edit: its snapshots near it are kept (the next key is likely there)
 static long last_k = -1;
 static pid_t runner = -1, root = -1;
@@ -1865,7 +1867,8 @@ static void on_cmd(char *line) {
     return;
   }
   const char *c = v[0].s;
-  if (!strcmp(c, "change") || !strcmp(c, "open") || !strcmp(c, "rescan")) t_quiet = now_us(), reaped = 0;
+  if (!strcmp(c, "change") || !strcmp(c, "open") || !strcmp(c, "rescan"))
+    t_quiet = now_us(), reaped = 0, quiet_typed = !strcmp(c, "change");
   if (!strcmp(c, "change") && n == 5 && v[1].is_str && !v[2].is_str && !v[3].is_str && v[4].is_str) {
     applied++;
     text *t = get_text(v[1].s);
@@ -2069,6 +2072,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--parked") && i + 1 < argc) snprintf(parked_sock, sizeof parked_sock, "%s", argv[++i]);
     else if (!strcmp(argv[i], "--dense") && i + 1 < argc) dense = atol(argv[++i]);
     else if (!strcmp(argv[i], "--reap-ms") && i + 1 < argc) reap_ms = atol(argv[++i]);  // (0: never)
+    else if (!strcmp(argv[i], "--reap-open-ms") && i + 1 < argc) reap_open_ms = atol(argv[++i]);
     else { fprintf(stderr, "tau-live: unknown option %s\n", argv[i]); return 2; }
   }
   static char *pk_args[4];
@@ -2256,7 +2260,8 @@ int main(int argc, char **argv) {
     display_pump();  // (display pages held while the pass ran: after its reader request)
     int timeout = ndoomed || (dq_seq == seq && dq_at < dq_n && display_seq != seq) ? 10 : 200;
     if (reap_ms > 0 && !reaped) {  // quiet since the last edit, and the compile settled: give memory back
-      int64_t left = t_quiet + reap_ms * 1000 - now_us();
+      // (after an open nothing is near a cursor yet: thin as soon as the compile settles)
+      int64_t left = t_quiet + (quiet_typed ? reap_ms : reap_open_ms) * 1000 - now_us();
       if (left <= 0 && !run_open && !njobs && !noq && ndeferred == 0) reap();
       else if (left > 0 && left / 1000 + 1 < timeout) timeout = (int)(left / 1000 + 1);
     }
