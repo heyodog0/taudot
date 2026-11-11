@@ -726,3 +726,26 @@ finisher 0.5 s (TAU_DEBUG_SAMPLE) on a two-page document with a settled `.aux`: 
 after `done` on all three engines, this one none. The Mac test: 30/30 after (the race was too rare to show by count).
 Checked: `finish` 10/10 ×3, first PDF on open pdfLaTeX 0.40 s and XeLaTeX 0.29 s, `edits` 8/8, `display`, `parked`,
 `rule`.
+
+## First page on open: unlocked getc (2026-11-10)
+
+Bench's last pdfLaTeX gap: open → first PDF 294–481 ms vs patched 230–412. The difference was the engine, not tau-live:
+plain stock pdfLaTeX on synth-10 took 303 ms p50 vs patched pdfTeX's 227, same format, same format load (70 ms). The
+patched engine carries pdfTeX 1.40.29's getc_unlocked (patch 0004): stock pdfTeX reads the font map, encodings, Type 1
+fonts, TFMs and every input line through Libc's `getc`/`fgetc`, which take the FILE's mutex per character. libtau now
+interposes both with `getc_unlocked` (Libc's `getc` is exactly `__sgetc` under that lock; the engines are
+single-threaded). A snapshot forked inside `read()` then finds the lock free (`fix_lock` with depth 0). A stock run
+with only this interposer: 303 → 224 ms, PDF byte-identical.
+
+Open → first PDF through tau-live (pdfLaTeX, settled `.aux`, 6 runs each, patched interleaved, load 12–16), p50 / p90 ms:
+
+| doc | before | after | patched |
+|---|---|---|---|
+| synth-10 | 307 / 321 | 238 / 278 | 223–230 |
+| synth-300 | 319 / 328 | 216 / 216 | 227–230 |
+| 1706.03762 | 456 / 465 | 352 / 362 | 370–372 |
+| 2103.00020 | 456 / 481 | 362 / 366 | 376–378 |
+
+`done` (the settled first compile) drops alike (synth-300 1354 → 1190 ms, 2103.00020 1152 → 1028). The 0.6–1 s
+outliers on a first run are macOS checking newly written binaries: rewriting tau-live and tau-tdl (or libtau) added
+130–180 ms to the next run only.
