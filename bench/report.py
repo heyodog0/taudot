@@ -161,6 +161,39 @@ def interleave_table():
     return "\n".join(out)
 
 
+def memory_table(tag=None):
+    """Memory per document and driver: phys_footprint summed over the process tree (MB; idle phases: mean, typing
+    phases: peak), summed RSS's peak and the most processes; each cell the mean of the two runs."""
+    p = f"{RESULTS}/memory.tsv"
+    if not os.path.exists(p):
+        return ""
+    rows = list(csv.DictReader(open(p), delimiter="\t"))
+    tag = tag if tag is not None else rows[-1]["tag"]
+    rows = [r for r in rows if r["tag"] == tag]
+    out = ["| document | driver | cores busy elsewhere | idle | isolated keys | bursts | idle after | summed RSS, peak | "
+           "processes, most |", "|---|---|---|---|---|---|---|---|---|"]
+    order = ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762", "arxiv-2103.00020"]
+    name = {"taudot-pdftex": "patched", "taudot-universal": "universal"}
+    for d in sorted(dict.fromkeys(r["doc"] for r in rows), key=lambda d: order.index(d) if d in order else 99):
+        for system in ("taudot-pdftex", "taudot-universal"):
+            rs = [r for r in rows if r["doc"] == d and r["system"] == system]
+            if not rs:
+                continue
+
+            def m(phase, k):
+                xs = sorted(float(r[k]) for r in rs if r["phase"] == phase)
+                return "–" if not xs else f"{xs[0]:.0f}" if xs[-1] - xs[0] < 10 else f"{xs[0]:.0f}–{xs[-1]:.0f}"
+            rounds = sorted({r["round"] for r in rs})
+            rss = sorted(max(float(r["rss_peak_mb"]) for r in rs if r["round"] == x) for x in rounds)
+            procs = max(int(r["procs"]) for r in rs)
+            other = sorted({r["other_cpu"] for r in rs})
+            dn = d.replace("synth-", "").replace("arxiv-", "") + (" pp" if d.startswith("synth") else "")
+            out.append(f"| {dn} | {name[system]} | {', '.join(other)} | {m('idle', 'fp_mean_mb')} | "
+                       f"{m('keys', 'fp_peak_mb')} | {m('burst', 'fp_peak_mb')} | {m('idle after', 'fp_mean_mb')} | "
+                       f"{rss[0]:.0f}–{rss[-1]:.0f} | {procs} |")
+    return "\n".join(out)
+
+
 def opens_table():
     """First page on open: six runs per driver and document (three ABBA blocks), median [min-max]."""
     p = f"{RESULTS}/opens.tsv"
@@ -325,6 +358,14 @@ def main():
         "The tables below pool both rounds (60 keys per document for these two).",
         "",
         interleave_table(),
+        "",
+        "### Memory, pdfLaTeX (phys_footprint)",
+        "",
+        "One session per run: open, 5 s idle, the 30 isolated keys, the same spots again as bursts at 8 keys a "
+        "second, 5 s idle. phys_footprint (`proc_pid_rusage`) summed over the driver's process tree, MB: mean over "
+        "the idle phases, peak over the typing ones. Two runs per driver in ABBA order; each cell their range (one figure when within 10 MB).",
+        "",
+        memory_table(),
         "",
         "### First page on open, pdfLaTeX",
         "",

@@ -1088,6 +1088,79 @@ def opens(docs, rounds=3, engine="pdflatex"):
             kept.append("\t".join(str(row[c]) for c in cols))
             open(path, "w").write("\t".join(cols) + "\n" + "".join(l + "\n" for l in kept))
 
+
+IDLE = 5  # s of quiet sampled after the open and after the typing
+
+
+def memory(docs, engine="pdflatex", tag=""):
+    """Memory of patched and universal pdfLaTeX through one session per run: open (to settled), idle, the 30
+    isolated keys, the same spots again as bursts (8 keys a second, each settling before the next spot), idle
+    again. Per phase: summed phys_footprint (peak and mean), summed RSS (peak) and the most processes. Drivers in
+    ABBA order per document; rows in results/memory.tsv (TAG names the build, e.g. before or after a change)."""
+    cols = ["date", "tag", "system", "version", "doc", "round", "phase", "fp_peak_mb", "fp_mean_mb", "rss_peak_mb",
+            "procs", "load", "other_cpu"]
+    path = f"{RESULTS}/memory.tsv"
+    kept = [l for l in (open(path).read().splitlines()[1:] if os.path.exists(path) else [])
+            if not (l.split("\t")[4] in docs and l.split("\t")[1] == tag)]
+    order = [("taudot-pdftex", 1), ("taudot-universal", 1), ("taudot-universal", 2), ("taudot-pdftex", 2)]
+    for doc in docs:
+        meta = load(doc)
+        v = meta["variants"][engine]
+        for name, rnd in order:
+            log(f"memory {name} {doc}")
+            sysm = SYSTEMS[name]()
+            proj = f"{WORK}/run/{sysm.name}-{doc}-{engine}"
+            out = f"{proj}-out"
+            copy(f"{DOCS}/{doc}/{engine}", proj)
+            shutil.rmtree(out, ignore_errors=True)
+            os.makedirs(out)
+            lo = Load()
+            sysm.start(proj, engine, v["main"], out)
+            mem = TreeRSS(sysm.p.pid)
+            mem.phase("open")
+            sysm.first()
+            mem.phase("idle")
+            time.sleep(IDLE)
+            mem.phase("keys")
+            for n, spot, file, pos, key in script(meta, engine):
+                sysm.edit(file, pos, key, None)
+                time.sleep(REST)
+            mem.phase("burst")
+            typed = [(p, len(meta["keys"])) for p in v["spots"]]
+            for p in v["spots"]:
+                cur = p + sum(l for o, l in typed if o <= p)
+                t0 = time.monotonic()
+                for j, c in enumerate(meta["keys"]):
+                    time.sleep(max(0, t0 + j * KEY_GAP - time.monotonic()))
+                    sysm.send("change", v["file"], cur + j, 0, c)
+                    sysm.applied += 1
+                typed.append((p, len(meta["keys"])))
+                runs = {}
+                while True:  # settle: the done of a run that read the spot's last key
+                    t, ev = sysm.next()
+                    if ev["ev"] == "run":
+                        runs[ev["seq"]] = ev.get("applied", 0)
+                    elif ev["ev"] == "done" and runs.get(ev.get("seq"), -1) >= sysm.applied:
+                        sysm.last_seq = ev["seq"]
+                        break
+                time.sleep(REST)
+            mem.phase("idle after")
+            time.sleep(IDLE)
+            mem.done()
+            sysm.close()
+            load_, other = lo.done()
+            for d in (proj, out, f"{out}-keep"):
+                shutil.rmtree(d, ignore_errors=True)
+            for ph, m in mem.phases.items():
+                row = dict(date=time.strftime("%Y-%m-%d"), tag=tag, system=name, version=sysm.version(), doc=doc,
+                           round=rnd, phase=ph, fp_peak_mb=f"{m['fp'] / 2**20:.0f}",
+                           fp_mean_mb=f"{m['fp_sum'] / max(m['n'], 1) / 2**20:.0f}", rss_peak_mb=f"{m['rss'] / 2**20:.0f}",
+                           procs=m["procs"], load=f"{load_:.1f}", other_cpu=f"{other:.2f}")
+                kept.append("\t".join(str(row[c]) for c in cols))
+                log(f"  {ph}: footprint peak {row['fp_peak_mb']} mean {row['fp_mean_mb']} MB, RSS peak "
+                    f"{row['rss_peak_mb']} MB, {row['procs']} processes")
+            open(path, "w").write("\t".join(cols) + "\n" + "".join(l + "\n" for l in kept))
+
 def done(system, doc, engine):
     """Already in results/first.tsv (bench/run.py all resumes; delete the rows or the file to redo)."""
     p = f"{RESULTS}/first.tsv"
@@ -1103,6 +1176,10 @@ def main():
     ap.add_argument("--docs", nargs="*")
     ap.add_argument("--engines", nargs="*")
     a = ap.parse_args()
+    if a.system == "memory":
+        memory(a.docs or ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762",
+                          "arxiv-2103.00020"], tag=os.environ.get("BENCH_TAG", ""))
+        return
     if a.system == "opens":
         opens(a.docs or ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762",
                          "arxiv-2103.00020"])
