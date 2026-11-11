@@ -12,10 +12,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 REF = os.environ.get("TAUDOT_REF", os.path.expanduser("~/code/lab/taudot-ref"))
 BENCH = os.environ.get("BENCH_DIR", f"{REF}/bench")  # builds of the other systems, documents, scratch
-WORK = f"{BENCH}/work"
+WORK = os.environ.get("BENCH_WORK", f"{BENCH}/work")  # its refs/ (latexmk's outputs) may be a link
 DOCS = f"{BENCH}/docs"
 SRC = f"{BENCH}/src"
-RESULTS = f"{REPO}/bench/results"
+RESULTS = os.environ.get("BENCH_RESULTS", f"{REPO}/bench/results")
 
 # TeX Live 2026 (the store tree), the universal build's engines, pinned dates: clients/universal/env.sh
 TL_ROOT = f"{REF}/texlive-2026/store-root"

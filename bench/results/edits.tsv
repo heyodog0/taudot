@@ -59,36 +59,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1512.03385	pdflatex	28	4	7			616.98	ref	616.98	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1512.03385	pdflatex	29	4	7			618.25	ref	618.25	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1512.03385	pdflatex	30	4	7			618.84	ref	618.84	ref					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	1	0	4		none/paragraph-shares-a-captured-row	634.48	yes	634.48	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	2	0	4		none/paragraph-shares-a-captured-row	650.19	yes	650.19	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	3	0	4		none/paragraph-shares-a-captured-row	629.48	yes	629.48	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	4	0	4		none/paragraph-shares-a-captured-row	638.24	yes	638.24	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	5	0	4		none/paragraph-shares-a-captured-row	621.85	yes	621.85	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	6	0	4		none/paragraph-shares-a-captured-row	617.40	yes	617.40	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	7	1	1		none/paragraph-shares-a-captured-row	615.46	yes	615.46	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	8	1	1		none/paragraph-shares-a-captured-row	637.71	yes	637.71	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	9	1	1		none/paragraph-shares-a-captured-row	627.14	yes	627.14	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	10	1	1		none/paragraph-shares-a-captured-row	639.03	yes	639.03	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	11	1	1		none/paragraph-shares-a-captured-row	621.14	yes	621.14	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	12	1	1		none/paragraph-shares-a-captured-row	635.43	yes	635.43	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	13	2	11		none/paragraph-shares-a-captured-row	666.26	yes	666.26	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	14	2	11		none/paragraph-shares-a-captured-row	641.84	yes	641.84	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	15	2	11		none/paragraph-shares-a-captured-row	615.83	yes	615.83	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	16	2	11		none/paragraph-shares-a-captured-row	632.24	yes	632.24	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	17	2	11		none/paragraph-shares-a-captured-row	634.67	yes	634.67	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	18	2	11		none/paragraph-shares-a-captured-row	624.64	yes	624.64	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	19	3	2		none/paragraph-shares-a-captured-row	635.61	yes	635.61	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	20	3	2		none/paragraph-shares-a-captured-row	618.85	yes	618.85	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	21	3	2		none/paragraph-shares-a-captured-row	626.43	yes	626.43	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	22	3	2		none/paragraph-shares-a-captured-row	614.79	yes	614.79	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	23	3	2		none/paragraph-shares-a-captured-row	622.23	yes	622.23	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	24	3	2		none/paragraph-shares-a-captured-row	612.81	yes	612.81	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	25	4	7		none/paragraph-shares-a-captured-row	652.75	yes	652.75	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	26	4	7		none/paragraph-shares-a-captured-row	638.86	yes	638.86	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	27	4	7		none/paragraph-shares-a-captured-row	635.88	yes	635.88	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	28	4	7		none/paragraph-shares-a-captured-row	628.17	yes	628.17	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	29	4	7		none/paragraph-shares-a-captured-row	701.02	yes	701.02	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	30	4	7		none/paragraph-shares-a-captured-row	632.31	yes	632.31	yes					
 2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-1706.03762	pdflatex	1	0	4			739.62		739.62						
 2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-1706.03762	pdflatex	2	0	4			757.26		757.26						
 2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-1706.03762	pdflatex	3	0	4			736.13		736.13						
@@ -149,36 +119,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1706.03762	pdflatex	28	4	4			931.57	ref	931.57	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1706.03762	pdflatex	29	4	4			922.42	ref	922.42	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1706.03762	pdflatex	30	4	4			1023.58	ref	1023.58	ref					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	1	0	4		none/included-file-or-asset-changed	2906.81	yes	2906.81	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	2	0	4		none/included-file-or-asset-changed	2988.79	yes	2988.79	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	3	0	4		none/included-file-or-asset-changed	2866.94	yes	2866.94	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	4	0	4		none/included-file-or-asset-changed	2916.91	yes	2916.91	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	5	0	4		none/included-file-or-asset-changed	2882.23	yes	2882.23	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	6	0	4		none/included-file-or-asset-changed	3008.41	yes	3008.41	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	7	1	2		none/included-file-or-asset-changed	2902.00	yes	2902.00	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	8	1	2		none/included-file-or-asset-changed	2922.40	yes	2922.40	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	9	1	2		none/included-file-or-asset-changed	3173.32	yes	3173.32	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	10	1	2		none/included-file-or-asset-changed	3008.02	yes	3008.02	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	11	1	2		none/included-file-or-asset-changed	2858.61	yes	2858.61	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	12	1	2		none/included-file-or-asset-changed	3263.21	yes	3263.21	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	13	2	5		none/included-file-or-asset-changed	2849.58	yes	2849.58	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	14	2	5		none/included-file-or-asset-changed	2879.64	yes	2879.64	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	15	2	5		none/included-file-or-asset-changed	2940.66	yes	2940.66	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	16	2	5		none/included-file-or-asset-changed	3187.25	yes	3187.25	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	17	2	5		none/included-file-or-asset-changed	2918.87	yes	2918.87	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	18	2	5		none/included-file-or-asset-changed	2872.24	yes	2872.24	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	19	3	3		none/included-file-or-asset-changed	3160.37	yes	3160.37	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	20	3	3		none/included-file-or-asset-changed	3072.02	yes	3072.02	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	21	3	3		none/included-file-or-asset-changed	3068.40	yes	3068.40	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	22	3	3		none/included-file-or-asset-changed	3133.38	yes	3133.38	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	23	3	3		none/included-file-or-asset-changed	3275.51	yes	3275.51	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	24	3	3		none/included-file-or-asset-changed	3069.69	yes	3069.69	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	25	4	4		none/included-file-or-asset-changed	3149.11	yes	3149.11	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	26	4	4		none/included-file-or-asset-changed	3003.13	yes	3003.13	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	27	4	4		none/included-file-or-asset-changed	3134.40	yes	3134.40	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	28	4	4		none/included-file-or-asset-changed	2995.25	yes	2995.25	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	29	4	4		none/included-file-or-asset-changed	3113.75	yes	3113.75	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	30	4	4		none/included-file-or-asset-changed	2963.18	yes	2963.18	yes					
 2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-2103.00020	pdflatex	1	0	19			887.32		887.32						
 2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-2103.00020	pdflatex	2	0	19			895.84		895.84						
 2026-11-09	stock-run	TeX Live 2026 static engines	arxiv-2103.00020	pdflatex	3	0	19			860.40		860.40						
@@ -239,36 +179,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-2103.00020	pdflatex	28	4	24			1068.92	ref	1068.92	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-2103.00020	pdflatex	29	4	24			1096.15	ref	1096.15	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-2103.00020	pdflatex	30	4	24			1107.77	ref	1107.77	ref					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	1	0	19		none/paragraph-shares-a-captured-row	5472.43	yes	5472.43	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	2	0	19		none/paragraph-shares-a-captured-row	4651.02	yes	4651.02	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	3	0	19		none/paragraph-shares-a-captured-row	4658.18	yes	4658.18	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	4	0	19		none/paragraph-shares-a-captured-row	4653.60	yes	4653.60	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	5	0	19		none/paragraph-shares-a-captured-row	4668.38	yes	4668.38	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	6	0	19		none/paragraph-shares-a-captured-row	4734.84	yes	4734.84	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	7	1	3		none/paragraph-shares-a-captured-row	4832.13	yes	4832.13	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	8	1	3		none/paragraph-shares-a-captured-row	4813.05	yes	4813.05	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	9	1	3		none/paragraph-shares-a-captured-row	4737.30	yes	4737.30	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	10	1	3		none/paragraph-shares-a-captured-row	4964.76	yes	4964.76	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	11	1	3		none/paragraph-shares-a-captured-row	4788.76	yes	4788.76	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	12	1	3		none/paragraph-shares-a-captured-row	4752.76	yes	4752.76	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	13	2	43		none/paragraph-shares-a-captured-row	4724.35	yes	4724.35	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	14	2	43		none/paragraph-shares-a-captured-row	4788.93	yes	4788.93	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	15	2	43		none/paragraph-shares-a-captured-row	4755.57	yes	4755.57	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	16	2	43		none/paragraph-shares-a-captured-row	4643.37	yes	4643.37	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	17	2	43		none/paragraph-shares-a-captured-row	4690.23	yes	4690.23	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	18	2	43		none/paragraph-shares-a-captured-row	4768.00	yes	4768.00	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	19	3	10		none/paragraph-crosses-a-page	4701.81	yes	4701.81	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	20	3	10		none/paragraph-crosses-a-page	4793.10	yes	4793.10	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	21	3	10		none/paragraph-crosses-a-page	4692.94	yes	4692.94	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	22	3	10		none/paragraph-crosses-a-page	4731.43	yes	4731.43	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	23	3	10		none/paragraph-crosses-a-page	4695.17	yes	4695.17	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	24	3	10		none/paragraph-crosses-a-page	4684.53	yes	4684.53	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	25	4	24		none/paragraph-crosses-a-page	4764.36	NO	4764.36	NO					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	26	4	24		none/paragraph-crosses-a-page	4656.31	yes	4656.31	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	27	4	24		none/paragraph-crosses-a-page	4699.96	yes	4699.96	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	28	4	24		none/paragraph-crosses-a-page	4803.84	yes	4803.84	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	29	4	24		none/paragraph-crosses-a-page	5702.07	yes	5702.07	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	30	4	24		none/paragraph-crosses-a-page	4762.75	yes	4762.75	yes					
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-10	pdflatex	1	0	4			293.62		293.62						
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-10	pdflatex	2	0	4			289.78		289.78						
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-10	pdflatex	3	0	4			285.51		285.51						
@@ -329,36 +239,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-10	pdflatex	28	4	7			412.93	ref	412.93	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-10	pdflatex	29	4	7			422.41	ref	422.41	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-10	pdflatex	30	4	7			396.32	ref	396.32	ref					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	1	0	4	143.15	provisional	307.00	yes	307.00	yes	26				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	2	0	4	137.41	provisional	298.89	yes	298.89	yes	27				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	3	0	4	167.62	provisional	333.69	yes	333.69	yes	45				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	4	0	4	163.24	provisional	328.27	yes	328.27	yes	36				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	5	0	4	147.32	provisional	308.31	yes	308.31	yes	28				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	6	0	4	142.11	provisional	305.89	yes	305.89	yes	28				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	7	1	0	123.26	provisional	303.50	yes	303.50	yes	21				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	8	1	0	124.70	provisional	292.91	yes	292.91	yes	20				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	9	1	0	132.41	provisional	302.11	yes	302.11	yes	28				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	10	1	0	121.10	provisional	292.77	yes	292.77	yes	20				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	11	1	0	135.96	provisional	312.18	yes	312.18	yes	30				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	12	1	0	122.28	provisional	282.03	yes	282.03	yes	20				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	13	2	8	123.88	provisional	289.11	yes	289.11	yes	24				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	14	2	8	147.39	provisional	321.15	yes	321.15	yes	36				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	15	2	8	136.51	provisional	301.65	yes	301.65	yes	27				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	16	2	8	126.49	provisional	295.77	yes	295.77	yes	21				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	17	2	8	120.93	provisional	298.10	yes	298.10	yes	19				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	18	2	8	123.16	provisional	295.34	yes	295.34	yes	21				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	19	3	2	135.14	provisional	303.82	yes	303.82	yes	23				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	20	3	2	141.43	provisional	320.78	yes	320.78	yes	24				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	21	3	2	141.04	provisional	322.69	yes	322.69	yes	23				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	22	3	2	141.43	provisional	321.27	yes	321.27	yes	24				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	23	3	2	148.14	provisional	333.84	yes	333.84	yes	26				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	24	3	2	136.93	provisional	310.35	yes	310.35	yes	24				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	25	4	7	140.22	provisional	326.83	yes	326.83	yes	22				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	26	4	7	136.34	provisional	304.79	yes	304.79	yes	22				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	27	4	7	138.12	provisional	310.04	yes	310.04	yes	22				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	28	4	7	134.52	provisional	302.62	yes	302.62	yes	23				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	29	4	7	136.03	provisional	304.24	yes	304.24	yes	25				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	30	4	7	147.37	provisional	314.94	yes	314.94	yes	32				
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	pdflatex	1	0	50			539.10		539.10						
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	pdflatex	2	0	50			505.48		505.48						
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	pdflatex	3	0	50			509.62		509.62						
@@ -419,36 +299,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	pdflatex	28	4	70			674.32	ref	674.32	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	pdflatex	29	4	70			674.86	ref	674.86	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	pdflatex	30	4	70			672.96	ref	672.96	ref					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	1	0	50	499.91	provisional	1501.65	yes	1501.65	yes	30				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	2	0	50	510.20	provisional	1474.25	yes	1474.25	yes	35				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	3	0	50	502.88	provisional	1465.13	yes	1465.13	yes	42				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	4	0	50	498.82	provisional	1462.28	yes	1462.28	yes	43				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	5	0	50	550.29	provisional	1529.67	yes	1529.67	yes	42				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	6	0	50	489.35	provisional	1441.15	yes	1441.15	yes	37				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	7	1	9	461.81	provisional	1417.26	yes	1417.26	yes	27				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	8	1	9	500.48	provisional	1456.89	yes	1456.89	yes	33				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	9	1	9	496.45	provisional	1462.38	yes	1462.38	yes	44				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	10	1	9	484.86	provisional	1444.00	yes	1444.00	yes	42				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	11	1	9	479.42	provisional	1434.99	yes	1434.99	yes	28				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	12	1	9	475.56	provisional	1440.31	yes	1440.31	yes	33				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	13	2	90	500.58	provisional	1463.07	yes	1463.07	yes	37				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	14	2	90	502.23	provisional	1456.65	yes	1456.65	yes	32				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	15	2	90	501.85	provisional	1483.94	yes	1483.94	yes	32				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	16	2	90	499.96	provisional	1463.80	yes	1463.80	yes	39				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	17	2	90	510.90	provisional	1462.17	yes	1462.17	yes	44				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	18	2	90	492.22	provisional	1471.27	yes	1471.27	yes	32				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	19	3	29	512.71	provisional	1472.29	yes	1472.29	yes	49				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	20	3	29	512.53	provisional	1463.92	yes	1463.92	yes	45				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	21	3	29	494.33	provisional	1455.11	yes	1455.11	yes	43				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	22	3	29	490.17	provisional	1454.53	yes	1454.53	yes	35				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	23	3	29	512.17	provisional	1469.20	yes	1469.20	yes	49				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	24	3	29	496.63	provisional	1445.39	yes	1445.39	yes	39				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	25	4	70	476.17	provisional	1431.55	yes	1431.55	yes	32				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	26	4	70	463.40	provisional	1430.69	yes	1430.69	yes	27				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	27	4	70	498.11	provisional	1444.23	yes	1444.23	yes	45				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	28	4	70	479.52	provisional	1433.35	yes	1433.35	yes	34				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	29	4	70	470.77	provisional	1421.13	yes	1421.13	yes	30				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	30	4	70	479.04	provisional	1435.41	yes	1435.41	yes	30				
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	1	0	148			975.05		975.05						
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	2	0	148			964.20		964.20						
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-300	pdflatex	3	0	148			965.82		965.82						
@@ -509,36 +359,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	28	4	208			1213.23	ref	1213.23	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	29	4	208			1179.42	ref	1179.42	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	30	4	208			1201.44	ref	1201.44	ref					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	1	0	148	1503.68	provisional	4670.34	yes	4670.34	yes	44				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	2	0	148	1499.06	provisional	4637.80	yes	4637.80	yes	53				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	3	0	148	1514.38	provisional	4691.23	yes	4691.23	yes	47				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	4	0	148	1519.80	provisional	4698.43	yes	4698.43	yes	56				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	5	0	148	1492.14	provisional	4658.54	yes	4658.54	yes	47				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	6	0	148	1510.13	provisional	4660.81	yes	4660.81	yes	48				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	7	1	29	1505.64	provisional	4670.38	yes	4670.38	yes	49				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	8	1	29	1488.64	provisional	4670.82	yes	4670.82	yes	47				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	9	1	29	1491.95	provisional	4650.06	yes	4650.06	yes	52				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	10	1	29	1497.80	provisional	4646.29	yes	4646.29	yes	50				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	11	1	29	1505.98	provisional	4663.02	yes	4663.02	yes	55				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	12	1	29	1510.93	provisional	4671.02	yes	4671.02	yes	54				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	13	2	268	1510.48	provisional	4668.34	yes	4668.34	yes	58				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	14	2	268	1500.92	provisional	4667.89	yes	4667.89	yes	52				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	15	2	268	1511.10	provisional	4668.66	yes	4668.66	yes	56				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	16	2	268	1490.90	provisional	4636.04	yes	4636.04	yes	49				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	17	2	268	1495.79	provisional	4654.40	yes	4654.40	yes	44				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	18	2	268	1519.15	provisional	4663.56	yes	4663.56	yes	63				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	19	3	88	1495.95	provisional	4639.81	yes	4639.81	yes	48				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	20	3	88	1497.57	provisional	4637.35	yes	4637.35	yes	50				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	21	3	88	1482.73	provisional	4641.22	yes	4641.22	yes	47				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	22	3	88	1480.64	provisional	4619.76	yes	4619.76	yes	48				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	23	3	88	1478.03	provisional	4633.26	yes	4633.26	yes	44				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	24	3	88	1483.64	provisional	4675.21	yes	4675.21	yes	44				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	25	4	208	1520.18	provisional	4685.85	yes	4685.85	yes	51				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	26	4	208	1508.90	provisional	4675.38	yes	4675.38	yes	53				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	27	4	208	1502.17	provisional	4784.28	yes	4784.28	yes	49				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	28	4	208	1489.14	provisional	4646.40	yes	4646.40	yes	47				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	29	4	208	1493.68	provisional	4643.42	yes	4643.42	yes	46				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	30	4	208	1497.38	provisional	4672.74	yes	4672.74	yes	53				
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-10	xelatex	1	0	4			255.52		255.52						
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-10	xelatex	2	0	4			249.88		249.88						
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-10	xelatex	3	0	4			252.67		252.67						
@@ -659,36 +479,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	texpresso	texpresso e8df770907 via txp-headless ad58f81329	synth-10	xelatex	28	4	7		n/a	33.38	n/a	53.47	n/a	33.04				
 2026-11-09	texpresso	texpresso e8df770907 via txp-headless ad58f81329	synth-10	xelatex	29	4	7		n/a	13.98	n/a	38.33	n/a	13.76				
 2026-11-09	texpresso	texpresso e8df770907 via txp-headless ad58f81329	synth-10	xelatex	30	4	7		n/a	32.70	n/a	58.00	n/a	32.33				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	1	0	4	113.10	provisional	261.38	yes	261.38	yes	59				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	2	0	4	132.60	provisional	276.69	yes	276.69	yes	79				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	3	0	4	134.38	provisional	274.22	yes	274.22	yes	78				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	4	0	4	120.00	provisional	259.63	yes	259.63	yes	65				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	5	0	4	123.42	provisional	263.42	yes	263.42	yes	67				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	6	0	4	111.25	provisional	255.28	yes	255.28	yes	58				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	7	1	0	137.71	provisional	286.76	yes	286.76	yes	85				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	8	1	0	105.26	provisional	249.98	yes	249.98	yes	53				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	9	1	0	125.53	provisional	268.22	yes	268.22	yes	76				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	10	1	0	131.16	provisional	268.37	yes	268.37	yes	78				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	11	1	0	115.51	provisional	259.77	yes	259.77	yes	66				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	12	1	0	128.43	provisional	269.30	yes	269.30	yes	74				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	13	2	8		none/changed-region-needs-full-pagination	285.67	yes	285.67	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	14	2	8		none/changed-region-needs-full-pagination	297.60	yes	297.60	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	15	2	8		none/changed-region-needs-full-pagination	284.97	yes	284.97	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	16	2	8		none/changed-region-needs-full-pagination	275.15	yes	275.15	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	17	2	8		none/changed-region-needs-full-pagination	282.67	yes	282.67	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	18	2	8		none/changed-region-needs-full-pagination	274.45	yes	274.45	yes					
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	19	3	2	118.88	provisional	263.12	yes	263.12	yes	66				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	20	3	2	118.64	provisional	261.44	yes	261.44	yes	64				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	21	3	2	113.25	provisional	254.54	yes	254.54	yes	61				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	22	3	2	112.11	provisional	253.11	yes	253.11	yes	58				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	23	3	2	114.99	provisional	256.45	yes	256.45	yes	62				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	24	3	2	121.63	provisional	257.48	yes	257.48	yes	68				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	25	4	7	119.39	provisional	265.53	yes	265.53	yes	66				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	26	4	7	109.25	provisional	253.08	yes	253.08	yes	58				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	27	4	7	123.57	provisional	265.08	yes	265.08	yes	72				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	28	4	7	138.84	provisional	281.82	yes	281.82	yes	87				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	29	4	7	115.27	provisional	254.90	yes	254.90	yes	65				
-2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	xelatex	30	4	7	126.80	provisional	271.16	yes	271.16	yes	75				
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	xelatex	1	0	50			399.73		399.73						
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	xelatex	2	0	50			397.55		397.55						
 2026-11-09	stock-run	TeX Live 2026 static engines	synth-100	xelatex	3	0	50			426.35		426.35						
@@ -809,36 +599,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	texpresso	texpresso e8df770907 via txp-headless ad58f81329	synth-100	xelatex	28	4	71		n/a	33.63	n/a	287.80	n/a	33.06				
 2026-11-09	texpresso	texpresso e8df770907 via txp-headless ad58f81329	synth-100	xelatex	29	4	71		n/a	34.05	n/a	327.69	n/a	33.46				
 2026-11-09	texpresso	texpresso e8df770907 via txp-headless ad58f81329	synth-100	xelatex	30	4	71		n/a	33.24	n/a	312.72	n/a	32.65				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	1	0	50	473.94	provisional	1321.75	yes	1321.75	yes	67				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	2	0	50	475.23	provisional	1318.52	yes	1318.52	yes	63				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	3	0	50	480.68	provisional	1341.55	yes	1341.55	yes	75				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	4	0	50	473.71	provisional	1338.54	yes	1338.54	yes	70				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	5	0	50	479.51	provisional	1340.10	yes	1340.10	yes	67				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	6	0	50	489.55	provisional	1340.26	yes	1340.26	yes	76				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	7	1	9	465.28	provisional	1330.12	yes	1330.12	yes	68				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	8	1	9	462.43	provisional	1308.81	yes	1308.81	yes	65				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	9	1	9	470.44	provisional	1351.87	yes	1351.87	yes	64				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	10	1	9	481.56	provisional	1346.07	yes	1346.07	yes	79				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	11	1	9	464.69	provisional	1337.12	yes	1337.12	yes	68				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	12	1	9	466.88	provisional	1318.10	yes	1318.10	yes	67				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	13	2	91	464.33	provisional	1323.54	yes	1323.54	yes	68				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	14	2	91	487.07	provisional	1328.97	yes	1328.97	yes	78				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	15	2	91	463.51	provisional	1306.20	yes	1306.20	yes	64				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	16	2	91	476.38	provisional	1335.83	yes	1335.83	yes	70				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	17	2	91	483.05	provisional	1348.93	yes	1348.93	yes	70				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	18	2	91	467.97	provisional	1317.86	yes	1317.86	yes	62				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	19	3	30		none/paragraph-crosses-a-page	880.31	yes	880.31	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	20	3	30		none/paragraph-crosses-a-page	888.33	yes	888.33	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	21	3	30		none/paragraph-crosses-a-page	880.34	yes	880.34	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	22	3	30		none/paragraph-crosses-a-page	884.60	yes	884.60	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	23	3	30		none/paragraph-crosses-a-page	871.87	yes	871.87	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	24	3	30		none/paragraph-crosses-a-page	876.17	yes	876.17	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	25	4	71	465.81	provisional	1303.56	yes	1303.56	yes	70				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	26	4	71	460.01	provisional	1316.46	yes	1316.46	yes	61				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	27	4	71	469.55	provisional	1320.41	yes	1320.41	yes	69				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	28	4	71	468.23	provisional	1319.40	yes	1319.40	yes	63				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	29	4	71	453.57	provisional	1314.03	yes	1314.03	yes	64				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	xelatex	30	4	71	467.89	provisional	1331.59	yes	1331.59	yes	59				
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-300	xelatex	1	0	150			704.67		704.67						
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-300	xelatex	2	0	150			721.32		721.32						
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-300	xelatex	3	0	150			735.48		735.48						
@@ -959,36 +719,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-10	texpresso	texpresso e8df770907 via txp-headless ad58f81329	synth-300	xelatex	28	4	211		n/a	46.46	n/a	814.27	n/a	44.95				
 2026-11-10	texpresso	texpresso e8df770907 via txp-headless ad58f81329	synth-300	xelatex	29	4	211		n/a	31.34	n/a	785.40	n/a	29.86				
 2026-11-10	texpresso	texpresso e8df770907 via txp-headless ad58f81329	synth-300	xelatex	30	4	211		n/a	31.09	n/a	781.98	n/a	29.36				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	1	0	150	1341.51	provisional	4043.02	yes	4043.02	yes	84				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	2	0	150	1383.13	provisional	4101.86	yes	4101.86	yes	80				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	3	0	150	1369.78	provisional	4074.11	yes	4074.11	yes	80				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	4	0	150	1349.40	provisional	4139.59	yes	4139.59	yes	84				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	5	0	150	1426.52	provisional	4237.41	yes	4237.41	yes	75				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	6	0	150	1429.54	provisional	4263.33	yes	4263.33	yes	81				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	7	1	29	1433.49	provisional	4282.88	yes	4282.88	yes	76				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	8	1	29	1489.59	provisional	4285.46	yes	4285.46	yes	74				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	9	1	29	1421.64	provisional	4258.38	yes	4258.38	yes	85				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	10	1	29	1443.08	provisional	4197.13	yes	4197.13	yes	76				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	11	1	29	1474.22	provisional	4380.08	yes	4380.08	yes	82				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	12	1	29	1433.32	provisional	4171.66	yes	4171.66	yes	82				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	13	2	271	1375.32	provisional	4265.34	yes	4265.34	yes	76				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	14	2	271	1497.76	provisional	4295.12	yes	4295.12	yes	80				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	15	2	271	1452.83	provisional	4268.98	yes	4268.98	yes	77				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	16	2	271	1470.76	provisional	4280.16	yes	4280.16	yes	79				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	17	2	271	1512.41	provisional	4353.11	yes	4353.11	yes	81				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	18	2	271	1484.03	provisional	4369.70	yes	4369.70	yes	77				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	19	3	90	1465.95	provisional	4301.06	yes	4301.06	yes	70				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	20	3	90	1438.33	provisional	4279.58	yes	4279.58	yes	81				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	21	3	90	1411.93	provisional	4229.27	yes	4229.27	yes	79				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	22	3	90	1419.90	provisional	4253.78	yes	4253.78	yes	72				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	23	3	90	1465.09	provisional	4292.86	yes	4292.86	yes	81				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	24	3	90	1473.77	provisional	4293.53	yes	4293.53	yes	77				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	25	4	211		none/paragraph-crosses-a-page	2768.83	yes	2768.83	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	26	4	211		none/paragraph-crosses-a-page	2775.87	yes	2775.87	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	27	4	211		none/paragraph-crosses-a-page	2780.01	yes	2780.01	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	28	4	211		none/paragraph-crosses-a-page	2798.72	yes	2798.72	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	29	4	211		none/paragraph-crosses-a-page	2931.82	yes	2931.82	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	xelatex	30	4	211		none/paragraph-crosses-a-page	2851.97	yes	2851.97	yes					
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-10	lualatex	1	0	4			554.13		554.13						
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-10	lualatex	2	0	4			558.49		558.49						
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-10	lualatex	3	0	4			552.01		552.01						
@@ -1109,36 +839,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-10	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	28	4	7	3.73	exact	1223.76	claim	570.76	yes	0.60				
 2026-11-10	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	29	4	7	3.90	exact	1227.29	claim	576.29	yes	0.60				
 2026-11-10	rtex	rtex 0.0.7 fcff7a5c7f	synth-10	lualatex	30	4	7	3.69	exact	1224.88	claim	574.34	yes	0.60				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	1	0	4		none/paragraph-shares-a-captured-row	289.79	yes	289.79	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	2	0	4		none/paragraph-shares-a-captured-row	302.63	yes	302.63	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	3	0	4		none/paragraph-shares-a-captured-row	284.79	yes	284.79	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	4	0	4		none/paragraph-shares-a-captured-row	295.13	yes	295.13	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	5	0	4		none/paragraph-shares-a-captured-row	284.74	yes	284.74	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	6	0	4		none/paragraph-shares-a-captured-row	291.84	yes	291.84	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	7	1	0		none/paragraph-shares-a-captured-row	284.78	yes	284.78	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	8	1	0		none/paragraph-shares-a-captured-row	286.04	yes	286.04	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	9	1	0		none/paragraph-shares-a-captured-row	294.20	yes	294.20	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	10	1	0		none/paragraph-shares-a-captured-row	293.11	yes	293.11	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	11	1	0		none/paragraph-shares-a-captured-row	295.35	yes	295.35	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	12	1	0		none/paragraph-shares-a-captured-row	298.30	yes	298.30	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	13	2	8		none/paragraph-shares-a-captured-row	289.76	yes	289.76	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	14	2	8		none/paragraph-shares-a-captured-row	297.80	yes	297.80	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	15	2	8		none/paragraph-shares-a-captured-row	292.65	yes	292.65	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	16	2	8		none/paragraph-shares-a-captured-row	299.26	yes	299.26	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	17	2	8		none/paragraph-shares-a-captured-row	295.81	yes	295.81	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	18	2	8		none/paragraph-shares-a-captured-row	302.29	yes	302.29	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	19	3	2		none/paragraph-shares-a-captured-row	295.18	yes	295.18	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	20	3	2		none/paragraph-shares-a-captured-row	294.53	yes	294.53	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	21	3	2		none/paragraph-shares-a-captured-row	296.06	yes	296.06	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	22	3	2		none/paragraph-shares-a-captured-row	313.56	yes	313.56	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	23	3	2		none/paragraph-shares-a-captured-row	293.03	yes	293.03	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	24	3	2		none/paragraph-shares-a-captured-row	291.24	yes	291.24	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	25	4	7		none/paragraph-shares-a-captured-row	289.30	yes	289.30	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	26	4	7		none/paragraph-shares-a-captured-row	285.82	yes	285.82	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	27	4	7		none/paragraph-shares-a-captured-row	286.77	yes	286.77	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	28	4	7		none/paragraph-shares-a-captured-row	295.36	yes	295.36	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	29	4	7		none/paragraph-shares-a-captured-row	288.32	yes	288.32	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-10	lualatex	30	4	7		none/paragraph-shares-a-captured-row	295.33	yes	295.33	yes					
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-100	lualatex	1	0	50			1358.25		1358.25						
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-100	lualatex	2	0	50			1366.52		1366.52						
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-100	lualatex	3	0	50			1358.75		1358.75						
@@ -1259,36 +959,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-10	rtex	rtex 0.0.7 fcff7a5c7f	synth-100	lualatex	28	4	70	22.25	exact	3598.39	claim	1380.48	yes	3.75				
 2026-11-10	rtex	rtex 0.0.7 fcff7a5c7f	synth-100	lualatex	29	4	70	7.84	exact	3604.20	claim	1355.47	yes	0.96				
 2026-11-10	rtex	rtex 0.0.7 fcff7a5c7f	synth-100	lualatex	30	4	70	7.19	exact	3564.63	claim	1348.43	yes	1.71				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	1	0	50		none/paragraph-shares-a-captured-row	1819.44	yes	1819.44	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	2	0	50		none/paragraph-shares-a-captured-row	1833.89	yes	1833.89	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	3	0	50		none/paragraph-shares-a-captured-row	1847.69	yes	1847.69	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	4	0	50		none/paragraph-shares-a-captured-row	1854.89	yes	1854.89	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	5	0	50		none/paragraph-shares-a-captured-row	1863.46	yes	1863.46	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	6	0	50		none/paragraph-shares-a-captured-row	1864.40	yes	1864.40	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	7	1	9		none/paragraph-shares-a-captured-row	1854.42	yes	1854.42	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	8	1	9		none/paragraph-shares-a-captured-row	1853.36	yes	1853.36	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	9	1	9		none/paragraph-shares-a-captured-row	1853.98	yes	1853.98	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	10	1	9		none/paragraph-shares-a-captured-row	1878.84	yes	1878.84	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	11	1	9		none/paragraph-shares-a-captured-row	1855.55	yes	1855.55	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	12	1	9		none/paragraph-shares-a-captured-row	1839.85	yes	1839.85	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	13	2	90		none/paragraph-shares-a-captured-row	1841.32	yes	1841.32	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	14	2	90		none/paragraph-shares-a-captured-row	1887.67	yes	1887.67	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	15	2	90		none/paragraph-shares-a-captured-row	1855.06	yes	1855.06	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	16	2	90		none/paragraph-shares-a-captured-row	1868.12	yes	1868.12	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	17	2	90		none/paragraph-shares-a-captured-row	1858.22	yes	1858.22	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	18	2	90		none/paragraph-shares-a-captured-row	1862.84	yes	1862.84	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	19	3	30		none/paragraph-crosses-a-page	1881.80	yes	1881.80	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	20	3	30		none/paragraph-crosses-a-page	1845.39	yes	1845.39	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	21	3	30		none/paragraph-crosses-a-page	1858.10	yes	1858.10	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	22	3	30		none/paragraph-crosses-a-page	1849.63	yes	1849.63	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	23	3	30		none/paragraph-crosses-a-page	1857.89	yes	1857.89	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	24	3	30		none/paragraph-crosses-a-page	1891.03	yes	1891.03	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	25	4	70		none/paragraph-shares-a-captured-row	1869.69	yes	1869.69	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	26	4	70		none/paragraph-shares-a-captured-row	1849.80	yes	1849.80	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	27	4	70		none/paragraph-shares-a-captured-row	1849.71	yes	1849.71	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	28	4	70		none/paragraph-shares-a-captured-row	1882.33	yes	1882.33	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	29	4	70		none/paragraph-shares-a-captured-row	1851.97	yes	1851.97	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-100	lualatex	30	4	70		none/paragraph-shares-a-captured-row	1900.45	yes	1900.45	yes					
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-300	lualatex	1	0	149			3074.33		3074.33						
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-300	lualatex	2	0	149			3043.81		3043.81						
 2026-11-10	stock-run	TeX Live 2026 static engines	synth-300	lualatex	3	0	149			3060.25		3060.25						
@@ -1409,36 +1079,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-10	rtex	rtex 0.0.7 fcff7a5c7f	synth-300	lualatex	28	4	209	23.32	exact	8871.82	claim	3137.52	yes	6.49				
 2026-11-10	rtex	rtex 0.0.7 fcff7a5c7f	synth-300	lualatex	29	4	209	18.15	exact	8852.91	claim	3115.69	yes	4.60				
 2026-11-10	rtex	rtex 0.0.7 fcff7a5c7f	synth-300	lualatex	30	4	209	12.54	exact	8825.93	claim	3122.33	yes	1.45				
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	1	0	149		none/paragraph-shares-a-captured-row	5686.04	yes	5686.04	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	2	0	149		none/paragraph-shares-a-captured-row	5685.51	yes	5685.51	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	3	0	149		none/paragraph-shares-a-captured-row	5712.71	yes	5712.71	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	4	0	149		none/paragraph-shares-a-captured-row	5686.77	yes	5686.77	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	5	0	149		none/paragraph-shares-a-captured-row	5694.31	yes	5694.31	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	6	0	149		none/paragraph-shares-a-captured-row	5692.29	yes	5692.29	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	7	1	29		none/paragraph-shares-a-captured-row	5657.10	yes	5657.10	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	8	1	29		none/paragraph-shares-a-captured-row	5689.99	yes	5689.99	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	9	1	29		none/paragraph-shares-a-captured-row	5653.81	yes	5653.81	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	10	1	29		none/paragraph-shares-a-captured-row	5689.70	yes	5689.70	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	11	1	29		none/paragraph-shares-a-captured-row	5686.00	yes	5686.00	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	12	1	29		none/paragraph-shares-a-captured-row	5739.89	yes	5739.89	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	13	2	268		none/paragraph-shares-a-captured-row	5692.39	yes	5692.39	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	14	2	268		none/paragraph-shares-a-captured-row	5671.07	yes	5671.07	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	15	2	268		none/paragraph-shares-a-captured-row	5672.49	yes	5672.49	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	16	2	268		none/paragraph-shares-a-captured-row	5690.58	yes	5690.58	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	17	2	268		none/paragraph-shares-a-captured-row	5709.42	yes	5709.42	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	18	2	268		none/paragraph-shares-a-captured-row	5642.45	yes	5642.45	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	19	3	89		none/paragraph-shares-a-captured-row	5685.07	yes	5685.07	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	20	3	89		none/paragraph-shares-a-captured-row	5645.68	yes	5645.68	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	21	3	89		none/paragraph-shares-a-captured-row	5677.08	yes	5677.08	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	22	3	89		none/paragraph-shares-a-captured-row	5652.69	yes	5652.69	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	23	3	89		none/paragraph-shares-a-captured-row	5654.45	yes	5654.45	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	24	3	89		none/paragraph-shares-a-captured-row	5699.66	yes	5699.66	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	25	4	209		none/paragraph-shares-a-captured-row	5683.87	yes	5683.87	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	26	4	209		none/paragraph-shares-a-captured-row	5709.12	yes	5709.12	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	27	4	209		none/paragraph-shares-a-captured-row	5644.17	yes	5644.17	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	28	4	209		none/paragraph-shares-a-captured-row	5639.50	yes	5639.50	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	29	4	209		none/paragraph-shares-a-captured-row	5656.47	yes	5656.47	yes					
-2026-11-10	rosina	liveTeX-Rosina dff263fc21	synth-300	lualatex	30	4	209		none/paragraph-shares-a-captured-row	5631.91	yes	5631.91	yes					
 2026-11-10	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	1	0			n/a	123.54	n/a	123.54	n/a	7.46				
 2026-11-10	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	2	0			n/a	123.87	n/a	123.87	n/a	7.23				
 2026-11-10	typst	typst 0.15.1 (9dfd3a08)	synth-10	typst	3	0			n/a	119.64	n/a	119.64	n/a	6.84				

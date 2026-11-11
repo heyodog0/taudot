@@ -219,6 +219,20 @@ class TaudotDriver(System):
             elif k == "error":
                 log(f"  {self.name}: error {ev}")
 
+    def type_key(self, file, pos, key):  # a key of a burst: no waiting
+        self.send("change", file, pos, 0, key)
+        self.applied += 1
+
+    def settle(self):  # after a burst: the done of a run that read its last key
+        runs = {}
+        while True:
+            t, ev = self.next()
+            if ev["ev"] == "run":
+                runs[ev["seq"]] = ev.get("applied", 0)
+            elif ev["ev"] == "done" and runs.get(ev.get("seq"), -1) >= self.applied:
+                self.last_seq = ev["seq"]
+                return
+
     def kept_final(self, ev):
         p = ev.get("path")
         if not p:
@@ -277,7 +291,7 @@ TL_BIN = f"{BUILD}/tl/bin/aarch64-darwin"  # stock engines, kpsewhich, synctex, 
 RTEX = f"{BUILD}/bin/rtex"  # built from SRC/realtime-tex, target/ removed after
 TYPST = f"{BUILD}/bin/typst"  # built from SRC/typst at v0.15.1
 TXP = f"{BUILD}/txp/txp-headless"
-ROSINA = f"{SRC}/liveTeX-Rosina/build/livetex-rosina"
+ROSINA = os.environ.get("ROSINA_BIN", f"{SRC}/liveTeX-Rosina/build/livetex-rosina")
 
 
 def tl_env():
@@ -297,7 +311,7 @@ class External(System):
         os.makedirs(self.keep)
         err = subprocess.STDOUT if self.read_stderr else open(f"{out}.stderr", "w")
         self.p = subprocess.Popen(self.argv(), cwd=proj, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err,
-                                  env=self.env(), bufsize=0)
+                                  env=self.env(), bufsize=0, start_new_session=True)
         self.q = queue.Queue()
         self.t0 = time.monotonic()
         threading.Thread(target=self.reader, daemon=True).start()
@@ -527,11 +541,42 @@ class Rosina(External):
     engines = ("pdflatex", "xelatex", "lualatex")
 
     def version(self):
-        return "liveTeX-Rosina " + git_rev(f"{SRC}/liveTeX-Rosina")
+        return "liveTeX-Rosina " + git_rev(os.path.dirname(os.path.dirname(ROSINA)) + "/src"
+                                           if os.environ.get("ROSINA_BIN") else f"{SRC}/liveTeX-Rosina")
+
+    quick = False
 
     def argv(self):
-        return [ROSINA, "--engine", self.engine, "--source", f"{self.proj}/{self.main}", "--out", self.out,
-                "--debounce-ms", "0", "--editor"]
+        a = [ROSINA, "--engine", self.engine, "--source", f"{self.proj}/{self.main}", "--out", self.out,
+             "--debounce-ms", "0", "--editor"]
+        if self.quick:  # as its extension: the main buffer as a snapshot file, replaced atomically on each edit
+            self.buffer = f"{self.out}/buffer.tex"
+            shutil.copyfile(f"{self.proj}/{self.main}", self.buffer)
+            a += ["--quick-viewer", "--source-buffer", self.buffer]
+        return a
+
+    def save(self, file, pos, key):
+        """A key, the way its editor sends one: the main file's buffer snapshot (quick mode) or the saved file,
+        written to a temporary file and renamed over it."""
+        path = self.buffer if self.quick and file == self.main else f"{self.proj}/{file}"
+        b = open(path, "rb").read()
+        open(path + ".tmp", "wb").write(b[:pos] + key.encode() + b[pos:])
+        os.rename(path + ".tmp", path)
+
+    def type_key(self, file, pos, key):  # a key of a burst: saved, no waiting
+        self.save(file, pos, key)
+        self.last_write = time.monotonic()
+
+    def settle(self):  # after a burst: a full build that started after the last save, then 1 s of quiet
+        full = False
+        while True:
+            try:
+                t, ev = self.next(timeout=1 if full else TIMEOUT)
+            except queue.Empty:
+                return
+            self.rev = max(self.rev, ev.get("revision", 0))
+            if ev.get("event") == "full" and t > self.last_write:
+                full = True
 
     def on_event(self, ev):  # the published PDF is replaced by later builds: keep this one
         if ev.get("event") in ("full", "preview") and ev.get("pdf") and os.path.exists(ev["pdf"]):
@@ -553,7 +598,7 @@ class Rosina(External):
     def edit(self, file, pos, key, page):
         self.rev += 1
         t0 = time.monotonic()
-        apply(f"{self.proj}/{file}", pos, key)
+        self.save(file, pos, key)
         r = blank()
         while True:
             t, ev = self.next()
@@ -576,7 +621,14 @@ class Rosina(External):
                 return r
 
 
-SYSTEMS = {s.name: s for s in (Latexmk, PdftexLive, TauLive, Rtex, Typst, Texpresso, Rosina)}
+class RosinaQuick(Rosina):
+    """Its VS Code viewer's mode (`--quick-viewer`): changed regions as JSON events, no composite PDF; full builds
+    still publish the PDF."""
+    name = "rosina-quick"
+    quick = True
+
+
+SYSTEMS = {s.name: s for s in (Latexmk, PdftexLive, TauLive, Rtex, Typst, Texpresso, Rosina, RosinaQuick)}
 
 
 # ---------------------------------------------------------------------------------------------- one run
@@ -850,11 +902,13 @@ def run(system, doc, engine):
             return
 
 
+PAIR = os.environ.get("BENCH_PAIR", "taudot-pdftex,taudot-universal").split(",")  # the two systems ABBA compares
+
 def interleave(docs, engine="pdflatex"):
     """Patched and universal pdfLaTeX in ABBA order per document (patched, universal, universal, patched), so load
     that drifts over the minutes hits both alike. No reruns: each run's noise is recorded in results/interleave.tsv
     (one row per run) and both rounds' keys are pooled into edits.tsv/first.tsv (60 keys per system and document)."""
-    order = [("taudot-pdftex", 1), ("taudot-universal", 1), ("taudot-universal", 2), ("taudot-pdftex", 2)]
+    order = [(PAIR[0], 1), (PAIR[1], 1), (PAIR[1], 2), (PAIR[0], 2)]
     path = f"{RESULTS}/interleave.tsv"
     cols = ["date", "system", "version", "doc", "round", "load", "other_cpu", "first_page_ms", "para_p50",
             "display_p50", "page_p50", "final_p50", "para_exact", "display_n", "display_exact", "page_exact",
@@ -1103,7 +1157,7 @@ def memory(docs, engine="pdflatex", tag=""):
     path = f"{RESULTS}/memory.tsv"
     kept = [l for l in (open(path).read().splitlines()[1:] if os.path.exists(path) else [])
             if not (l.split("\t")[4] in docs and l.split("\t")[1] == tag)]
-    order = [("taudot-pdftex", 1), ("taudot-universal", 1), ("taudot-universal", 2), ("taudot-pdftex", 2)]
+    order = [(PAIR[0], 1), (PAIR[1], 1), (PAIR[1], 2), (PAIR[0], 2)]
     for doc in docs:
         meta = load(doc)
         v = meta["variants"][engine]
@@ -1133,17 +1187,9 @@ def memory(docs, engine="pdflatex", tag=""):
                 t0 = time.monotonic()
                 for j, c in enumerate(meta["keys"]):
                     time.sleep(max(0, t0 + j * KEY_GAP - time.monotonic()))
-                    sysm.send("change", v["file"], cur + j, 0, c)
-                    sysm.applied += 1
+                    sysm.type_key(v["file"], cur + j, c)
                 typed.append((p, len(meta["keys"])))
-                runs = {}
-                while True:  # settle: the done of a run that read the spot's last key
-                    t, ev = sysm.next()
-                    if ev["ev"] == "run":
-                        runs[ev["seq"]] = ev.get("applied", 0)
-                    elif ev["ev"] == "done" and runs.get(ev.get("seq"), -1) >= sysm.applied:
-                        sysm.last_seq = ev["seq"]
-                        break
+                sysm.settle()
                 time.sleep(REST)
             mem.phase("idle after")
             time.sleep(IDLE)
