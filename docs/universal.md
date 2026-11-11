@@ -779,8 +779,10 @@ overlay took `/F58` from the exact PDF's other pages: another subset (1512.03385
 marked exact were misplaced, worst 23,766 px). `tau-tdl pdf` now checks the pass as `page` checks a display page:
 every (font, code) it shows is drawn somewhere in the exact PDF under that name, and every resource it names is
 there, else no overlay ("glyph"/"resource"). This also stops overlays of characters the subsets lack (a new letter),
-which were marked exact before. Title-page documents get no first-page preview on pdfLaTeX for now (1512.03385,
-2103.00020: refused, none wrong); synth-10's first page 19/19 at 0 px; elsewhere coverage unchanged (1512.03385 8,
+which were marked exact before. Title-page documents get no first-page preview on pdfLaTeX (1512.03385, 2103.00020:
+refused, none wrong). Tried: libtau listing fonts that share an object (same name, same map entry) so the reader
+could rename `/F58` to its partner; no gain: there the abstract sits in the title block (a box), and the exact run
+used another font loaded later, not a partner. Not kept; synth-10's first page 19/19 at 0 px; elsewhere coverage unchanged (1512.03385 8,
 2103.00020 11 exact, all at 0 px).
 
 ## Memory: one warm child (2026-11-10)
