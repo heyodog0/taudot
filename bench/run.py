@@ -1044,6 +1044,50 @@ def burst(docs, engines):
                 open(rp, "w").write("\t".join(rcols) + "\n" + "".join(l + "\n" for l in runrows))
 
 
+
+def opens(docs, rounds=3, engine="pdflatex"):
+    """First page on open, patched and universal pdfLaTeX: per document `rounds` ABBA blocks (patched, universal,
+    universal, patched), each run open -> first PDF -> settled -> close, with its noise. Before any timing, one
+    untimed open of each driver: macOS checks a rewritten binary on its first launch (+130-180 ms). One row per run
+    in results/opens.tsv."""
+    cols = ["date", "system", "version", "doc", "run", "load", "other_cpu", "first_page_ms", "done_ms"]
+    path = f"{RESULTS}/opens.tsv"
+    kept = [l for l in (open(path).read().splitlines()[1:] if os.path.exists(path) else [])
+            if l.split("\t")[3] not in docs]
+
+    def one(name, doc):
+        meta = load(doc)
+        sysm = SYSTEMS[name]()
+        proj = f"{WORK}/run/{sysm.name}-{doc}-{engine}"
+        out = f"{proj}-out"
+        copy(f"{DOCS}/{doc}/{engine}", proj)
+        shutil.rmtree(out, ignore_errors=True)
+        os.makedirs(out)
+        sysm.start(proj, engine, meta["variants"][engine]["main"], out)
+        first = sysm.first()
+        sysm.close()
+        for d in (proj, out, f"{out}-keep"):
+            shutil.rmtree(d, ignore_errors=True)
+        return sysm, first
+    for name in ("taudot-pdftex", "taudot-universal"):
+        log(f"warm-up {name} (not timed)")
+        one(name, docs[0])
+    order = ["taudot-pdftex", "taudot-universal", "taudot-universal", "taudot-pdftex"] * rounds
+    for doc in docs:
+        count = {}
+        for name in order:
+            count[name] = count.get(name, 0) + 1
+            lo = Load()
+            sysm, first = one(name, doc)
+            load_, other = lo.done()
+            row = dict(date=time.strftime("%Y-%m-%d"), system=name, version=sysm.version(), doc=doc, run=count[name],
+                       load=f"{load_:.1f}", other_cpu=f"{other:.2f}", first_page_ms=f"{first['first_page_ms']:.1f}",
+                       done_ms=f"{first['done_ms']:.1f}")
+            log(f"  {name} {doc} #{count[name]}: first page {row['first_page_ms']} settled {row['done_ms']}, "
+                f"load {row['load']} other {row['other_cpu']}")
+            kept.append("\t".join(str(row[c]) for c in cols))
+            open(path, "w").write("\t".join(cols) + "\n" + "".join(l + "\n" for l in kept))
+
 def done(system, doc, engine):
     """Already in results/first.tsv (bench/run.py all resumes; delete the rows or the file to redo)."""
     p = f"{RESULTS}/first.tsv"
@@ -1059,6 +1103,10 @@ def main():
     ap.add_argument("--docs", nargs="*")
     ap.add_argument("--engines", nargs="*")
     a = ap.parse_args()
+    if a.system == "opens":
+        opens(a.docs or ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762",
+                         "arxiv-2103.00020"])
+        return
     if a.system == "burst":
         burst(a.docs or ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762",
                          "arxiv-2103.00020"], a.engines or ["pdflatex", "xelatex", "lualatex"])
