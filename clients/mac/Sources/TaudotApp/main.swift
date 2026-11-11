@@ -312,7 +312,7 @@ Compat.migrateDefaults()
 
 /// A measured run (bench, checks): never come to the front of the user's screen (docs/agents/README.md, "Tests must not
 /// disturb the user's screen"). TAUDOT_OFFSCREEN=1 makes any run one.
-let backgroundRun = ["TAUDOT_OFFSCREEN", "TAUDOT_MEASURE", "TAUDOT_BENCH", "TAUDOT_WIRECHECK", "TAUDOT_SCROLLTRACE", "TAUDOT_QUIT_TEST", "TAUDOT_PANECHECK", "TAUDOT_CLAUDECHECK", "TAUDOT_CLAUDESHOT", "TAUDOT_ONSCREEN", "TAUDOT_SETTINGSSHOT", "TAUDOT_NATIVECHECK", "TAUDOT_ONTOP", "TAUDOT_ISSUESSHOT", "TAUDOT_ABOUTSHOT", "TAUDOT_HISTORYCHECK", "TAUDOT_STATECHECK", "TAUDOT_FINDCHECK", "TAUDOT_FLOATCHECK"].contains { ProcessInfo.processInfo.environment[$0] != nil }
+let backgroundRun = ["TAUDOT_OFFSCREEN", "TAUDOT_MEASURE", "TAUDOT_BENCH", "TAUDOT_WIRECHECK", "TAUDOT_SCROLLTRACE", "TAUDOT_QUIT_TEST", "TAUDOT_PANECHECK", "TAUDOT_CLAUDECHECK", "TAUDOT_CLAUDESHOT", "TAUDOT_ONSCREEN", "TAUDOT_SETTINGSSHOT", "TAUDOT_NATIVECHECK", "TAUDOT_ONTOP", "TAUDOT_ISSUESSHOT", "TAUDOT_ABOUTSHOT", "TAUDOT_HISTORYCHECK", "TAUDOT_STATECHECK", "TAUDOT_FINDCHECK", "TAUDOT_FLOATCHECK", "TAUDOT_ZOOMCHECK"].contains { ProcessInfo.processInfo.environment[$0] != nil }
 // A child that dies (txp-headless without tectonic, a crashed Neovim) must never take the app with it: writes to its closed
 // pipe fail with EPIPE instead of killing us.
 signal(SIGPIPE, SIG_IGN)

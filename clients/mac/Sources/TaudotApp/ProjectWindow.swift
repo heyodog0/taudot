@@ -647,6 +647,7 @@ import TaudotShared
       if let c = ProcessInfo.processInfo.environment["TAUDOT_PANECHECK"] { Task { await PaneCheck(self, out: URL(fileURLWithPath: c)).run() } }
       if let c = ProcessInfo.processInfo.environment["TAUDOT_CYCLECHECK"] { Task { await CycleCheck(self, out: URL(fileURLWithPath: c)).run() } }
       if let c = ProcessInfo.processInfo.environment["TAUDOT_FLOATCHECK"] { Task { await FloatCheck(self, out: URL(fileURLWithPath: c)).run() } }
+    if let c = ProcessInfo.processInfo.environment["TAUDOT_ZOOMCHECK"] { Task { await ZoomCheck(self, out: URL(fileURLWithPath: c)).run() } }
       if let b = ProcessInfo.processInfo.environment["TAUDOT_BENCH"] { Task { await Bench(self, out: URL(fileURLWithPath: b)).run() } }
     } catch is WindowClosed {
     } catch {
@@ -816,6 +817,7 @@ import TaudotShared
     if let c = ProcessInfo.processInfo.environment["TAUDOT_NATIVECHECK"] { Task { await NativeCheck(self, out: URL(fileURLWithPath: c)).run() } }
     if let c = ProcessInfo.processInfo.environment["TAUDOT_CYCLECHECK"] { Task { await CycleCheck(self, out: URL(fileURLWithPath: c)).run() } }
     if let c = ProcessInfo.processInfo.environment["TAUDOT_FLOATCHECK"] { Task { await FloatCheck(self, out: URL(fileURLWithPath: c)).run() } }
+    if let c = ProcessInfo.processInfo.environment["TAUDOT_ZOOMCHECK"] { Task { await ZoomCheck(self, out: URL(fileURLWithPath: c)).run() } }
   }
 
   /// The editor column takes the editor's background; the window's chrome (title bar, status bar, the issues strip,
