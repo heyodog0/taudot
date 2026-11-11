@@ -801,7 +801,10 @@ impl Actor {
                 return;
             }
         };
-        match self.edit(id, base_seq, edits, None, None) {
+        self.edit_source = Some("disk");
+        let sent = self.edit(id, base_seq, edits, None, None);
+        self.edit_source = None;
+        match sent {
             Ok(_) => {
                 let d = self.docs.get_mut(id).unwrap();
                 if d.client.text() == text {

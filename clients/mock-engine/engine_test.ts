@@ -129,3 +129,42 @@ Deno.test("comments, threads and tracked changes", async () => {
     await proc.stdout.cancel();
   }
 });
+
+Deno.test("a file edited on disk reaches subscribers as a local edit with source disk", async () => {
+  const dir = await Deno.makeTempDir({ prefix: "tsm" });
+  await Deno.writeTextFile(`${dir}/main.tex`, "hello world\n");
+  const sock = `${dir}/e.sock`;
+  const proc = new Deno.Command(Deno.execPath(), {
+    args: ["run", "-A", new URL("./main.ts", import.meta.url).pathname, "--folder", dir, "--socket", sock],
+    stdout: "piped",
+    stderr: "inherit",
+  }).spawn();
+  for (let i = 0; i < 100; i++) {
+    try {
+      await Deno.stat(sock);
+      break;
+    } catch {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+  const a = await rpcClient(sock);
+  try {
+    const p = await a.call("project.open", { folder: dir });
+    const d = await a.call("doc.open", { project_id: p.project_id, path: "main.tex" });
+    await a.call("doc.subscribe", { doc_id: d.doc_id, since_seq: d.seq });
+    await Deno.writeTextFile(`${dir}/main.tex`, "hello brave world\n");
+    let n;
+    for (let i = 0; i < 60 && !n; i++) {
+      n = a.notes.find((n) => n.method === "doc.changed");
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    assertEquals(n?.params.source, "disk");
+    assertEquals(n?.params.origin, "local");
+    assertEquals(n?.params.edits, [{ pos: 6, del: 0, ins: "brave " }]);
+  } finally {
+    a.close();
+    proc.kill("SIGTERM");
+    await proc.status;
+    await proc.stdout.cancel();
+  }
+});

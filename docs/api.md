@@ -321,7 +321,7 @@ are asked for each time.
 
 | Method | Params |
 |---|---|
-| `doc.changed` | `{doc_id, seq, edits, author: {user_id, name, initials}, origin: "local"\|"remote"}` |
+| `doc.changed` | `{doc_id, seq, edits, author: {user_id, name, initials}, origin: "local"\|"remote", source?: "disk"}` |
 | `doc.state` | `{doc_id, state: "idle"\|"pending"\|"inflight", unconfirmed, oldest_unconfirmed_ms, readonly, seq}` (`seq`: the doc's seq when the state was taken; a note can arrive after a later `doc.edit` result) |
 | `ranges.changed` | `{doc_id, seq, ranges}` |
 | `presence.changed` | `{project_id, users: [{client_id, user_id, name, initials, doc_id, pos, seq}]}` |
@@ -332,7 +332,9 @@ are asked for each time.
 | `clone.progress` | `{project_id, folder, stage: "connecting"\|"downloading"\|"done", text}` (to the caller of `project.clone`) |
 | `engine.lagged` | `{missed}`: the client fell behind and missed notifications; it should reopen its docs. |
 
-`origin: "local"` is an edit made through this engine (by another of its clients). `author` is null-valued when the
+`origin: "local"` is an edit made through this engine (by another of its clients). `source: "disk"` marks a local
+edit the engine made from the project folder's file (an editor or an agent outside Taudot changed it); it is absent
+otherwise. `author` is null-valued when the
 server didn't say who made a change, such as the change a rebase produces.
 
 `activity` kinds from the engine itself: `relogin` (the session expired and the engine logged in again), `rejoin` and

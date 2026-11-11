@@ -414,8 +414,8 @@ async fn dispatch(
             // Changes the engine made on top of the client's (forwarded to its other connections, not to this one):
             // they reach this client right after the result.
             for c in after {
-                let msg = json!({"jsonrpc": "2.0", "method": "doc.changed", "params": {
-                    "doc_id": doc_id, "seq": c.seq, "edits": c.edits, "origin": c.origin, "author": c.author}});
+                let msg = json!({"jsonrpc": "2.0", "method": "doc.changed",
+                    "params": crate::engine::changed_params(&doc_id, c.seq, &c.edits, c.origin, &c.author, c.source)});
                 conn.after.lock().unwrap().push(msg.to_string());
             }
             // Changes below `seq` reach this client before the result does.
@@ -439,9 +439,8 @@ async fn dispatch(
             let d = doc_id.clone();
             let (seq, changes) = h.ask(|reply| Cmd::Since { doc_id: d, since, reply }).await?;
             for c in changes {
-                let msg = json!({"jsonrpc": "2.0", "method": "doc.changed", "params": {
-                    "doc_id": doc_id, "seq": c.seq, "edits": c.edits, "origin": c.origin,
-                    "author": c.author}});
+                let msg = json!({"jsonrpc": "2.0", "method": "doc.changed",
+                    "params": crate::engine::changed_params(&doc_id, c.seq, &c.edits, c.origin, &c.author, c.source)});
                 let _ = out.send(msg.to_string());
             }
             Ok(json!({"seq": seq}))
@@ -1597,6 +1596,16 @@ mod e2e {
         until("disk edit reached the server", || s.lock().unwrap().text == ">hello\nworld\n").await;
         let m2 = main.clone();
         until("merged text written back", || std::fs::read_to_string(&m2).is_ok_and(|t| t == ">hello\nworld\n")).await;
+        // The disk edit says where it came from (an editor or an agent outside Taudot); the collaborator's doesn't.
+        let d = rpc.call("doc.open", json!({"project_id": PROJECT_ID, "path": "main.tex"})).await.unwrap();
+        let main_id = d["doc_id"].as_str().unwrap().to_string();
+        rpc.call("doc.subscribe", json!({"doc_id": main_id, "since_seq": 0})).await.unwrap();
+        let disk = rpc.wait_note(|v| v["method"] == "doc.changed" && v["params"]["doc_id"] == main_id.as_str() && v["params"]["source"] == "disk").await;
+        assert_eq!(disk["params"]["origin"], "local");
+        assert!(rpc.notes.iter().any(|v| v["method"] == "doc.changed" && v["params"]["doc_id"] == main_id.as_str()
+            && v["params"]["origin"] == "remote" && v["params"].get("source").is_none()));
+        let n = rpc.call("doc.edit", json!({"doc_id": main_id, "seq": d["seq"], "edits": [{"pos": 0, "del": 0, "ins": "#"}]})).await.unwrap();
+        assert!(n["seq"].as_u64().is_some());
 
         // Local: a new figure, a new .tex file, a rename, a delete.
         std::fs::create_dir_all(folder.join("figs")).unwrap();
