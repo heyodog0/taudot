@@ -38,6 +38,10 @@ pub struct Report {
     pub tex_runs: usize,
     pub ms_total: f64,
     pub ms_tex: f64,
+    /// Where the time went, ms: setup, gen, tex_start, tex_body, read, cmp.
+    pub ms: BTreeMap<&'static str, f64>,
+    /// Paragraphs proven on the parked engine and typeset again by stock pdfLaTeX: (checked, still proven).
+    pub recheck: (usize, usize),
     pub geometry: String,
     /// Font macros for the emitted LaTeX.
     pub fonts_tex: String,
@@ -74,6 +78,16 @@ fn pdflatex() -> PathBuf {
     })
 }
 
+/// Removes a batch's PDF once read.
+struct Rm(Option<PathBuf>);
+impl Drop for Rm {
+    fn drop(&mut self) {
+        if let Some(p) = &self.0 {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+}
+
 /// One comparison of a re-typeset paragraph with the original.
 #[derive(Debug, Clone)]
 pub struct Cmp {
@@ -100,71 +114,193 @@ struct Ctx<'a> {
     size: (f64, f64),
     runs: usize,
     ms_tex: f64,
+    ms: BTreeMap<&'static str, f64>,
+    /// The engine parked past the current preamble (None: a stock pdfLaTeX process per batch).
+    park: Option<crate::park::Parked>,
+    /// Paragraph text by the hypothesis fields it depends on.
+    gen_cache: HashMap<String, Result<String, String>>,
+    /// Force stock pdfLaTeX processes (the recheck).
+    stock: bool,
     /// Some(microtype options) when the PDF shows font expansion: run as a LaTeX document with microtype.
     latex: Option<String>,
 }
 
 impl<'a> Ctx<'a> {
-    /// Typeset each (paragraph, hypothesis) on its own page in one pdfLaTeX run and compare.
+    /// Typeset `pre` + each chunk of pages (+ \\PSend): on the parked engine when libtau is there (the chunks run as
+    /// children of one snapshot at once), else one stock pdfLaTeX process for all of them. Returns each PDF with the
+    /// number of pages it holds, the wall time and, parked, the time spent starting an engine.
+    fn typeset(&mut self, pre: &str, chunks: &[String], sizes: &[usize]) -> (Vec<(PathBuf, usize)>, f64, Option<f64>) {
+        let job = format!("r{}", self.runs);
+        let t = Instant::now();
+        let keep = std::env::var("PDFSOURCE_KEEP").is_ok();
+        if !self.stock && crate::park::libtau().is_some() {
+            let mut start = 0.0;
+            if self.park.as_ref().is_none_or(|p| p.pre != pre) {
+                self.park = None;
+                match crate::park::Parked::start(&self.work.join("park"), &pdflatex(), &tex_env(), pre) {
+                    Ok(p) => {
+                        start = p.ms_start;
+                        self.park = Some(p);
+                    }
+                    Err(e) => eprintln!("pdfsource: parked engine: {e}; stock runs"),
+                }
+            }
+            if let Some(p) = self.park.as_mut() {
+                match p.run_many(chunks) {
+                    Ok(dirs) => {
+                        let mut out = vec![];
+                        for (k, dir) in dirs.iter().enumerate() {
+                            let pdf = self.work.join(format!("{job}-{k}.pdf"));
+                            let _ = std::fs::rename(dir.join("main.pdf"), &pdf);
+                            if keep {
+                                let _ = std::fs::write(self.work.join(format!("{job}-{k}.tex")), format!("{pre}{}\\PSend\n", chunks[k]));
+                            }
+                            let _ = std::fs::remove_dir_all(dir);
+                            out.push((pdf, sizes[k]));
+                        }
+                        return (out, t.elapsed().as_secs_f64() * 1000.0, Some(start));
+                    }
+                    Err(e) => {
+                        eprintln!("pdfsource: parked engine: {e}; restarting");
+                        self.park = None;
+                    }
+                }
+            }
+        }
+        let pdf = self.work.join(format!("{job}.pdf"));
+        let _ = std::fs::remove_file(&pdf);
+        let tex = self.work.join(format!("{job}.tex"));
+        std::fs::write(&tex, format!("{pre}{}\\PSend\n", chunks.concat())).unwrap();
+        let _ = Command::new(pdflatex())
+            .args(["-interaction=batchmode", &format!("{job}.tex")])
+            .current_dir(&self.work)
+            .envs(tex_env())
+            .stdin(std::process::Stdio::null())
+            .output();
+        if !keep {
+            for ext in ["tex", "log", "aux"] {
+                let _ = std::fs::remove_file(self.work.join(format!("{job}.{ext}")));
+            }
+        }
+        (vec![(pdf, sizes.iter().sum())], t.elapsed().as_secs_f64() * 1000.0, None)
+    }
+
+    /// Typeset each (paragraph, hypothesis) on its own page and compare.
     fn batch(&mut self, items: &[(usize, Hyp)]) -> Vec<Cmp> {
         let mut out: Vec<Option<Cmp>> = vec![None; items.len()];
-        let mut body = String::new();
+        let mut pages: Vec<String> = vec![];
         let mut shipped: Vec<(usize, String)> = vec![];
+        let tg0 = Instant::now();
         for (j, (i, hyp)) in items.iter().enumerate() {
             let p = &self.doc.paras[*i];
-            match self.tg.para_input(p, hyp, self.main[*i]) {
+            // The text depends on these fields only (not on geometry or residuals, which the searches vary).
+            let key = {
+                let pr = &hyp.params;
+                let mut fc: Vec<_> = hyp.font_choice.iter().collect();
+                fc.sort();
+                let mut hy: Vec<_> = hyp.hyph.iter().map(|(k, v)| (*k, *v == Hyph::Explicit)).collect();
+                hy.sort();
+                let mut ti: Vec<_> = hyp.ties.iter().collect();
+                ti.sort();
+                let mut nh: Vec<_> = hyp.nohyph.iter().collect();
+                nh.sort();
+                format!("{i}|{fc:?}|{hy:?}|{ti:?}|{nh:?}|{} {} {} {} {} {}", pr.ams_bold, pr.cite_spaces, pr.italic_correction, pr.labelsep_adj, pr.newblock_neg, pr.french)
+            };
+            let input = match self.gen_cache.get(&key) {
+                Some(r) => r.clone(),
+                None => {
+                    let r = self.tg.para_input(p, hyp, self.main[*i]);
+                    self.gen_cache.insert(key, r.clone());
+                    r
+                }
+            };
+            match input {
                 Ok(text) => {
                     let sel: Vec<(usize, usize)> = hyp.font_choice.iter().map(|(&k, &c)| (k, c)).collect();
-                    body.push_str(&texgen::para_page(&text, p, hyp, &sel));
+                    pages.push(texgen::para_page(&text, p, hyp, &sel));
                     shipped.push((j, text));
                 }
                 Err(e) => out[j] = Some(Cmp { ok: false, why: e, bad_line: None, max_dx: 0.0, misses: usize::MAX, text: String::new(), forbid: None, first_dx: 0.0 }),
             }
         }
-        if !shipped.is_empty() {
-            let fonts = self.fonts;
-            let all = |k: usize| -> Vec<usize> { (0..fonts.get(&k).map_or(0, |v| v.len())).collect() };
-            let pre = texgen::preamble(fonts, &all, self.size.0, self.size.1, self.latex.as_deref());
-            let job = format!("r{}", self.runs);
-            std::fs::write(self.work.join(format!("{job}.tex")), format!("{pre}{body}\\PSend\n")).unwrap();
-            let _ = std::fs::remove_file(self.work.join(format!("{job}.pdf")));
-            let t = Instant::now();
-            let _ = Command::new(pdflatex())
-                .args(["-interaction=batchmode", &format!("{job}.tex")])
-                .current_dir(&self.work)
-                .envs(tex_env())
-                .stdin(std::process::Stdio::null())
-                .output();
-            self.ms_tex += t.elapsed().as_secs_f64() * 1000.0;
-            self.runs += 1;
-            let rp = self.work.join(format!("{job}.pdf"));
-            let fail = |why: String| Cmp { ok: false, why, bad_line: None, max_dx: 0.0, misses: usize::MAX, text: String::new(), forbid: None, first_dx: 0.0 };
-            match Pdf::open(rp.to_str().unwrap()) {
-                Err(e) => {
-                    for (j, _) in &shipped {
-                        out[*j] = Some(fail(format!("tex: {e}")));
-                    }
-                }
-                Ok(repro) if repro.page_count() != shipped.len() => {
-                    for (j, _) in &shipped {
-                        out[*j] = Some(fail(format!("tex: {} pages for {}", repro.page_count(), shipped.len())));
-                    }
-                }
-                Ok(mut repro) => {
-                    for (pi, (j, text)) in shipped.iter().enumerate() {
-                        let page = repro.page(pi + 1).unwrap();
-                        let lines = lines_of(pi + 1, &page.glyphs);
-                        let (i, hyp) = &items[*j];
-                        let mut c = compare(self.pdf, &repro, &self.doc.paras[*i], &lines, hyp, &page.rules);
-                        if c.why.starts_with("breaks") {
-                            if let Some(bl) = c.bad_line {
-                                c.forbid = my_break(&self.tg, self.pdf, &repro, &self.doc.paras[*i], &lines, hyp, bl);
+        *self.ms.entry("gen").or_default() += tg0.elapsed().as_secs_f64() * 1000.0;
+        if shipped.is_empty() {
+            return out.into_iter().map(|c| c.unwrap()).collect();
+        }
+        let fonts = self.fonts;
+        let all = |k: usize| -> Vec<usize> { (0..fonts.get(&k).map_or(0, |v| v.len())).collect() };
+        let pre = texgen::preamble(fonts, &all, self.size.0, self.size.1, self.latex.as_deref());
+        // Chunks of at least 32 pages, at most `jobs` of them.
+        let jobs: usize = std::env::var("PDFSOURCE_JOBS").ok().and_then(|v| v.parse().ok()).unwrap_or(4).max(1);
+        let per = pages.len().div_ceil(jobs).max(32);
+        let chunks: Vec<String> = pages.chunks(per).map(|c| c.concat()).collect();
+        let sizes: Vec<usize> = pages.chunks(per).map(|c| c.len()).collect();
+        let (pdfs, wall, start) = self.typeset(&pre, &chunks, &sizes);
+        self.ms_tex += wall;
+        let start_ms = start.unwrap_or(0.0);
+        *self.ms.entry("tex_body").or_default() += wall - start_ms;
+        *self.ms.entry("tex_start").or_default() += start_ms;
+        self.runs += 1;
+        // Read back and compare each PDF on its own thread.
+        let tr = Instant::now();
+        let keep = std::env::var("PDFSOURCE_KEEP").is_ok();
+        let (pdf, doc, tg) = (self.pdf, self.doc, &self.tg);
+        let mut at = 0;
+        let mut parts = vec![];
+        for (path, n) in &pdfs {
+            parts.push((path.clone(), &shipped[at..at + n]));
+            at += n;
+        }
+        let results: Vec<(Vec<(usize, Cmp)>, f64, f64)> = std::thread::scope(|sc| {
+            let hs: Vec<_> = parts
+                .iter()
+                .map(|(path, ship)| {
+                    sc.spawn(move || {
+                        let _drop = Rm(if keep { None } else { Some(path.clone()) });
+                        let t0 = Instant::now();
+                        let fail = |why: String| Cmp { ok: false, why, bad_line: None, max_dx: 0.0, misses: usize::MAX, text: String::new(), forbid: None, first_dx: 0.0 };
+                        let mut res = vec![];
+                        let (mut ms_read, mut ms_cmp) = (0.0, 0.0);
+                        match Pdf::open(path.to_str().unwrap()) {
+                            Err(e) => res.extend(ship.iter().map(|(j, _)| (*j, fail(format!("tex: {e}"))))),
+                            Ok(repro) if repro.page_count() != ship.len() => {
+                                res.extend(ship.iter().map(|(j, _)| (*j, fail(format!("tex: {} pages for {}", repro.page_count(), ship.len())))))
+                            }
+                            Ok(mut repro) => {
+                                ms_read = t0.elapsed().as_secs_f64() * 1000.0;
+                                for (pi, (j, text)) in ship.iter().enumerate() {
+                                    let t1 = Instant::now();
+                                    let page = repro.page(pi + 1).unwrap();
+                                    let lines = lines_of(pi + 1, &page.glyphs);
+                                    ms_read += t1.elapsed().as_secs_f64() * 1000.0;
+                                    let t2 = Instant::now();
+                                    let (i, hyp) = &items[*j];
+                                    let mut c = compare(pdf, &repro, &doc.paras[*i], &lines, hyp, &page.rules);
+                                    if c.why.starts_with("breaks") {
+                                        if let Some(bl) = c.bad_line {
+                                            c.forbid = my_break(tg, pdf, &repro, &doc.paras[*i], &lines, hyp, bl);
+                                        }
+                                    }
+                                    c.text = text.clone();
+                                    res.push((*j, c));
+                                    ms_cmp += t2.elapsed().as_secs_f64() * 1000.0;
+                                }
                             }
                         }
-                        c.text = text.clone();
-                        out[*j] = Some(c);
-                    }
-                }
+                        (res, ms_read, ms_cmp)
+                    })
+                })
+                .collect();
+            hs.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        // Thread time split by its parts; the wall time of the whole readback counts.
+        let (r, c): (f64, f64) = results.iter().fold((0.0, 0.0), |a, x| (a.0 + x.1, a.1 + x.2));
+        let wall_r = tr.elapsed().as_secs_f64() * 1000.0;
+        *self.ms.entry("read").or_default() += wall_r * r / (r + c).max(1e-9);
+        *self.ms.entry("cmp").or_default() += wall_r * c / (r + c).max(1e-9);
+        for (res, _, _) in results {
+            for (j, c) in res {
+                out[j] = Some(c);
             }
         }
         out.into_iter().map(|c| c.unwrap()).collect()
@@ -261,7 +397,8 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
             }
         }
     }
-    let mut cx = Ctx { pdf, doc, tg: Gen { pdf, fonts: &fonts, fkey: &fkey }, fonts: &fonts, main, work, size: pdf_page_size(pdf), runs: 0, ms_tex: 0.0, latex: None };
+    let mut cx = Ctx { pdf, doc, tg: Gen { pdf, fonts: &fonts, fkey: &fkey }, fonts: &fonts, main, work, size: pdf_page_size(pdf), runs: 0, ms_tex: 0.0, ms: BTreeMap::new(), park: None, gen_cache: HashMap::new(), stock: false, latex: None };
+    cx.ms.insert("setup", t0.elapsed().as_secs_f64() * 1000.0);
     if doc.paras.iter().filter(|p| !p.display).flat_map(|p| p.lines.iter()).flat_map(|l| l.glyphs.iter()).any(|g| (g.hscale - 1.0).abs() > 1e-4) {
         // The body font's NFSS family is \rmdefault.
         let mut h: HashMap<usize, usize> = HashMap::new();
@@ -670,6 +807,34 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         }
     }
     }
+    // The proof is stock pdfLaTeX's: every paragraph proven on the parked engine is typeset again by a plain
+    // pdfLaTeX process (one batch per LaTeX setup) and must still match; one that doesn't is not proven.
+    let mut recheck = (0usize, 0usize);
+    if cx.park.is_some() || std::env::var("PDFSOURCE_RECHECK").is_ok() {
+        cx.park = None;
+        cx.stock = true;
+        let t = Instant::now();
+        let mut pres: Vec<String> = states.iter().filter_map(|s| s.done.as_ref().filter(|o| o.proven).map(|o| o.pre.clone())).collect();
+        pres.sort();
+        pres.dedup();
+        for pre in pres {
+            cx.latex = if pre.is_empty() { None } else { Some(pre.clone()) };
+            let idx: Vec<usize> = (0..states.len()).filter(|&i| states[i].done.as_ref().is_some_and(|o| o.proven && o.pre == pre)).collect();
+            let items: Vec<(usize, Hyp)> = idx.iter().map(|&i| (i, states[i].done.as_ref().unwrap().hyp.clone().unwrap())).collect();
+            let res = cx.batch(&items);
+            for (&i, c) in idx.iter().zip(&res) {
+                recheck.0 += 1;
+                if c.ok {
+                    recheck.1 += 1;
+                } else {
+                    let o = states[i].done.as_mut().unwrap();
+                    o.proven = false;
+                    o.reason = format!("stock recheck: {}", c.why);
+                }
+            }
+        }
+        cx.ms.insert("recheck", t.elapsed().as_secs_f64() * 1000.0);
+    }
     if let Ok(n) = std::env::var("PDFSOURCE_SHOW").map(|s| s.parse::<usize>().unwrap_or(0)) {
         if let Some(st) = states.get(n) {
             let p = &doc.paras[n];
@@ -718,6 +883,8 @@ pub fn prove(pdf: &Pdf, doc: &Doc, file: &str) -> Report {
         tex_runs: cx.runs,
         ms_total: t0.elapsed().as_secs_f64() * 1000.0,
         ms_tex: cx.ms_tex,
+        ms: cx.ms.clone(),
+        recheck,
         fonts_tex: {
             // The body font's NFSS family and size: its variants become \normalfont + \itshape, \bfseries ...
             let bk = *fkey.get(&(doc.body_font, size_key(doc.body_size))).unwrap_or(&usize::MAX);
@@ -924,7 +1091,9 @@ pub fn print(r: &Report, json: bool) {
             esc(&r.file), r.pages, total, proven, lines_all, lines_proven, words_all, words_proven, r.doc_lines, r.other_lines, r.tex_runs, r.ms_total, r.ms_tex
         );
         s += &reasons.iter().map(|(k, v)| format!("\"{}\":{}", esc(k), v)).collect::<Vec<_>>().join(",");
-        s += "},\"detail\":[";
+        s += "},\"ms\":{";
+        s += &r.ms.iter().map(|(k, v)| format!("\"{k}\":{v:.1}")).collect::<Vec<_>>().join(",");
+        s += &format!("}},\"recheck\":[{},{}],\"detail\":[", r.recheck.0, r.recheck.1);
         s += &r
             .paras
             .iter()

@@ -337,12 +337,15 @@ impl<'a> Gen<'a> {
         for l in &p.lines {
             all_spans.push(self.math_spans(l, cm_text)?);
         }
+        // Fonts this paragraph shows expanded (microtype), once per paragraph.
+        let expanding: std::collections::HashSet<usize> = p.lines.iter().flat_map(|q| q.glyphs.iter()).filter(|x| (x.hscale - 1.0).abs() > 1e-4).map(|x| x.font).collect();
         for (li, l) in p.lines.iter().enumerate() {
             let hy = li + 1 < nlines && self.hyphen_at_end(l, hyp);
             let reading = hyp.hyph.get(&li).copied().unwrap_or(Hyph::Discretionary);
             let spans = all_spans[li].clone();
             // A formula that continues from the previous line: its glyphs here belong to the source written there.
             let continued = li > 0 && spans.first().is_some_and(|s| s.0 == 0) && all_spans[li - 1].last().is_some_and(|s| s.1 == p.lines[li - 1].glyphs.len());
+            let line_expanded = l.glyphs.iter().any(|x| (x.hscale - 1.0).abs() > 1e-4);
             for (gi, g) in l.glyphs.iter().enumerate() {
                 if g.size < 0.0 {
                     return Err("figure text".into());
@@ -421,8 +424,7 @@ impl<'a> Gen<'a> {
                 let drop = hy && gi + 1 == l.glyphs.len() && reading == Hyph::Discretionary;
                 let gap = if gi > 0 { g.x - (l.glyphs[gi - 1].x + l.glyphs[gi - 1].adv) } else { 0.0 };
                 let pre = if gi > 0 || li > 0 { g.pre.clone() } else { String::new() };
-                let line_expanded = l.glyphs.iter().any(|x| (x.hscale - 1.0).abs() > 1e-4);
-                let font_expands = p.lines.iter().flat_map(|q| q.glyphs.iter()).any(|x| x.font == g.font && (x.hscale - 1.0).abs() > 1e-4);
+                let font_expands = expanding.contains(&g.font);
                 let boxed = line_expanded && font_expands && (g.hscale - 1.0).abs() < 1e-4;
                 let (font, code) = if span.is_some() { (main_font, u32::MAX) } else if accent_here { (self.k(g), u32::MAX) } else { (self.k(g), g.code) };
                 let sep = if skip { 0 } else { sep };
