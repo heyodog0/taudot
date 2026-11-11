@@ -164,6 +164,20 @@ Paragraph counts fall (8 871 → 7 437) because bibliography lines are grouped i
 longer be "proven" alone, so a few papers lose lines. 1.76 s per page. `kind` (main, block, item, foot, small)
 is now reported per paragraph.
 
+### 8. Section headings, deterministic layout (2026-11-10)
+
+| all sizes | proven | of | % |
+|---|---|---|---|
+| paragraphs | 2 912 | 7 411 | 39.3 |
+| paragraphs of 2+ lines | 1 934 | 4 118 | 47.0 |
+| lines | 13 225 | 25 330 | 52.2 |
+| words | 133 314 | 253 375 | 52.6 |
+
+A numbered heading ("3.1 Pre-training") has a `\quad` after the number, in the heading's font (not the body's),
+and that quad was taken for an ordinary space when solving the line's glue ratio; both fixed. Column detection
+broke ties by hash order, so one paper's layout changed between runs (2103.00020: 799 or 773 paragraphs); ties
+now go by edge position. 2.0 s per page (machine under load).
+
 ### Baselines (prior art, not run here)
 
 - **go-pdfkit/latex** (BSD-3, Go, 2026): heuristic PDF → LaTeX for TeX PDFs, 275 arXiv papers: 99.6 % compile,

@@ -59,36 +59,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1512.03385	pdflatex	28	4	7			616.98	ref	616.98	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1512.03385	pdflatex	29	4	7			618.25	ref	618.25	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1512.03385	pdflatex	30	4	7			618.84	ref	618.84	ref					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	1	0	4		no event	40.69	yes	143.28	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	2	0	4	4.07	exact	37.60	yes	126.94	yes	4.03				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	3	0	4	3.02	exact	35.15	yes	132.10	yes	2.98				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	4	0	4	3.77	exact	37.63	yes	138.97	yes	3.73				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	5	0	4	2.98	exact	36.93	yes	128.45	yes	2.93				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	6	0	4	3.35	exact	47.06	yes	144.26	yes	3.31				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	7	1	1		no event	31.86	yes	182.31	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	8	1	1	4.72	exact	28.70	yes	166.04	yes	4.66				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	9	1	1	3.96	exact	27.64	yes	170.63	yes	3.91				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	10	1	1	3.32	exact	26.18	yes	162.90	yes	3.29				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	11	1	1	3.16	exact	26.85	yes	158.96	yes	3.13				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	12	1	1	3.38	exact	26.45	yes	163.23	yes	3.34				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	13	2	11		no event	52.30	yes	52.63	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	14	2	11	2.44	exact	49.53	yes	53.24	yes	2.40				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	15	2	11	2.32	exact	50.63	yes	52.85	yes	2.27				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	16	2	11	2.06	provisional/lines	48.43	yes	53.36	yes	2.02				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	17	2	11	2.31	exact	47.86	yes	50.55	yes	2.27				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	18	2	11	2.50	exact	49.28	yes	53.82	yes	2.46				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	19	3	2		no event	40.50	yes	164.84	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	20	3	2	4.37	provisional/lines	46.20	yes	165.02	yes	4.33				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	21	3	2	4.15	exact	48.11	yes	165.20	yes	4.11				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	22	3	2	3.39	exact	40.70	yes	158.76	yes	3.33				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	23	3	2	3.19	exact	41.41	yes	175.33	yes	3.15				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	24	3	2	3.49	exact	46.46	yes	176.36	yes	3.43				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	25	4	7		no event	57.11	yes	119.19	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	26	4	7	2.98	exact	31.69	yes	91.29	yes	2.93				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	27	4	7	2.94	exact	32.76	yes	94.14	yes	2.89				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	28	4	7	3.01	exact	32.80	yes	85.98	yes	2.96				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	29	4	7	3.07	exact	31.67	yes	86.28	yes	3.02				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1512.03385	pdflatex	30	4	7	3.01	exact	32.73	yes	87.12	yes	2.97				
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	1	0	4		none/paragraph-shares-a-captured-row	634.48	yes	634.48	yes					
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	2	0	4		none/paragraph-shares-a-captured-row	650.19	yes	650.19	yes					
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	3	0	4		none/paragraph-shares-a-captured-row	629.48	yes	629.48	yes					
@@ -179,36 +149,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1706.03762	pdflatex	28	4	4			931.57	ref	931.57	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1706.03762	pdflatex	29	4	4			922.42	ref	922.42	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-1706.03762	pdflatex	30	4	4			1023.58	ref	1023.58	ref					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	1	0	4		no event	68.91	yes	147.58	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	2	0	4		none/split	66.37	yes	148.67	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	3	0	4		none/split	81.87	yes	166.25	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	4	0	4		none/split	67.44	yes	151.94	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	5	0	4		none/split	85.40	yes	165.53	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	6	0	4		none/split	80.57	yes	161.96	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	7	1	2		no event	96.40	yes	218.41	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	8	1	2	3.27	exact	85.65	yes	206.96	yes	3.21				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	9	1	2	4.69	exact	94.20	yes	216.16	yes	4.64				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	10	1	2	4.70	exact	94.98	yes	215.54	yes	4.64				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	11	1	2	2.60	exact	77.30	yes	198.61	yes	2.53				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	12	1	2	2.68	exact	86.43	yes	214.33	yes	2.61				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	13	2	5		no event	50.73	yes	130.66	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	14	2	5	5.31	exact	50.46	yes	124.33	yes	5.26				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	15	2	5	3.99	exact	57.21	yes	133.73	yes	3.92				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	16	2	5	2.98	exact	61.26	yes	132.92	yes	2.92				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	17	2	5	2.86	exact	47.67	yes	120.14	yes	2.82				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	18	2	5	3.52	exact	54.95	yes	129.97	yes	3.47				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	19	3	3		no event	57.10	yes	155.77	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	20	3	3		none/operator?m	61.91	yes	160.07	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	21	3	3		none/operator?m	57.63	yes	152.04	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	22	3	3		none/operator?m	56.76	yes	149.99	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	23	3	3		none/operator?m	57.55	yes	146.73	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	24	3	3		none/operator?m	59.99	yes	158.32	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	25	4	4		no event	44.68	yes	133.95	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	26	4	4	3.36	exact	39.09	yes	125.45	yes	3.27				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	27	4	4	2.52	exact	37.86	yes	123.23	yes	2.46				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	28	4	4	6.60	exact	47.82	yes	138.64	yes	6.47				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	29	4	4	3.50	exact	47.91	yes	130.39	yes	3.44				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-1706.03762	pdflatex	30	4	4	3.08	exact	43.73	yes	127.35	yes	3.02				
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	1	0	4		none/included-file-or-asset-changed	2906.81	yes	2906.81	yes					
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	2	0	4		none/included-file-or-asset-changed	2988.79	yes	2988.79	yes					
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	3	0	4		none/included-file-or-asset-changed	2866.94	yes	2866.94	yes					
@@ -299,36 +239,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-2103.00020	pdflatex	28	4	24			1068.92	ref	1068.92	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-2103.00020	pdflatex	29	4	24			1096.15	ref	1096.15	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	arxiv-2103.00020	pdflatex	30	4	24			1107.77	ref	1107.77	ref					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	1	0	19		no event	41.65	yes	1226.05	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	2	0	19		none/noanchor	72.23	yes	460.99	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	3	0	19	7.09	exact	40.30	yes	421.89	yes	7.04				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	4	0	19	6.95	exact	38.04	yes	426.08	yes	6.90				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	5	0	19	20.35	exact	65.49	yes	447.17	yes	20.26				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	6	0	19	6.17	exact	36.00	yes	414.66	yes	6.10				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	7	1	3		no event	59.05	yes	656.67	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	8	1	3	11.84	exact	58.13	yes	642.40	yes	11.76				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	9	1	3	10.16	exact	53.03	yes	651.18	yes	10.09				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	10	1	3	4.69	exact	42.53	yes	617.87	yes	4.58				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	11	1	3	7.94	exact	46.70	yes	643.17	yes	7.89				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	12	1	3	9.21	exact	46.08	yes	627.63	yes	8.84				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	13	2	43		no event	72.78	yes	147.13	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	14	2	43	4.76	exact	50.93	yes	130.25	yes	4.71				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	15	2	43	6.99	exact	62.18	yes	139.44	yes	6.92				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	16	2	43	5.23	exact	54.81	yes	131.94	yes	5.16				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	17	2	43	5.08	exact	65.58	yes	132.49	yes	5.03				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	18	2	43	5.60	exact	54.79	yes	131.97	yes	5.52				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	19	3	10		no event	95.73	yes	577.05	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	20	3	10		none/split	64.75	yes	544.46	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	21	3	10		none/split	65.19	yes	557.62	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	22	3	10		none/split	76.31	yes	581.36	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	23	3	10		none/split	76.35	yes	560.91	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	24	3	10		none/split	65.56	yes	537.01	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	25	4	24		no event	86.35	yes	406.24	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	26	4	24		none/split	65.94	yes	386.67	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	27	4	24		none/split	65.41	yes	389.29	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	28	4	24		none/split	68.73	yes	390.49	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	29	4	24		none/split	61.75	yes	394.42	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	arxiv-2103.00020	pdflatex	30	4	24		none/split	60.15	yes	380.94	yes					
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	1	0	19		none/paragraph-shares-a-captured-row	5472.43	yes	5472.43	yes					
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	2	0	19		none/paragraph-shares-a-captured-row	4651.02	yes	4651.02	yes					
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	3	0	19		none/paragraph-shares-a-captured-row	4658.18	yes	4658.18	yes					
@@ -419,36 +329,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-10	pdflatex	28	4	7			412.93	ref	412.93	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-10	pdflatex	29	4	7			422.41	ref	422.41	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-10	pdflatex	30	4	7			396.32	ref	396.32	ref					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	1	0	4		no event	34.48	yes	51.40	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	2	0	4	9.83	exact	46.25	yes	64.72	yes	9.74				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	3	0	4	4.08	exact	39.59	yes	60.09	yes	4.00				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	4	0	4	11.00	exact	57.22	yes	76.19	yes	10.87				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	5	0	4	3.26	exact	23.01	yes	41.24	yes	3.21				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	6	0	4	4.24	exact	28.82	yes	48.44	yes	4.18				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	7	1	0		no event	102.38	yes	132.63	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	8	1	0	6.03	exact	87.77	yes	119.23	yes	5.97				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	9	1	0	3.33	exact	77.68	yes	105.97	yes	3.28				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	10	1	0	6.00	exact	87.26	yes	114.56	yes	5.91				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	11	1	0	3.12	exact	72.06	yes	103.98	yes	3.07				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	12	1	0	5.08	exact	80.70	yes	113.80	yes	4.99				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	13	2	8		no event	34.23	yes	41.20	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	14	2	8	2.96	exact	29.03	yes	33.39	yes	2.91				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	15	2	8	3.75	exact	33.39	yes	39.15	yes	3.70				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	16	2	8	4.48	exact	42.15	yes	46.75	yes	4.42				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	17	2	8	18.24	exact	55.06	yes	65.19	yes	12.43				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	18	2	8	3.76	exact	41.72	yes	47.14	yes	3.69				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	19	3	2		no event	52.73	yes	81.42	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	20	3	2	4.04	exact	32.85	yes	59.49	yes	4.00				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	21	3	2	3.79	exact	36.07	yes	62.13	yes	3.73				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	22	3	2	4.32	exact	34.27	yes	65.32	yes	4.24				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	23	3	2	6.49	exact	34.36	yes	68.03	yes	6.40				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	24	3	2	3.82	exact	31.43	yes	58.39	yes	3.77				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	25	4	7		no event	38.20	yes	48.77	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	26	4	7	3.92	exact	43.06	yes	56.37	yes	3.85				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	27	4	7	2.81	exact	43.74	yes	55.91	yes	2.76				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	28	4	7	3.28	exact	51.44	yes	60.89	yes	3.23				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	29	4	7	7.99	exact	55.84	yes	64.01	yes	7.87				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-10	pdflatex	30	4	7	2.34	exact	22.25	yes	31.36	yes	2.28				
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	1	0	4	143.15	provisional	307.00	yes	307.00	yes	26				
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	2	0	4	137.41	provisional	298.89	yes	298.89	yes	27				
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	3	0	4	167.62	provisional	333.69	yes	333.69	yes	45				
@@ -539,36 +419,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	pdflatex	28	4	70			674.32	ref	674.32	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	pdflatex	29	4	70			674.86	ref	674.86	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-100	pdflatex	30	4	70			672.96	ref	672.96	ref					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	1	0	50		no event	45.04	yes	206.64	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	2	0	50	5.11	exact	43.74	yes	207.33	yes	5.06				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	3	0	50	2.80	exact	47.29	yes	207.63	yes	2.71				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	4	0	50	2.84	exact	46.66	yes	235.66	yes	2.79				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	5	0	50	3.04	exact	49.27	yes	206.27	yes	3.00				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	6	0	50	3.37	provisional/heights	44.83	yes	212.25	yes	3.07				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	7	1	9		no event	34.48	yes	352.53	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	8	1	9	3.08	exact	33.54	yes	348.86	yes	3.04				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	9	1	9	3.70	exact	30.12	yes	325.08	yes	3.65				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	10	1	9	3.76	exact	30.24	yes	342.53	yes	3.69				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	11	1	9	3.04	exact	32.82	yes	333.67	yes	2.98				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	12	1	9	3.39	exact	31.91	yes	323.59	yes	3.34				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	13	2	90		no event	29.64	yes	61.22	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	14	2	90	3.27	exact	27.05	yes	63.31	yes	3.23				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	15	2	90	3.47	exact	29.24	yes	61.89	yes	3.42				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	16	2	90	3.48	exact	31.69	yes	62.59	yes	3.42				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	17	2	90	3.35	exact	28.80	yes	61.66	yes	3.30				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	18	2	90	2.90	exact	33.07	yes	61.81	yes	2.86				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	19	3	29		no event	41.81	yes	272.70	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	20	3	29	4.54	exact	46.50	yes	281.17	yes	4.27				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	21	3	29	5.91	exact	58.63	yes	328.56	yes	5.77				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	22	3	29	6.92	exact	26.47	yes	270.21	yes	6.87				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	23	3	29	4.83	exact	32.42	yes	303.11	yes	4.77				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	24	3	29	5.05	exact	24.31	yes	262.93	yes	4.98				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	25	4	70		no event	53.50	yes	173.54	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	26	4	70	3.78	exact	48.03	yes	172.31	yes	3.71				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	27	4	70	2.56	exact	24.58	yes	119.63	yes	2.51				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	28	4	70	2.67	exact	24.53	yes	120.94	yes	2.63				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	29	4	70	3.98	exact	23.53	yes	116.69	yes	3.93				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-100	pdflatex	30	4	70	2.51	exact	23.09	yes	116.97	yes	2.46				
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	1	0	50	499.91	provisional	1501.65	yes	1501.65	yes	30				
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	2	0	50	510.20	provisional	1474.25	yes	1474.25	yes	35				
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	3	0	50	502.88	provisional	1465.13	yes	1465.13	yes	42				
@@ -659,36 +509,6 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	28	4	208			1213.23	ref	1213.23	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	29	4	208			1179.42	ref	1179.42	ref					
 2026-11-09	latexmk	Latexmk, John Collins, 15 June 2025. Version 4.87	synth-300	pdflatex	30	4	208			1201.44	ref	1201.44	ref					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	1	0	148		no event	27.23	yes	497.75	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	2	0	148	20.68	exact	43.84	yes	519.02	yes	20.58				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	3	0	148	13.47	exact	41.11	yes	529.99	yes	13.36				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	4	0	148	14.29	provisional/heights	44.21	yes	521.42	yes	14.19				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	5	0	148	6.48	exact	35.71	yes	509.96	yes	6.42				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	6	0	148	6.33	exact	29.56	yes	510.36	yes	6.28				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	7	1	29		no event	53.04	yes	887.18	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	8	1	29	6.82	exact	39.15	yes	869.01	yes	6.76				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	9	1	29	15.06	exact	48.54	yes	888.89	yes	14.98				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	10	1	29	21.10	exact	56.39	yes	887.93	yes	20.96				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	11	1	29	8.80	exact	41.19	yes	866.12	yes	8.74				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	12	1	29	9.43	exact	48.66	yes	879.96	yes	9.37				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	13	2	268		no event	80.10	yes	183.21	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	14	2	268	14.30	exact	66.08	yes	170.24	yes	14.21				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	15	2	268	18.14	exact	61.38	yes	169.68	yes	17.97				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	16	2	268	5.37	exact	37.91	yes	144.59	yes	5.30				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	17	2	268	16.87	exact	52.80	yes	159.80	yes	16.64				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	18	2	268	4.87	exact	31.51	yes	135.82	yes	4.81				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	19	3	88		no event	52.60	yes	714.76	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	20	3	88	12.54	exact	43.69	yes	696.27	yes	12.45				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	21	3	88	19.69	exact	54.81	yes	710.03	yes	19.55				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	22	3	88	7.62	exact	36.40	yes	691.62	yes	7.57				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	23	3	88	8.04	exact	37.46	yes	690.01	yes	7.98				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	24	3	88	5.57	exact	37.74	yes	688.02	yes	5.44				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	25	4	208		no event	57.54	yes	344.85	yes					
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	26	4	208	6.53	exact	47.00	yes	331.38	yes	6.47				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	27	4	208	5.17	exact	44.46	yes	328.07	yes	5.12				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	28	4	208	11.45	exact	59.21	yes	357.07	yes	10.80				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	29	4	208	5.56	exact	35.13	yes	321.98	yes	5.49				
-2026-11-09	taudot-pdftex	pdftex-live ad58f81329	synth-300	pdflatex	30	4	208	6.54	exact	33.92	yes	326.75	yes	6.50				
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	1	0	148	1503.68	provisional	4670.34	yes	4670.34	yes	44				
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	2	0	148	1499.06	provisional	4637.80	yes	4637.80	yes	53				
 2026-11-09	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	3	0	148	1514.38	provisional	4691.23	yes	4691.23	yes	47				
@@ -1709,183 +1529,723 @@ date	system	version	doc	engine	n	spot	page	para_ms	para_state	page_ms	page_exact
 2026-11-10	typst	typst 0.15.1 (9dfd3a08)	synth-300	typst	28	4			n/a	267.05	n/a	267.05	n/a	145.62				
 2026-11-10	typst	typst 0.15.1 (9dfd3a08)	synth-300	typst	29	4			n/a	271.07	n/a	271.07	n/a	153.25				
 2026-11-10	typst	typst 0.15.1 (9dfd3a08)	synth-300	typst	30	4			n/a	271.49	n/a	271.49	n/a	149.77				
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	1	0	4		no event	36.88	yes	51.71	yes			16.76	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	2	0	4	6.93	exact	38.30	yes	61.51	yes	6.30		10.25	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	3	0	4	4.25	exact	40.42	yes	60.48	yes	3.75		12.35	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	4	0	4	4.82	exact	34.06	yes	55.50	yes	4.29		8.62	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	5	0	4	16.23	exact	53.34	yes	83.55	yes	15.44		21.70	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	6	0	4	11.46	exact	45.79	yes	65.70	yes	10.37		18.89	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	7	1	0		no event	159.17	yes	187.48	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	8	1	0		no event	142.86	yes	172.19	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	9	1	0		no event	161.59	yes	182.82	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	10	1	0		no event	177.55	yes	207.37	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	11	1	0		no event	153.21	yes	180.68	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	12	1	0		no event	149.08	yes	177.94	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	13	2	8		none/split	43.20	yes	45.08	yes			15.23	yes	8
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	14	2	8	9.32	exact	54.09	yes	60.28	yes	8.60		19.23	yes	8
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	15	2	8	2.88	exact	30.95	yes	35.99	yes	2.47		6.27	yes	8
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	16	2	8	8.01	exact	54.71	yes	63.39	yes	7.15		17.64	yes	8
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	17	2	8	3.58	exact	38.57	yes	39.20	yes	3.15		6.81	yes	8
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	18	2	8	2.91	exact	40.40	yes	41.30	yes	2.41		6.77	yes	8
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	19	3	2		no event	43.15	yes	68.77	yes			16.88	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	20	3	2	7.70	exact	48.65	yes	79.91	yes	6.93		17.88	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	21	3	2	4.24	exact	40.98	yes	68.49	yes	3.81		9.13	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	22	3	2	9.38	exact	49.82	yes	79.37	yes	8.60		19.32	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	23	3	2	8.87	exact	57.11	yes	88.62	yes	7.76		22.63	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	24	3	2	4.08	exact	38.18	yes	64.48	yes	3.53		10.24	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	25	4	7		no event	60.67	yes	68.22	yes			34.62	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	26	4	7	6.78	exact	52.99	yes	65.83	yes	5.88		20.16	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	27	4	7	3.08	exact	32.34	yes	39.21	yes	2.60		8.13	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	28	4	7	9.80	exact	55.35	yes	65.33	yes	8.55		24.77	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	29	4	7	2.68	exact	37.96	yes	41.27	yes	2.35		9.09	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-10	pdflatex	30	4	7	9.61	exact	52.88	yes	61.91	yes	8.38		22.24	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	1	0	50		no event	54.47	yes	181.89	yes			26.15	yes	50
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	2	0	50		none/split	40.89	yes	166.43	yes			13.28	yes	50
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	3	0	50		none/split	65.05	yes	199.77	yes			32.51	yes	50
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	4	0	50		none/split	35.13	yes	165.22	yes			10.39	yes	50
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	5	0	50		none/split	48.24	yes	170.34	yes			15.37	yes	50
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	6	0	50		none/split	42.69	yes	171.18	yes			13.39	yes	50
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	7	1	9		no event	46.82	yes	284.42	yes			22.06	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	8	1	9	7.80	exact	55.36	yes	304.94	yes	6.71		25.24	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	9	1	9	9.90	exact	63.25	yes	297.30	yes	8.31		25.50	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	10	1	9	3.18	exact	36.78	yes	279.41	yes	2.77		10.21	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	11	1	9	4.13	exact	38.92	yes	279.91	yes	3.42		12.07	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	12	1	9	2.92	exact	37.79	yes	283.25	yes	2.51		9.74	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	13	2	90		no event	58.50	yes	87.59	yes			36.47	yes	90
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	14	2	90	9.40	exact	51.29	yes	87.26	yes	8.80		20.56	yes	90
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	15	2	90	10.64	exact	55.92	yes	90.19	yes	9.98		22.54	yes	90
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	16	2	90	3.23	exact	34.05	yes	68.27	yes	2.88		7.25	yes	90
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	17	2	90	5.44	exact	43.14	yes	71.57	yes	4.80		11.12	yes	90
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	18	2	90	9.70	exact	51.68	yes	87.53	yes	8.63		20.27	yes	90
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	19	3	29		no event	62.60	yes	236.96	yes			27.36	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	20	3	29	9.67	exact	52.36	yes	247.45	yes	8.54		22.12	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	21	3	29	4.69	exact	38.57	yes	228.76	yes	4.32		10.10	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	22	3	29	10.86	exact	57.09	yes	242.63	yes	9.65		23.88	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	23	3	29	4.79	exact	35.71	yes	219.46	yes	4.33		9.47	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	24	3	29	9.09	exact	44.65	yes	250.13	yes	8.12		15.57	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	25	4	70		no event	82.09	yes	158.24	yes			55.78	yes	70
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	26	4	70	7.96	exact	52.15	yes	141.73	yes	7.15		21.51	yes	70
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	27	4	70	9.28	exact	61.94	yes	147.12	yes	8.14		23.52	yes	70
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	28	4	70	7.29	exact	57.27	yes	142.86	yes	6.30		25.22	yes	70
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	29	4	70	7.27	exact	45.14	yes	125.90	yes	6.36		15.30	yes	70
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-100	pdflatex	30	4	70	6.19	exact	43.63	yes	125.82	yes	5.28		14.91	yes	70
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	1	0	148	8.15	exact	29.13	yes	445.09	yes	7.86		8.57	yes	148
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	2	0	148	5.32	exact	42.36	yes	488.16	yes	4.71		11.53	yes	148
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	3	0	148	8.74	exact	56.71	yes	485.32	yes	7.85		23.14	yes	148
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	4	0	148	8.55	provisional/heights	53.82	yes	481.88	yes	7.65		21.07	yes	148
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	5	0	148	6.23	exact	50.94	yes	484.94	yes	5.29		15.76	yes	148
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	6	0	148	3.47	exact	39.56	yes	437.71	yes	3.16		8.92	yes	148
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	7	1	29		no event	55.49	yes	762.18	yes			24.73	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	8	1	29	10.34	exact	51.40	yes	776.41	yes	9.48		26.49	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	9	1	29	12.10	exact	58.91	yes	778.88	yes	10.98		29.99	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	10	1	29	9.90	exact	53.57	yes	763.52	yes	8.76		25.76	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	11	1	29	8.22	exact	45.65	yes	748.73	yes	7.22		17.97	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	12	1	29	3.58	exact	29.39	yes	827.00	yes	3.21		9.35	yes	29
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	13	2	268		no event	49.67	yes	150.01	yes			17.99	yes	268
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	14	2	268	3.78	exact	37.72	yes	132.04	yes	3.38		9.11	yes	268
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	15	2	268	3.22	exact	34.62	yes	134.44	yes	2.86		7.55	yes	268
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	16	2	268	11.07	exact	58.97	yes	161.30	yes	9.96		22.04	yes	268
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	17	2	268	10.50	exact	52.61	yes	156.89	yes	9.52		18.58	yes	268
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	18	2	268	11.09	exact	57.02	yes	158.17	yes	10.11		20.52	yes	268
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	19	3	88		no event	81.32	yes	693.84	yes			47.92	yes	88
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	20	3	88	2.79	exact	37.41	yes	617.53	yes	2.43		10.23	yes	88
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	21	3	88	8.51	exact	48.73	yes	677.97	yes	7.45		18.39	yes	88
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	22	3	88	7.62	exact	54.00	yes	701.55	yes	6.66		22.04	yes	88
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	23	3	88	3.25	exact	33.38	yes	661.04	yes	2.95		10.34	yes	88
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	24	3	88	4.40	exact	37.55	yes	638.79	yes	3.76		10.21	yes	88
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	25	4	208		no event	56.14	yes	322.84	yes			24.30	yes	208
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	26	4	208	3.05	exact	31.43	yes	305.27	yes	2.70		6.86	yes	208
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	27	4	208	3.48	exact	37.54	yes	311.08	yes	3.08		8.37	yes	208
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	28	4	208	4.56	exact	36.98	yes	311.52	yes	4.26		9.64	yes	208
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	29	4	208	13.07	exact	57.65	yes	325.16	yes	11.61		28.88	yes	208
-2026-11-10	taudot-universal	tau-live c6881dd60e	synth-300	pdflatex	30	4	208	7.83	exact	43.36	yes	324.50	yes	7.10		18.19	yes	208
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	1	0	4		no event	44.14	yes	114.85	yes			15.77	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	2	0	4	15.00	exact	60.12	yes	140.89	yes	10.73		26.80	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	3	0	4	5.90	exact	51.81	yes	132.41	yes	5.22		18.26	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	4	0	4	2.64	exact	37.48	yes	118.36	yes	2.35		11.18	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	5	0	4	8.22	exact	49.16	yes	128.70	yes	7.12		20.61	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	6	0	4	3.71	exact	40.47	yes	122.81	yes	3.22		12.46	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	7	1	1	4.84	exact	35.28	yes	149.17	yes	4.50		16.76	yes	1
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	8	1	1	4.65	exact	34.06	yes	153.70	yes	4.09		16.19	yes	1
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	9	1	1	4.41	exact	40.67	yes	170.69	yes	3.93		19.52	yes	1
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	10	1	1	4.24	exact	38.54	yes	155.00	yes	3.77		15.65	yes	1
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	11	1	1	4.00	exact	41.01	yes	160.63	yes	3.55		16.52	yes	1
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	12	1	1	3.76	exact	40.71	yes	153.03	yes	3.37		17.51	yes	1
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	13	2	11		no event	62.29	yes	63.99	yes			30.66	yes	11
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	14	2	11	6.82	exact	58.47	yes	60.14	yes	5.96		20.66	yes	11
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	15	2	11	3.56	exact	48.16	yes	49.62	yes	3.09		13.91	yes	11
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	16	2	11	3.04	provisional/lines	51.53	yes	61.22	yes	2.61		11.39	yes	11
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	17	2	11	4.63	exact	56.79	yes	57.75	yes	4.12		17.01	yes	11
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	18	2	11	15.91	exact	72.15	yes	74.18	yes	14.79		26.37	yes	11
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	19	3	2		none/insert	70.56	yes	174.35	yes			35.88	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	20	3	2		none/insert	62.69	yes	171.97	yes			34.20	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	21	3	2		none/insert	60.04	yes	173.95	yes			27.05	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	22	3	2		none/insert	73.60	yes	193.56	yes			46.19	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	23	3	2		none/insert	43.10	yes	159.99	yes			17.80	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	24	3	2		none/insert	30.13	yes	136.39	yes			10.76	yes	2
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	25	4	7		no event	72.89	yes	114.32	yes			35.87	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	26	4	7	3.90	exact	50.85	yes	100.28	yes	3.39		17.78	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	27	4	7	2.85	exact	46.20	yes	94.93	yes	2.47		12.99	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	28	4	7	11.18	exact	59.79	yes	114.96	yes	9.88		28.34	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	29	4	7	6.71	exact	56.02	yes	109.34	yes	5.97		23.80	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1512.03385	pdflatex	30	4	7	2.43	exact	40.30	yes	88.31	yes	2.11		11.23	yes	7
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	1	0	4		no event	78.14	yes	150.96	yes			39.38	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	2	0	4		none/split	93.56	yes	162.32	yes			55.50	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	3	0	4		none/split	88.11	yes	163.06	yes			56.84	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	4	0	4		none/split	80.51	yes	151.30	yes			48.66	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	5	0	4		none/split	91.93	yes	164.34	yes			54.66	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	6	0	4		none/split	85.21	yes	155.41	yes			43.85	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	7	1	2		no event	104.57	yes	240.88	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	8	1	2		none/split	96.84	yes	205.38	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	9	1	2		none/split	102.58	yes	218.26	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	10	1	2		none/split	90.14	yes	210.32	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	11	1	2		none/split	90.95	yes	207.15	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	12	1	2		none/split	88.64	yes	206.16	yes					
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	13	2	5		no event	108.28	yes	177.27	yes			60.23	yes	5
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	14	2	5	2.94	exact	54.24	yes	122.30	yes	2.63		10.57	yes	5
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	15	2	5	8.25	exact	65.08	yes	144.34	yes	7.73		25.50	yes	5
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	16	2	5	8.08	exact	64.13	yes	130.58	yes	7.24		19.90	yes	5
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	17	2	5	3.62	exact	52.04	yes	121.45	yes	3.19		13.45	yes	5
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	18	2	5	2.48	exact	44.42	yes	114.05	yes	2.16		8.75	yes	5
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	19	3	3	8.03	exact	70.89	yes	152.18	yes	7.56		40.37	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	20	3	3	6.31	exact	74.34	yes	156.57	yes	5.57		45.21	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	21	3	3	5.27	exact	83.09	yes	150.73	yes	4.79		38.82	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	22	3	3	3.53	exact	78.03	yes	157.83	yes	3.20		43.33	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	23	3	3	4.49	exact	68.43	yes	148.57	yes	4.10		38.21	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	24	3	3	13.42	exact	87.44	yes	171.12	yes	12.06		57.07	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	25	4	4	11.76	exact	55.97	yes	129.15	yes	11.28		24.97	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	26	4	4	9.27	exact	62.16	yes	138.54	yes	8.31		20.08	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	27	4	4	12.18	exact	78.69	yes	153.35	yes	10.56		33.84	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	28	4	4	3.86	exact	55.21	yes	129.82	yes	3.43		13.63	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	29	4	4	11.09	exact	75.29	yes	157.79	yes	10.12		28.65	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-1706.03762	pdflatex	30	4	4	8.08	exact	68.47	yes	143.98	yes	7.32		24.71	yes	4
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	1	0	19		none/split	44.17	yes	1207.74	yes			16.95	yes	19
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	2	0	19		none/split	59.57	yes	425.21	yes			28.10	yes	19
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	3	0	19		none/split	61.54	yes	435.31	yes			22.55	yes	19
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	4	0	19		none/split	40.02	yes	391.79	yes			16.68	yes	19
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	5	0	19		none/split	49.56	yes	412.62	yes			21.39	yes	19
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	6	0	19		none/split	59.46	yes	413.07	yes			28.90	yes	19
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	7	1	3	9.17	exact	58.89	yes	605.32	yes	8.74		33.23	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	8	1	3	20.03	exact	73.52	yes	627.75	yes	10.60		47.78	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	9	1	3	5.90	exact	55.79	yes	627.91	yes	5.37		33.44	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	10	1	3	8.86	exact	59.34	yes	613.46	yes	7.90		36.91	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	11	1	3	5.63	exact	60.57	yes	603.00	yes	4.95		35.06	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	12	1	3	4.64	exact	46.12	yes	583.63	yes	4.17		26.30	yes	3
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	13	2	43	25.11	exact	86.99	yes	160.04	yes	23.98		53.74	yes	43
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	14	2	43	15.23	exact	87.05	yes	156.70	yes	13.64		51.93	yes	43
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	15	2	43	17.47	exact	88.95	yes	158.49	yes	11.57		52.92	yes	43
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	16	2	43	19.72	exact	88.20	yes	156.02	yes	12.30		53.34	yes	43
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	17	2	43	16.40	exact	77.97	yes	157.02	yes	14.04		45.66	yes	43
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	18	2	43	15.47	exact	76.08	yes	158.50	yes	13.32		44.41	yes	43
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	19	3	10		none/insert	80.77	yes	544.31	yes			31.39	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	20	3	10		none/split	103.71	yes	552.05	yes			48.09	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	21	3	10		none/split	91.57	yes	545.20	yes			35.70	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	22	3	10		none/split	67.11	yes	531.41	yes			18.72	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	23	3	10		none/split	78.61	yes	543.17	yes			27.00	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	24	3	10		none/split	78.71	yes	536.72	yes			27.20	yes	9
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	25	4	24		none/split	69.49	yes	372.43	yes			19.00	yes	23
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	26	4	24		none/split	72.04	yes	372.32	yes			17.96	yes	23
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	27	4	24		none/split	74.83	yes	378.34	yes			17.47	yes	23
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	28	4	24		none/split	66.03	yes	377.07	yes			20.96	yes	23
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	29	4	24		none/split	75.06	yes	369.85	yes			19.99	yes	23
-2026-11-10	taudot-universal	tau-live c6881dd60e	arxiv-2103.00020	pdflatex	30	4	24		none/split	66.86	yes	371.98	yes			16.05	yes	23
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	1	0	4		no event	36.99	yes	55.41	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	2	0	4		no event	44.87	yes	60.81	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	3	0	4		no event	84.39	yes	114.80	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	4	0	4	3.52	exact	33.79	yes	51.11	yes	3.46				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	5	0	4	4.58	exact	52.52	yes	74.66	yes	4.52				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	6	0	4	3.17	exact	34.30	yes	53.19	yes	3.11				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	7	1	0		no event	107.46	yes	135.18	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	8	1	0	4.33	exact	71.46	yes	96.97	yes	4.26				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	9	1	0	3.68	exact	64.31	yes	90.75	yes	3.62				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	10	1	0	5.11	exact	74.06	yes	102.59	yes	5.03				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	11	1	0	11.93	exact	87.53	yes	119.39	yes	11.79				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	12	1	0	13.58	exact	88.86	yes	117.78	yes	13.48				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	13	2	8		no event	47.86	yes	58.87	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	14	2	8	2.51	exact	26.19	yes	31.77	yes	2.47				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	15	2	8	7.72	exact	45.47	yes	51.32	yes	7.61				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	16	2	8	3.78	exact	36.26	yes	41.36	yes	3.73				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	17	2	8	10.55	exact	53.05	yes	60.51	yes	9.16				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	18	2	8	3.75	exact	33.83	yes	40.17	yes	3.71				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	19	3	2		no event	52.37	yes	82.53	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	20	3	2	4.75	exact	36.67	yes	61.01	yes	4.70				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	21	3	2	15.67	exact	64.14	yes	94.64	yes	15.57				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	22	3	2	9.58	exact	46.00	yes	75.89	yes	9.46				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	23	3	2	3.51	exact	33.97	yes	57.28	yes	3.43				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	24	3	2	7.51	exact	48.22	yes	76.35	yes	7.43				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	25	4	7		no event	44.04	yes	53.34	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	26	4	7	4.04	exact	38.77	yes	48.17	yes	3.97				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	27	4	7	2.80	exact	41.19	yes	47.42	yes	2.75				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	28	4	7	2.95	exact	46.06	yes	53.53	yes	2.88				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	29	4	7	3.30	exact	50.01	yes	61.26	yes	3.24				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	30	4	7	6.41	exact	61.11	yes	72.83	yes	6.34				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	101	0	4		no event	32.99	yes	51.88	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	102	0	4	16.42	exact	91.94	yes	130.77	yes	16.32				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	103	0	4	3.12	exact	30.46	yes	49.80	yes	3.06				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	104	0	4	17.85	exact	54.04	yes	81.07	yes	17.70				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	105	0	4	5.38	exact	42.04	yes	61.87	yes	5.33				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	106	0	4	4.26	exact	38.09	yes	56.52	yes	4.09				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	107	1	0		no event	96.95	yes	126.77	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	108	1	0	4.34	exact	72.41	yes	102.41	yes	4.28				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	109	1	0	4.06	exact	69.99	yes	99.04	yes	4.00				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	110	1	0	18.42	exact	96.76	yes	125.50	yes	18.14				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	111	1	0	4.50	exact	74.01	yes	102.60	yes	4.45				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	112	1	0	4.81	exact	78.61	yes	108.56	yes	4.73				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	113	2	8		no event	36.78	yes	42.02	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	114	2	8	6.54	exact	40.90	yes	46.39	yes	6.46				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	115	2	8	2.81	exact	33.41	yes	38.53	yes	2.76				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	116	2	8	11.29	exact	56.44	yes	65.21	yes	11.19				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	117	2	8	3.28	exact	33.17	yes	39.64	yes	3.24				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	118	2	8	12.11	exact	60.91	yes	65.25	yes	10.92				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	119	3	2		no event	39.35	yes	66.19	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	120	3	2	12.42	exact	47.98	yes	79.58	yes	12.34				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	121	3	2	4.65	exact	34.00	yes	64.19	yes	4.58				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	122	3	2	3.09	exact	30.28	yes	54.02	yes	3.04				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	123	3	2	3.80	exact	32.23	yes	57.73	yes	3.76				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	124	3	2	5.16	exact	43.60	yes	75.17	yes	5.10				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	125	4	7		no event	44.50	yes	54.18	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	126	4	7	3.21	exact	44.48	yes	55.37	yes	3.15				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	127	4	7	2.97	exact	48.02	yes	53.91	yes	2.91				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	128	4	7	3.43	exact	47.22	yes	54.90	yes	3.37				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	129	4	7	4.64	exact	49.91	yes	60.46	yes	4.29				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-10	pdflatex	130	4	7	9.10	exact	59.44	yes	72.75	yes	8.97				
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	1	0	4		no event	40.28	yes	50.11	yes			15.96	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	2	0	4	11.59	exact	53.21	yes	70.00	yes	10.63		20.80	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	3	0	4	3.55	exact	31.03	yes	48.48	yes	3.07		7.61	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	4	0	4	3.17	exact	29.01	yes	41.79	yes	2.84		6.55	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	5	0	4	3.36	exact	33.88	yes	44.27	yes	3.02		7.46	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	6	0	4	9.60	exact	60.44	yes	85.89	yes	8.65		22.56	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	7	1	0		no event	147.65	yes	175.05	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	8	1	0		no event	137.07	yes	162.99	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	9	1	0		no event	143.00	yes	170.91	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	10	1	0		no event	157.18	yes	180.50	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	11	1	0		no event	155.83	yes	180.77	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	12	1	0		no event	170.99	yes	185.30	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	13	2	8		no event	82.26	yes	83.13	yes			56.36	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	14	2	8	5.95	exact	41.67	yes	44.46	yes	5.00		10.31	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	15	2	8	4.22	exact	37.03	yes	41.93	yes	3.54		8.35	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	16	2	8	3.86	exact	37.86	yes	41.83	yes	3.30		8.38	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	17	2	8	4.09	exact	34.90	yes	38.75	yes	3.62		8.03	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	18	2	8	2.44	exact	28.91	yes	29.39	yes	2.11		5.36	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	19	3	2		no event	66.49	yes	93.27	yes			37.26	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	20	3	2	4.20	exact	46.79	yes	67.44	yes	3.89		9.90	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	21	3	2	2.99	exact	35.39	yes	52.96	yes	2.61		7.81	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	22	3	2	7.41	exact	34.37	yes	64.49	yes	6.85		11.36	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	23	3	2	4.06	exact	34.86	yes	54.38	yes	3.66		8.62	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	24	3	2	6.42	exact	51.29	yes	81.63	yes	5.70		21.23	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	25	4	7		no event	55.80	yes	61.12	yes			30.98	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	26	4	7	3.85	exact	38.60	yes	48.87	yes	3.43		10.69	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	27	4	7	2.97	exact	33.48	yes	40.83	yes	2.63		8.26	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	28	4	7	2.76	exact	35.97	yes	36.58	yes	2.34		7.66	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	29	4	7	2.41	exact	33.89	yes	43.31	yes	2.09		7.17	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	30	4	7	7.59	exact	63.42	yes	73.48	yes	6.61		25.35	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	101	0	4		no event	41.36	yes	46.05	yes			14.12	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	102	0	4	15.64	exact	55.48	yes	71.32	yes	12.16		21.80	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	103	0	4	3.04	exact	32.99	yes	41.58	yes	2.71		6.69	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	104	0	4	10.03	exact	65.13	yes	87.26	yes	8.81		26.77	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	105	0	4	9.78	exact	53.70	yes	68.79	yes	8.72		19.03	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	106	0	4	3.19	exact	28.74	yes	50.75	yes	2.83		7.59	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	107	1	0		no event	164.73	yes	189.20	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	108	1	0		no event	130.99	yes	159.18	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	109	1	0		no event	140.12	yes	169.47	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	110	1	0		no event	163.08	yes	188.12	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	111	1	0		no event	147.44	yes	172.32	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	112	1	0		no event	142.56	yes	178.59	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	113	2	8	7.71	exact	40.98	yes	41.90	yes	7.24		11.88	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	114	2	8	3.89	exact	35.02	yes	36.80	yes	3.37		7.29	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	115	2	8	4.95	exact	39.71	yes	45.12	yes	4.21		8.70	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	116	2	8	3.80	exact	36.64	yes	39.82	yes	3.43		7.67	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	117	2	8	10.95	exact	64.05	yes	71.96	yes	9.77		23.34	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	118	2	8	3.13	exact	29.87	yes	33.62	yes	2.79		6.66	yes	8
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	119	3	2		no event	57.35	yes	82.77	yes			29.27	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	120	3	2	6.12	exact	45.96	yes	65.19	yes	5.16		11.59	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	121	3	2	3.68	exact	37.27	yes	59.70	yes	3.20		7.88	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	122	3	2	9.67	exact	54.10	yes	79.71	yes	8.56		22.28	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	123	3	2	2.80	exact	26.90	yes	56.30	yes	2.47		5.93	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	124	3	2	3.70	exact	33.38	yes	59.79	yes	3.19		8.60	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	125	4	7		no event	35.25	yes	39.99	yes			12.19	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	126	4	7	8.88	exact	60.05	yes	71.60	yes	7.77		29.19	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	127	4	7	2.43	exact	29.33	yes	36.57	yes	2.15		6.34	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	128	4	7	8.03	exact	58.01	yes	69.73	yes	7.38		22.83	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	129	4	7	3.66	exact	40.40	yes	53.18	yes	3.10		11.33	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-10	pdflatex	130	4	7	3.01	exact	40.64	yes	45.47	yes	2.64		10.48	yes	7
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	1	0	50		no event	34.96	yes	184.73	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	2	0	50	11.85	exact	49.55	yes	204.77	yes	11.74				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	3	0	50	12.93	exact	50.43	yes	207.82	yes	12.84				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	4	0	50	14.28	exact	67.81	yes	230.51	yes	14.19				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	5	0	50	3.31	exact	32.19	yes	190.62	yes	3.26				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	6	0	50	4.09	provisional/heights	36.58	yes	200.53	yes	4.03				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	7	1	9		no event	51.02	yes	348.99	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	8	1	9	4.54	exact	33.15	yes	332.50	yes	4.48				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	9	1	9	9.01	exact	42.59	yes	328.12	yes	8.93				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	10	1	9	11.54	exact	50.85	yes	322.31	yes	11.40				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	11	1	9	4.93	exact	43.30	yes	326.36	yes	4.85				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	12	1	9	3.95	exact	35.84	yes	320.76	yes	3.90				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	13	2	90		no event	35.99	yes	66.58	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	14	2	90	14.29	exact	58.14	yes	95.36	yes	14.13				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	15	2	90	4.56	exact	37.94	yes	69.86	yes	4.50				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	16	2	90	9.77	exact	52.31	yes	84.40	yes	9.61				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	17	2	90	8.09	exact	48.45	yes	82.97	yes	8.00				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	18	2	90	6.07	exact	40.95	yes	73.00	yes	6.02				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	19	3	29		no event	73.05	yes	288.47	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	20	3	29	5.88	exact	36.65	yes	253.93	yes	5.82				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	21	3	29	19.13	exact	56.76	yes	298.00	yes	17.80				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	22	3	29	5.47	exact	37.09	yes	250.28	yes	5.42				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	23	3	29	12.25	exact	50.66	yes	266.62	yes	12.10				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	24	3	29	5.05	exact	36.64	yes	248.31	yes	4.99				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	25	4	70		no event	64.28	yes	157.85	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	26	4	70	10.85	exact	57.00	yes	149.13	yes	10.70				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	27	4	70	6.78	exact	47.56	yes	138.10	yes	6.67				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	28	4	70	4.47	exact	38.63	yes	139.66	yes	4.36				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	29	4	70	11.42	exact	50.45	yes	147.66	yes	11.34				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	30	4	70	8.65	exact	240.38	yes	346.39	yes	8.58				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	101	0	50		no event	33.45	yes	187.63	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	102	0	50	9.00	exact	43.57	yes	193.07	yes	8.94				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	103	0	50	5.17	exact	47.76	yes	193.83	yes	5.12				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	104	0	50	16.55	exact	68.40	yes	214.90	yes	16.28				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	105	0	50	5.89	exact	43.79	yes	191.32	yes	5.77				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	106	0	50	5.85	provisional/heights	41.07	yes	191.87	yes	5.77				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	107	1	9		no event	41.01	yes	311.59	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	108	1	9	5.68	exact	43.52	yes	318.82	yes	5.57				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	109	1	9	14.52	exact	54.93	yes	328.01	yes	14.42				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	110	1	9	3.67	exact	31.02	yes	307.09	yes	3.62				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	111	1	9	10.57	exact	50.25	yes	326.10	yes	9.65				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	112	1	9	16.85	exact	54.43	yes	328.92	yes	16.45				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	113	2	90		no event	35.88	yes	66.94	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	114	2	90	6.27	exact	40.34	yes	75.82	yes	6.17				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	115	2	90	4.05	exact	30.89	yes	63.30	yes	3.99				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	116	2	90	3.38	exact	28.37	yes	58.32	yes	3.34				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	117	2	90	9.61	exact	50.37	yes	85.53	yes	8.95				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	118	2	90	5.84	exact	34.49	yes	70.77	yes	5.75				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	119	3	29		no event	38.47	yes	249.17	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	120	3	29	5.43	exact	47.28	yes	257.27	yes	5.35				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	121	3	29	4.44	exact	37.80	yes	253.12	yes	4.38				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	122	3	29	6.86	exact	50.94	yes	265.34	yes	6.24				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	123	3	29	18.96	exact	65.32	yes	276.51	yes	18.80				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	124	3	29	5.61	exact	44.28	yes	254.89	yes	5.54				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	125	4	70		no event	51.48	yes	146.82	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	126	4	70	7.02	exact	39.11	yes	136.06	yes	6.87				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	127	4	70	16.09	exact	48.45	yes	141.51	yes	16.00				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	128	4	70	4.55	exact	35.27	yes	128.72	yes	4.48				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	129	4	70	3.16	exact	31.16	yes	117.72	yes	3.11				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-100	pdflatex	130	4	70	4.60	exact	32.64	yes	123.76	yes	4.52				
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	1	0	50		no event	41.77	yes	165.51	yes			14.18	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	2	0	50		none/split	37.02	yes	167.35	yes			11.17	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	3	0	50		none/split	45.51	yes	177.96	yes			16.28	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	4	0	50		none/split	70.78	yes	207.86	yes			38.37	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	5	0	50		none/split	39.90	yes	169.93	yes			12.90	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	6	0	50		none/split	41.29	yes	177.94	yes			14.96	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	7	1	9		no event	42.69	yes	294.32	yes			19.35	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	8	1	9	7.65	exact	47.10	yes	301.47	yes	6.43		17.92	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	9	1	9	2.94	exact	33.95	yes	288.31	yes	2.49		8.85	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	10	1	9	3.52	exact	37.00	yes	284.68	yes	2.97		9.88	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	11	1	9	3.22	exact	37.29	yes	290.08	yes	2.72		10.12	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	12	1	9	7.23	exact	46.71	yes	294.32	yes	6.24		17.89	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	13	2	90		no event	74.76	yes	104.27	yes			36.64	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	14	2	90	4.30	exact	34.78	yes	64.22	yes	3.88		9.19	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	15	2	90	9.03	exact	48.74	yes	87.26	yes	8.12		17.75	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	16	2	90	3.61	exact	36.32	yes	68.31	yes	3.31		8.14	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	17	2	90	8.72	exact	61.22	yes	84.70	yes	7.87		22.26	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	18	2	90	10.51	exact	54.89	yes	95.84	yes	9.40		22.25	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	19	3	29		no event	56.42	yes	251.68	yes			34.71	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	20	3	29	13.39	exact	63.91	yes	254.79	yes	11.02		26.43	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	21	3	29	2.95	exact	28.83	yes	231.12	yes	2.64		5.72	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	22	3	29	4.40	exact	34.86	yes	234.80	yes	3.80		8.75	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	23	3	29	45.32	exact	170.38	yes	583.94	yes	44.77		96.38	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	24	3	29	2.80	exact	28.37	yes	268.62	yes	2.52		6.92	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	25	4	70		no event	67.81	yes	154.01	yes			34.34	yes	70
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	26	4	70	2.69	exact	35.90	yes	143.15	yes	2.40		8.78	yes	70
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	27	4	70	4.46	exact	32.70	yes	127.09	yes	4.13		7.64	yes	70
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	28	4	70	5.59	exact	44.04	yes	133.61	yes	4.88		13.56	yes	70
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	29	4	70	5.60	exact	46.82	yes	126.28	yes	5.03		13.85	yes	70
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	30	4	70	3.63	exact	43.37	yes	121.19	yes	3.22		9.54	yes	70
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	101	0	50		none/split	33.02	yes	167.40	yes			11.73	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	102	0	50		none/split	34.26	yes	164.25	yes			10.27	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	103	0	50		none/split	61.58	yes	201.10	yes			30.48	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	104	0	50		none/split	54.77	yes	188.43	yes			25.57	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	105	0	50		none/split	43.48	yes	180.12	yes			16.53	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	106	0	50		none/split	42.10	yes	171.53	yes			14.10	yes	50
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	107	1	9		no event	48.08	yes	289.16	yes			23.01	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	108	1	9	6.05	exact	46.40	yes	305.01	yes	5.10		16.13	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	109	1	9	2.83	exact	37.44	yes	308.01	yes	2.51		8.46	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	110	1	9	2.37	exact	29.90	yes	309.33	yes	2.05		7.29	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	111	1	9	6.79	exact	45.37	yes	325.09	yes	5.75		17.18	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	112	1	9	2.36	exact	30.94	yes	303.70	yes	2.08		8.81	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	113	2	90		no event	61.54	yes	96.87	yes			32.88	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	114	2	90	7.83	exact	41.71	yes	84.28	yes	6.68		11.24	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	115	2	90	2.99	exact	37.36	yes	70.53	yes	2.69		6.53	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	116	2	90	3.27	exact	40.18	yes	73.40	yes	2.97		8.11	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	117	2	90	8.39	exact	50.51	yes	79.94	yes	7.71		16.07	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	118	2	90	3.08	exact	36.64	yes	71.15	yes	2.76		8.96	yes	90
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	119	3	29		no event	58.10	yes	265.13	yes			29.49	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	120	3	29	5.19	exact	35.59	yes	254.02	yes	4.43		8.42	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	121	3	29	11.58	exact	55.47	yes	269.68	yes	10.65		20.10	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	122	3	29	3.02	exact	32.70	yes	281.30	yes	2.76		6.70	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	123	3	29	11.38	exact	53.69	yes	276.57	yes	10.69		24.53	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	124	3	29	3.30	exact	30.37	yes	247.78	yes	2.96		6.37	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	125	4	70	6.37	exact	39.57	yes	122.36	yes	5.82		12.71	yes	70
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	126	4	70	5.69	exact	41.94	yes	133.37	yes	5.07		12.23	yes	70
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	127	4	70	2.83	exact	46.31	yes	124.96	yes	2.35		9.84	yes	70
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	128	4	70	3.09	exact	35.24	yes	116.85	yes	2.81		9.27	yes	70
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	129	4	70	2.99	exact	33.36	yes	115.33	yes	2.64		8.44	yes	70
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-100	pdflatex	130	4	70	11.65	exact	59.43	yes	149.36	yes	10.54		26.56	yes	70
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	1	0	148		no event	26.53	yes	506.29	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	2	0	148	18.74	exact	44.77	yes	585.93	yes	18.41				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	3	0	148	7.30	exact	33.98	yes	500.15	yes	7.24				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	4	0	148	12.30	provisional/heights	41.16	yes	519.28	yes	12.23				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	5	0	148	11.44	exact	31.93	yes	538.92	yes	11.03				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	6	0	148	5.31	exact	27.91	yes	485.23	yes	5.26				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	7	1	29		no event	58.00	yes	884.51	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	8	1	29	9.94	exact	48.24	yes	907.46	yes	9.88				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	9	1	29	19.26	exact	58.02	yes	912.87	yes	18.99				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	10	1	29	9.37	exact	44.68	yes	926.50	yes	9.30				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	11	1	29	17.84	exact	60.86	yes	878.68	yes	17.74				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	12	1	29	24.55	exact	75.19	yes	899.76	yes	23.71				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	13	2	268		no event	59.92	yes	161.81	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	14	2	268	10.78	exact	45.34	yes	154.22	yes	10.18				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	15	2	268	14.98	exact	58.27	yes	165.26	yes	14.83				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	16	2	268	9.66	exact	54.85	yes	161.77	yes	9.56				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	17	2	268	9.63	exact	46.84	yes	148.05	yes	9.58				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	18	2	268	5.18	exact	37.07	yes	139.53	yes	5.12				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	19	3	88		no event	69.05	yes	693.58	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	20	3	88	7.11	exact	35.40	yes	679.94	yes	7.05				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	21	3	88	6.88	exact	35.08	yes	661.33	yes	6.79				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	22	3	88	12.77	exact	44.12	yes	677.20	yes	12.67				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	23	3	88	20.45	exact	51.31	yes	756.19	yes	20.31				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	24	3	88	18.18	exact	42.06	yes	688.03	yes	16.65				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	25	4	208		no event	61.50	yes	354.57	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	26	4	208	5.79	exact	38.73	yes	317.35	yes	5.71				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	27	4	208	16.30	exact	59.54	yes	338.51	yes	16.16				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	28	4	208	18.40	exact	60.53	yes	336.96	yes	18.25				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	29	4	208	11.54	exact	53.22	yes	330.79	yes	10.72				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	30	4	208	4.83	exact	42.49	yes	322.70	yes	4.79				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	101	0	148		no event	40.81	yes	509.37	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	102	0	148	8.69	exact	52.77	yes	511.15	yes	8.60				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	103	0	148	4.90	exact	26.89	yes	483.80	yes	4.84				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	104	0	148	6.20	provisional/heights	29.25	yes	485.02	yes	6.15				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	105	0	148	9.14	exact	39.28	yes	512.59	yes	9.06				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	106	0	148	4.35	exact	25.78	yes	479.18	yes	4.28				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	107	1	29		no event	57.34	yes	871.25	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	108	1	29	14.63	exact	48.92	yes	856.13	yes	14.54				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	109	1	29	8.87	exact	39.79	yes	842.65	yes	8.81				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	110	1	29	33.00	exact	56.41	yes	896.83	yes	32.88				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	111	1	29	8.98	exact	49.32	yes	868.77	yes	8.84				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	112	1	29	11.14	exact	44.96	yes	859.07	yes	11.08				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	113	2	268		no event	50.46	yes	144.52	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	114	2	268	3.74	exact	45.79	yes	142.74	yes	3.68				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	115	2	268	19.55	exact	77.59	yes	174.45	yes	19.38				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	116	2	268	21.63	exact	76.15	yes	174.87	yes	21.46				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	117	2	268	8.93	exact	45.16	yes	151.88	yes	8.84				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	118	2	268	20.48	exact	60.30	yes	170.85	yes	16.83				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	119	3	88		no event	57.52	yes	697.51	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	120	3	88	6.83	exact	35.54	yes	677.87	yes	6.80				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	121	3	88	17.32	exact	51.39	yes	700.71	yes	17.21				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	122	3	88	19.60	exact	53.67	yes	702.29	yes	19.51				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	123	3	88	7.30	exact	35.85	yes	813.34	yes	7.25				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	124	3	88	5.36	exact	40.76	yes	671.00	yes	5.28				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	125	4	208		no event	38.28	yes	337.85	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	126	4	208	6.50	exact	37.01	yes	325.41	yes	6.45				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	127	4	208	15.70	exact	47.14	yes	324.73	yes	15.57				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	128	4	208	4.60	exact	35.44	yes	327.70	yes	4.56				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	129	4	208	6.44	exact	37.48	yes	309.66	yes	6.38				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	synth-300	pdflatex	130	4	208	13.66	exact	49.25	yes	326.40	yes	13.53				
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	1	0	148	8.35	exact	29.47	yes	446.27	yes	7.90		8.80	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	2	0	148	6.47	exact	40.29	yes	460.97	yes	5.97		10.59	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	3	0	148	5.78	exact	38.91	yes	526.35	yes	5.21		10.22	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	4	0	148	9.88	provisional/heights	50.01	yes	490.83	yes	8.95		16.89	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	5	0	148	7.27	exact	47.95	yes	479.03	yes	6.65		14.18	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	6	0	148	4.73	exact	32.95	yes	458.63	yes	4.38		7.75	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	7	1	29		none/split	65.69	yes	798.31	yes			37.32	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	8	1	29	9.95	exact	51.89	yes	816.89	yes	8.10		22.07	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	9	1	29	5.32	exact	45.76	yes	844.63	yes	4.67		16.94	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	10	1	29	3.08	exact	31.91	yes	802.28	yes	2.77		10.66	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	11	1	29	3.35	exact	40.39	yes	748.69	yes	3.00		9.58	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	12	1	29	4.32	exact	43.28	yes	752.93	yes	3.84		11.68	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	13	2	268		no event	47.97	yes	141.36	yes			22.88	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	14	2	268	3.79	exact	53.04	yes	159.33	yes	3.40		10.35	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	15	2	268	3.52	exact	35.54	yes	129.03	yes	3.15		8.43	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	16	2	268	3.93	exact	46.90	yes	188.64	yes	3.58		10.24	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	17	2	268	3.68	exact	42.87	yes	150.36	yes	3.25		8.63	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	18	2	268	5.29	exact	44.88	yes	137.91	yes	4.65		11.12	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	19	3	88	24.80	exact	61.62	yes	636.76	yes	22.98		34.50	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	20	3	88	8.46	exact	49.96	yes	618.46	yes	7.43		15.86	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	21	3	88	13.15	exact	46.27	yes	615.11	yes	6.71		17.37	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	22	3	88	6.26	exact	53.49	yes	619.73	yes	5.50		14.89	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	23	3	88	7.61	exact	48.48	yes	675.59	yes	6.53		18.36	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	24	3	88	2.99	exact	29.77	yes	595.97	yes	2.67		8.41	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	25	4	208		no event	55.75	yes	311.27	yes			23.19	yes	208
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	26	4	208	3.74	exact	38.83	yes	326.90	yes	3.33		10.09	yes	208
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	27	4	208	9.74	exact	49.56	yes	306.43	yes	8.34		21.11	yes	208
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	28	4	208	3.42	exact	39.62	yes	299.34	yes	3.11		7.58	yes	208
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	29	4	208	8.78	exact	58.56	yes	317.01	yes	8.05		24.30	yes	208
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	30	4	208	4.33	exact	41.36	yes	298.62	yes	3.87		10.57	yes	208
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	101	0	148		no event	40.86	yes	451.01	yes			18.65	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	102	0	148	4.52	exact	32.73	yes	462.95	yes	4.07		8.72	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	103	0	148	3.21	exact	37.11	yes	459.79	yes	2.89		8.39	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	104	0	148	3.60	provisional/heights	39.68	yes	466.82	yes	3.21		10.67	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	105	0	148	8.40	exact	46.21	yes	455.44	yes	6.99		17.48	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	106	0	148	3.27	exact	33.82	yes	442.87	yes	2.94		9.12	yes	148
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	107	1	29	5.78	exact	36.81	yes	778.09	yes	5.40		13.18	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	108	1	29	3.24	exact	31.07	yes	783.21	yes	2.96		9.64	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	109	1	29	27.62	exact	60.47	yes	836.93	yes	13.38		34.55	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	110	1	29	10.48	exact	57.32	yes	774.79	yes	9.43		30.07	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	111	1	29	7.04	exact	47.76	yes	757.41	yes	6.09		17.44	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	112	1	29	3.78	exact	34.34	yes	762.77	yes	3.32		11.00	yes	29
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	113	2	268		no event	48.56	yes	144.08	yes			22.77	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	114	2	268	7.99	exact	40.41	yes	146.19	yes	4.44		11.34	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	115	2	268	10.14	exact	54.13	yes	150.73	yes	9.08		23.94	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	116	2	268	9.28	exact	60.43	yes	148.33	yes	8.32		20.25	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	117	2	268	12.58	exact	57.46	yes	154.41	yes	11.41		26.06	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	118	2	268	4.44	exact	44.21	yes	143.86	yes	3.89		11.61	yes	268
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	119	3	88	12.24	exact	56.17	yes	636.90	yes	11.15		20.63	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	120	3	88	5.28	exact	40.43	yes	672.50	yes	4.82		11.89	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	121	3	88	3.09	exact	32.09	yes	666.55	yes	2.74		9.14	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	122	3	88	3.76	exact	38.53	yes	618.79	yes	3.38		9.94	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	123	3	88	3.46	exact	36.62	yes	610.88	yes	3.04		10.39	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	124	3	88	3.35	exact	37.82	yes	621.81	yes	3.00		9.37	yes	88
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	125	4	208	5.56	exact	36.66	yes	293.60	yes	5.18		11.02	yes	208
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	126	4	208	14.47	exact	56.37	yes	323.26	yes	13.06		31.04	yes	208
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	127	4	208	14.33	exact	58.80	yes	326.26	yes	13.07		26.42	yes	208
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	128	4	208	3.04	exact	42.34	yes	311.03	yes	2.70		9.39	yes	208
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	129	4	208	19.21	exact	68.26	yes	325.89	yes	17.97		34.54	yes	208
+2026-11-10	taudot-universal	tau-live 7d514c03af	synth-300	pdflatex	130	4	208	4.17	exact	36.62	yes	295.80	yes	3.72		9.88	yes	208
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	1	0	4		no event	42.12	yes	136.75	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	2	0	4	5.12	exact	43.58	yes	124.78	yes	5.06				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	3	0	4	17.21	exact	61.62	yes	147.06	yes	16.92				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	4	0	4	13.53	exact	74.29	yes	154.10	yes	13.35				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	5	0	4	4.97	exact	42.79	yes	125.55	yes	4.91				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	6	0	4	13.98	exact	56.74	yes	141.58	yes	13.82				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	7	1	1		no event	31.00	yes	160.92	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	8	1	1	12.82	exact	56.39	yes	194.28	yes	12.62				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	9	1	1	4.29	exact	31.68	yes	156.23	yes	4.24				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	10	1	1	11.44	exact	43.83	yes	169.09	yes	11.34				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	11	1	1	17.28	exact	52.01	yes	179.32	yes	16.93				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	12	1	1	13.50	exact	48.22	yes	186.22	yes	13.38				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	13	2	11		no event	48.62	yes	49.59	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	14	2	11	3.94	exact	45.83	yes	46.18	yes	3.89				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	15	2	11	11.24	exact	57.24	yes	59.24	yes	11.07				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	16	2	11	8.82	provisional/lines	54.09	yes	54.47	yes	8.54				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	17	2	11	10.73	exact	57.27	yes	58.24	yes	10.62				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	18	2	11	3.29	exact	43.30	yes	44.35	yes	3.24				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	19	3	2		no event	63.69	yes	190.93	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	20	3	2	5.60	provisional/lines	32.11	yes	144.33	yes	5.53				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	21	3	2	18.13	exact	62.76	yes	181.14	yes	12.27				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	22	3	2	17.38	exact	59.90	yes	173.21	yes	17.24				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	23	3	2	5.00	exact	33.75	yes	147.84	yes	4.94				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	24	3	2	11.17	exact	51.08	yes	165.18	yes	10.94				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	25	4	7		no event	63.77	yes	113.98	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	26	4	7	4.51	exact	43.89	yes	92.10	yes	4.45				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	27	4	7	10.16	exact	55.73	yes	111.09	yes	10.03				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	28	4	7	4.03	exact	40.85	yes	89.62	yes	3.98				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	29	4	7	13.14	exact	65.29	yes	116.98	yes	13.00				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	30	4	7	12.43	exact	54.27	yes	112.33	yes	12.30				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	101	0	4		no event	39.54	yes	131.94	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	102	0	4	14.67	exact	55.90	yes	145.30	yes	14.55				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	103	0	4	12.20	exact	68.82	yes	154.28	yes	12.08				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	104	0	4	4.76	exact	46.06	yes	129.25	yes	4.68				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	105	0	4	5.31	exact	40.57	yes	128.32	yes	5.25				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	106	0	4	11.52	exact	50.82	yes	145.45	yes	11.43				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	107	1	1		no event	28.80	yes	152.31	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	108	1	1	6.05	exact	39.11	yes	162.28	yes	5.99				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	109	1	1	5.47	exact	39.26	yes	162.66	yes	5.41				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	110	1	1	4.11	exact	30.15	yes	152.37	yes	4.05				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	111	1	1	7.44	exact	41.41	yes	164.07	yes	7.37				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	112	1	1	3.51	exact	26.13	yes	150.94	yes	3.46				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	113	2	11		no event	61.93	yes	63.06	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	114	2	11	6.71	exact	50.22	yes	54.79	yes	6.60				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	115	2	11	2.80	exact	32.38	yes	35.70	yes	2.76				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	116	2	11	4.01	provisional/lines	48.26	yes	49.50	yes	3.95				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	117	2	11	9.30	exact	54.09	yes	54.69	yes	7.82				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	118	2	11	6.77	exact	51.64	yes	52.99	yes	6.67				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	119	3	2		no event	77.49	yes	190.43	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	120	3	2	6.56	provisional/lines	43.89	yes	154.93	yes	6.48				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	121	3	2	15.76	exact	55.79	yes	174.04	yes	15.63				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	122	3	2	11.36	exact	51.43	yes	163.68	yes	11.26				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	123	3	2	16.20	exact	63.91	yes	178.87	yes	16.08				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	124	3	2	6.00	exact	39.24	yes	155.01	yes	5.93				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	125	4	7		no event	81.09	yes	137.25	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	126	4	7	3.49	exact	49.63	yes	100.52	yes	3.40				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	127	4	7	5.25	exact	60.59	yes	112.19	yes	5.18				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	128	4	7	3.37	exact	49.28	yes	97.42	yes	3.31				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	129	4	7	4.49	exact	51.02	yes	98.10	yes	4.43				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1512.03385	pdflatex	130	4	7	13.47	exact	75.95	yes	121.86	yes	13.33				
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	1	0	4		no event	39.81	yes	118.58	yes			16.39	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	2	0	4	4.51	exact	34.84	yes	117.67	yes	3.40		9.36	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	3	0	4	9.90	exact	57.19	yes	138.86	yes	8.81		26.64	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	4	0	4	13.35	exact	60.63	yes	143.03	yes	11.86		30.78	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	5	0	4	3.48	exact	45.06	yes	123.02	yes	2.95		13.38	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	6	0	4	9.47	exact	52.62	yes	136.82	yes	8.33		23.62	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	7	1	1	4.53	exact	33.78	yes	155.17	yes	4.16		16.46	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	8	1	1	9.48	exact	46.30	yes	166.66	yes	8.54		25.98	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	9	1	1	8.31	exact	43.89	yes	172.23	yes	7.64		24.10	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	10	1	1	12.86	exact	57.60	yes	178.57	yes	11.39		35.10	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	11	1	1	9.69	exact	47.17	yes	167.39	yes	9.07		24.79	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	12	1	1	12.54	exact	63.17	yes	185.97	yes	11.81		41.78	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	13	2	11		no event	85.54	yes	86.38	yes			54.45	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	14	2	11	3.02	exact	48.33	yes	49.10	yes	2.58		11.30	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	15	2	11	2.71	exact	40.72	yes	41.54	yes	2.37		10.23	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	16	2	11	6.12	provisional/lines	58.39	yes	60.01	yes	5.46		16.23	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	17	2	11	2.80	exact	44.80	yes	45.67	yes	2.47		10.29	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	18	2	11	7.86	exact	68.90	yes	75.82	yes	7.10		31.29	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	19	3	2		no event	58.90	yes	164.41	yes			32.10	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	20	3	2		none/insert	36.26	yes	147.69	yes			13.49	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	21	3	2		none/insert	39.50	yes	142.97	yes			14.05	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	22	3	2		none/insert	37.09	yes	142.72	yes			12.67	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	23	3	2		none/insert	34.31	yes	148.68	yes			11.81	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	24	3	2		none/insert	41.28	yes	144.97	yes			13.16	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	25	4	7		no event	87.90	yes	120.02	yes			44.06	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	26	4	7	14.99	exact	68.59	yes	118.19	yes	13.96		30.07	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	27	4	7	10.82	exact	62.62	yes	124.71	yes	9.60		28.16	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	28	4	7	8.21	exact	56.96	yes	106.62	yes	7.28		22.85	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	29	4	7	2.67	exact	42.07	yes	96.55	yes	2.38		11.55	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	30	4	7	12.15	exact	83.58	yes	146.58	yes	10.92		31.41	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	101	0	4		no event	45.56	yes	113.44	yes			16.16	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	102	0	4	4.58	exact	34.01	yes	112.26	yes	3.51		9.43	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	103	0	4	6.52	exact	50.64	yes	135.66	yes	5.96		21.75	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	104	0	4	9.51	exact	58.35	yes	144.28	yes	8.13		25.88	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	105	0	4	2.83	exact	32.62	yes	114.06	yes	2.54		8.35	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	106	0	4	8.60	exact	58.49	yes	136.47	yes	7.76		21.48	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	107	1	1	4.27	exact	32.91	yes	150.33	yes	3.98		15.81	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	108	1	1	4.56	exact	37.12	yes	160.99	yes	4.12		15.69	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	109	1	1	4.21	exact	42.18	yes	157.60	yes	3.88		19.17	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	110	1	1	4.30	exact	34.74	yes	155.40	yes	4.07		16.51	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	111	1	1	3.13	exact	40.63	yes	155.63	yes	2.84		16.40	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	112	1	1	3.27	exact	37.22	yes	150.96	yes	2.98		14.14	yes	1
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	113	2	11		no event	60.08	yes	72.76	yes			28.67	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	114	2	11	3.83	exact	55.08	yes	56.44	yes	3.58		13.22	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	115	2	11	2.39	exact	51.57	yes	52.49	yes	2.11		12.83	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	116	2	11	10.09	provisional/lines	73.92	yes	76.17	yes	8.92		31.06	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	117	2	11	3.37	exact	46.22	yes	47.67	yes	2.91		12.26	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	118	2	11	5.64	exact	54.44	yes	55.97	yes	5.00		14.77	yes	11
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	119	3	2		no event	69.24	yes	170.15	yes			38.39	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	120	3	2		none/insert	48.34	yes	153.14	yes			18.68	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	121	3	2		none/insert	40.95	yes	154.08	yes			16.80	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	122	3	2		none/insert	34.30	yes	144.41	yes			11.96	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	123	3	2		none/insert	47.48	yes	147.70	yes			14.43	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	124	3	2		none/insert	28.85	yes	135.44	yes			10.17	yes	2
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	125	4	7		no event	70.76	yes	105.77	yes			27.46	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	126	4	7	12.49	exact	74.85	yes	127.30	yes	11.08		38.34	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	127	4	7	8.75	exact	57.58	yes	107.48	yes	7.73		23.01	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	128	4	7	2.28	exact	43.04	yes	90.49	yes	2.02		14.18	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	129	4	7	2.54	exact	39.38	yes	95.70	yes	2.15		11.59	yes	7
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1512.03385	pdflatex	130	4	7	7.16	exact	65.26	yes	111.73	yes	6.76		26.33	yes	7
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	1	0	4		no event	66.18	yes	144.74	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	2	0	4		none/split	74.71	yes	152.70	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	3	0	4		none/split	74.52	yes	145.88	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	4	0	4		none/split	70.16	yes	145.13	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	5	0	4		none/split	89.92	yes	165.77	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	6	0	4		none/split	88.91	yes	164.72	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	7	1	2		no event	107.92	yes	228.83	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	8	1	2	3.69	exact	82.62	yes	198.92	yes	3.64				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	9	1	2	4.29	exact	92.45	yes	209.64	yes	4.23				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	10	1	2	3.51	exact	91.20	yes	207.41	yes	3.44				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	11	1	2	12.17	exact	106.41	yes	227.37	yes	11.47				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	12	1	2	12.27	exact	107.87	yes	239.58	yes	12.17				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	13	2	5		no event	54.79	yes	129.35	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	14	2	5	7.53	exact	62.49	yes	132.67	yes	7.44				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	15	2	5	15.27	exact	74.96	yes	150.13	yes	14.96				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	16	2	5	13.29	exact	71.38	yes	140.65	yes	13.16				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	17	2	5	8.51	exact	65.72	yes	140.10	yes	8.38				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	18	2	5	10.68	exact	73.02	yes	139.17	yes	9.79				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	19	3	3		no event	58.45	yes	144.58	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	20	3	3		none/operator?m	79.27	yes	162.60	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	21	3	3		none/operator?m	76.92	yes	162.12	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	22	3	3		none/operator?m	75.77	yes	160.15	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	23	3	3		none/operator?m	80.47	yes	162.57	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	24	3	3		none/operator?m	76.22	yes	161.96	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	25	4	4		no event	55.75	yes	149.19	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	26	4	4	3.95	exact	51.32	yes	134.73	yes	3.88				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	27	4	4	9.76	exact	63.50	yes	147.70	yes	9.65				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	28	4	4	2.76	exact	41.95	yes	118.81	yes	2.71				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	29	4	4	3.16	exact	48.28	yes	122.75	yes	3.10				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	30	4	4	2.24	exact	38.37	yes	122.18	yes	2.20				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	101	0	4		no event	80.94	yes	158.00	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	102	0	4		none/split	68.28	yes	141.96	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	103	0	4		none/split	66.35	yes	146.84	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	104	0	4		none/split	63.47	yes	141.18	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	105	0	4		none/split	79.07	yes	156.34	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	106	0	4		none/split	95.31	yes	178.61	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	107	1	2		no event	117.70	yes	237.85	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	108	1	2	4.12	exact	79.17	yes	202.67	yes	4.07				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	109	1	2	2.70	exact	83.64	yes	206.01	yes	2.66				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	110	1	2	3.82	exact	90.90	yes	208.17	yes	3.74				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	111	1	2	3.78	exact	94.12	yes	206.03	yes	3.71				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	112	1	2	4.56	exact	94.89	yes	225.17	yes	4.50				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	113	2	5		no event	55.05	yes	129.95	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	114	2	5	13.95	exact	74.18	yes	151.73	yes	13.84				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	115	2	5	10.30	exact	62.15	yes	142.77	yes	10.17				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	116	2	5	9.19	exact	61.01	yes	135.66	yes	9.07				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	117	2	5	3.21	exact	38.66	yes	111.00	yes	3.17				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	118	2	5	2.73	exact	49.06	yes	120.99	yes	2.67				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	119	3	3		no event	57.26	yes	144.17	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	120	3	3		none/operator?m	69.82	yes	149.07	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	121	3	3		none/operator?m	87.71	yes	176.40	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	122	3	3		none/operator?m	78.66	yes	166.45	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	123	3	3		none/operator?m	83.49	yes	167.40	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	124	3	3		none/operator?m	74.19	yes	154.76	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	125	4	4		no event	72.15	yes	148.38	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	126	4	4	3.38	exact	43.66	yes	121.85	yes	3.33				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	127	4	4	9.94	exact	59.85	yes	143.60	yes	9.82				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	128	4	4	8.59	exact	54.71	yes	131.85	yes	7.62				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	129	4	4	3.06	exact	48.93	yes	127.58	yes	2.97				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-1706.03762	pdflatex	130	4	4	2.25	exact	41.25	yes	120.22	yes	2.20				
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	1	0	4		no event	73.62	yes	145.61	yes			38.98	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	2	0	4		none/split	96.84	yes	161.40	yes			58.17	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	3	0	4		none/split	113.44	yes	169.50	yes			67.65	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	4	0	4		none/split	81.12	yes	152.58	yes			49.86	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	5	0	4		none/split	104.88	yes	174.02	yes			55.99	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	6	0	4		none/split	71.47	yes	143.95	yes			42.14	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	7	1	2		no event	130.13	yes	238.95	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	8	1	2		none/split	76.51	yes	190.26	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	9	1	2		none/split	87.12	yes	192.11	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	10	1	2		none/split	81.97	yes	195.38	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	11	1	2		none/split	92.66	yes	208.46	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	12	1	2		none/split	102.65	yes	228.68	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	13	2	5		no event	56.38	yes	139.85	yes			23.63	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	14	2	5	9.28	exact	66.36	yes	138.65	yes	8.33		23.92	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	15	2	5	11.58	exact	86.33	yes	141.69	yes	10.33		31.48	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	16	2	5	8.04	exact	71.87	yes	137.53	yes	6.91		21.72	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	17	2	5	4.32	exact	59.32	yes	116.62	yes	3.72		12.74	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	18	2	5	10.26	exact	67.18	yes	144.16	yes	9.48		21.90	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	19	3	3	6.88	exact	76.95	yes	158.50	yes	6.56		41.70	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	20	3	3	4.64	exact	83.33	yes	143.82	yes	4.28		37.48	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	21	3	3	4.05	exact	67.21	yes	148.42	yes	3.70		35.78	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	22	3	3	3.28	exact	66.33	yes	150.52	yes	3.01		31.62	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	23	3	3	4.09	exact	77.85	yes	144.77	yes	3.69		35.81	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	24	3	3	7.12	exact	81.83	yes	155.70	yes	6.26		45.08	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	25	4	4	20.44	exact	83.08	yes	171.28	yes	19.53		42.46	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	26	4	4	5.05	exact	66.42	yes	156.73	yes	4.51		17.83	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	27	4	4	10.57	exact	72.04	yes	151.92	yes	9.40		30.72	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	28	4	4	3.43	exact	50.59	yes	123.30	yes	3.05		11.91	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	29	4	4	8.69	exact	61.68	yes	141.16	yes	7.68		22.08	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	30	4	4	11.22	exact	72.04	yes	147.64	yes	10.05		29.96	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	101	0	4		no event	76.62	yes	164.16	yes			38.32	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	102	0	4		none/split	86.09	yes	152.30	yes			49.89	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	103	0	4		none/split	89.82	yes	145.55	yes			43.81	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	104	0	4		none/split	70.03	yes	146.22	yes			39.45	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	105	0	4		none/split	75.01	yes	147.85	yes			44.96	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	106	0	4		none/split	65.57	yes	149.85	yes			31.40	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	107	1	2		no event	89.10	yes	204.11	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	108	1	2		none/split	85.75	yes	214.29	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	109	1	2		none/split	94.20	yes	199.04	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	110	1	2		none/split	92.03	yes	219.89	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	111	1	2		none/split	89.43	yes	202.11	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	112	1	2		none/split	99.99	yes	210.06	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	113	2	5		no event	64.46	yes	126.35	yes			24.67	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	114	2	5	17.92	exact	72.67	yes	145.19	yes	9.72		30.79	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	115	2	5	3.31	exact	55.62	yes	133.71	yes	2.97		12.68	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	116	2	5	4.38	exact	55.52	yes	139.78	yes	3.83		16.25	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	117	2	5	4.02	exact	50.27	yes	137.04	yes	3.59		13.81	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	118	2	5	8.22	exact	75.54	yes	132.93	yes	7.22		19.91	yes	5
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	119	3	3	6.81	exact	73.28	yes	142.71	yes	6.48		33.78	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	120	3	3	3.93	exact	75.72	yes	144.13	yes	3.62		32.64	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	121	3	3	3.79	exact	73.69	yes	140.16	yes	3.50		31.87	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	122	3	3	4.68	exact	69.20	yes	149.77	yes	4.21		37.78	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	123	3	3	10.99	exact	82.26	yes	161.27	yes	9.87		49.80	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	124	3	3	17.16	exact	102.91	yes	182.22	yes	10.84		52.88	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	125	4	4	16.06	exact	69.26	yes	138.88	yes	15.24		31.84	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	126	4	4	4.10	exact	52.28	yes	132.81	yes	3.56		14.11	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	127	4	4	2.60	exact	50.09	yes	124.35	yes	2.33		8.84	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	128	4	4	7.19	exact	58.95	yes	147.22	yes	6.26		17.48	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	129	4	4	3.65	exact	61.26	yes	149.17	yes	3.32		14.52	yes	4
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-1706.03762	pdflatex	130	4	4	3.05	exact	62.23	yes	122.25	yes	2.75		12.56	yes	4
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	1	0	19		no event	62.88	yes	1171.30	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	2	0	19		none/noanchor	57.22	yes	413.72	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	3	0	19	5.48	exact	40.93	yes	398.73	yes	5.43				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	4	0	19	4.53	exact	39.42	yes	429.73	yes	4.49				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	5	0	19	14.85	exact	57.42	yes	420.72	yes	14.74				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	6	0	19	8.21	exact	46.69	yes	413.58	yes	8.15				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	7	1	3		no event	61.21	yes	619.17	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	8	1	3	28.46	exact	69.89	yes	634.46	yes	23.18				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	9	1	3	26.89	exact	68.30	yes	631.19	yes	20.36				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	10	1	3	27.93	exact	66.24	yes	678.85	yes	20.74				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	11	1	3	5.68	exact	43.64	yes	612.91	yes	5.63				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	12	1	3	8.27	exact	43.43	yes	631.51	yes	8.12				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	13	2	43		no event	63.97	yes	134.30	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	14	2	43	11.93	exact	70.93	yes	138.70	yes	11.77				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	15	2	43	4.19	exact	53.12	yes	134.86	yes	4.12				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	16	2	43	7.22	exact	63.24	yes	136.15	yes	7.13				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	17	2	43	5.51	exact	49.44	yes	121.29	yes	4.22				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	18	2	43	4.30	exact	54.36	yes	128.19	yes	4.25				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	19	3	10		no event	59.13	yes	567.81	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	20	3	10		none/split	87.09	yes	542.14	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	21	3	10		none/split	71.44	yes	547.62	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	22	3	10		none/split	65.65	yes	527.28	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	23	3	10		none/split	66.57	yes	566.58	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	24	3	10		none/split	76.40	yes	565.09	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	25	4	24		no event	84.07	yes	414.15	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	26	4	24		none/split	76.61	yes	409.73	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	27	4	24		none/split	55.57	yes	363.17	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	28	4	24		none/split	71.53	yes	384.77	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	29	4	24		none/split	65.99	yes	389.85	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	30	4	24		none/split	60.27	yes	374.79	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	101	0	19		no event	40.12	yes	1208.01	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	102	0	19		none/noanchor	57.04	yes	441.80	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	103	0	19	8.00	exact	62.64	yes	433.00	yes	7.94				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	104	0	19	9.98	exact	61.74	yes	442.73	yes	9.92				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	105	0	19	23.51	exact	80.13	yes	456.86	yes	21.64				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	106	0	19	5.87	exact	41.42	yes	405.67	yes	5.81				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	107	1	3		no event	39.87	yes	607.33	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	108	1	3	7.16	exact	43.85	yes	647.26	yes	7.10				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	109	1	3	8.00	exact	48.45	yes	626.03	yes	7.94				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	110	1	3	5.78	exact	46.62	yes	613.52	yes	5.72				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	111	1	3	6.54	exact	45.84	yes	625.42	yes	6.48				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	112	1	3	6.97	exact	46.50	yes	611.87	yes	6.91				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	113	2	43		no event	48.03	yes	122.62	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	114	2	43	5.68	exact	56.41	yes	131.59	yes	5.62				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	115	2	43	5.56	exact	59.08	yes	134.06	yes	5.51				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	116	2	43	3.27	exact	47.28	yes	122.82	yes	3.22				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	117	2	43	4.31	exact	56.69	yes	125.41	yes	4.26				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	118	2	43	10.29	exact	69.04	yes	141.06	yes	10.21				
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	119	3	10		no event	69.20	yes	567.75	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	120	3	10		none/split	70.24	yes	592.81	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	121	3	10		none/split	84.00	yes	597.67	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	122	3	10		none/split	68.84	yes	607.43	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	123	3	10		none/split	64.66	yes	589.11	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	124	3	10		none/split	70.30	yes	602.93	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	125	4	24		no event	64.79	yes	414.67	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	126	4	24		none/split	79.95	yes	414.26	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	127	4	24		none/split	70.70	yes	411.09	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	128	4	24		none/split	69.36	yes	421.93	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	129	4	24		none/split	57.73	yes	406.18	yes					
+2026-11-10	taudot-pdftex	pdftex-live 7d514c03af	arxiv-2103.00020	pdflatex	130	4	24		none/split	56.59	yes	399.20	yes					
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	1	0	19		none/split	51.12	yes	1204.46	yes			17.16	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	2	0	19		no event	57.03	yes	415.57	yes			34.57	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	3	0	19		none/split	46.43	yes	424.13	yes			19.59	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	4	0	19		none/split	52.57	yes	420.80	yes			22.47	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	5	0	19		none/split	54.20	yes	406.23	yes			20.61	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	6	0	19		none/split	67.20	yes	419.99	yes			35.94	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	7	1	3	7.19	exact	49.32	yes	580.88	yes	6.85		27.28	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	8	1	3	22.72	exact	70.08	yes	623.88	yes	22.07		43.17	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	9	1	3	12.54	exact	69.23	yes	615.17	yes	11.21		40.50	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	10	1	3	9.24	exact	60.76	yes	644.28	yes	8.31		36.38	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	11	1	3	12.58	exact	64.51	yes	724.95	yes	11.55		42.64	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	12	1	3	4.70	exact	45.77	yes	618.02	yes	4.32		24.55	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	13	2	43	8.07	exact	51.83	yes	121.10	yes	7.70		24.53	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	14	2	43	6.18	exact	59.06	yes	137.53	yes	5.58		26.03	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	15	2	43	13.47	exact	66.68	yes	142.09	yes	5.00		36.17	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	16	2	43	4.75	exact	59.79	yes	129.68	yes	4.46		25.12	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	17	2	43	4.62	exact	58.11	yes	129.76	yes	4.19		25.33	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	18	2	43	5.63	exact	57.98	yes	128.73	yes	5.12		26.24	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	19	3	10		none/split	72.66	yes	558.48	yes			29.40	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	20	3	10		none/split	67.20	yes	526.19	yes			17.91	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	21	3	10		none/split	67.92	yes	525.96	yes			16.63	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	22	3	10		none/split	68.79	yes	509.95	yes			17.89	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	23	3	10		none/split	68.85	yes	539.76	yes			19.94	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	24	3	10		none/split	55.14	yes	867.19	yes			11.69	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	25	4	24		no event	76.12	yes	405.95	yes			30.24	yes	23
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	26	4	24		none/split	63.80	yes	364.95	yes			11.99	yes	23
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	27	4	24		none/split	64.61	yes	375.26	yes			15.13	yes	23
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	28	4	24		none/split	53.49	yes	352.72	yes			11.66	yes	23
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	29	4	24		none/split	68.61	yes	375.30	yes			15.43	yes	23
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	30	4	24		none/split	62.45	yes	370.60	yes			15.16	yes	23
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	101	0	19		no event	54.57	yes	1289.62	yes			23.03	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	102	0	19		none/split	79.39	yes	429.42	yes			42.01	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	103	0	19		none/split	60.76	yes	427.00	yes			29.40	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	104	0	19		none/split	37.58	yes	385.31	yes			13.96	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	105	0	19		none/split	54.88	yes	446.19	yes			27.53	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	106	0	19		none/split	53.96	yes	421.85	yes			21.61	yes	19
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	107	1	3		none/split	71.44	yes	618.57	yes			40.55	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	108	1	3	4.00	exact	42.76	yes	588.58	yes	3.66		23.15	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	109	1	3	5.18	exact	58.96	yes	620.19	yes	4.87		32.98	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	110	1	3	21.99	exact	74.55	yes	675.32	yes	9.31		48.13	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	111	1	3	3.69	exact	45.29	yes	659.18	yes	3.35		24.81	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	112	1	3	6.86	exact	47.35	yes	602.31	yes	6.52		26.31	yes	3
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	113	2	43	13.68	exact	69.82	yes	142.15	yes	12.84		36.75	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	114	2	43	4.71	exact	57.33	yes	123.10	yes	4.39		28.48	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	115	2	43	15.30	exact	90.83	yes	163.10	yes	14.37		53.52	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	116	2	43	9.12	exact	71.95	yes	135.20	yes	8.35		29.39	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	117	2	43	10.61	exact	78.15	yes	156.46	yes	9.95		42.12	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	118	2	43	10.41	exact	74.63	yes	144.86	yes	9.51		38.25	yes	43
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	119	3	10		none/split	76.36	yes	533.64	yes			26.29	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	120	3	10		none/split	71.07	yes	539.38	yes			16.17	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	121	3	10		none/split	72.49	yes	535.78	yes			19.02	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	122	3	10		none/split	68.72	yes	521.54	yes			20.61	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	123	3	10		none/split	89.22	yes	538.80	yes			38.61	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	124	3	10		none/split	66.05	yes	522.05	yes			17.79	yes	9
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	125	4	24		no event	84.51	yes	378.48	yes			34.88	yes	23
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	126	4	24		none/split	56.43	yes	375.22	yes			12.58	yes	23
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	127	4	24		none/split	55.90	yes	382.83	yes			12.24	yes	23
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	128	4	24		none/split	62.14	yes	358.24	yes			12.36	yes	23
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	129	4	24		none/split	86.86	yes	382.87	yes			30.47	yes	23
+2026-11-10	taudot-universal	tau-live 7d514c03af	arxiv-2103.00020	pdflatex	130	4	24		none/split	82.87	yes	380.23	yes			27.45	yes	23

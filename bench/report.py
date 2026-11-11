@@ -144,6 +144,78 @@ def first_table(first):
     return "\n".join(out)
 
 
+def interleave_table():
+    p = f"{RESULTS}/interleave.tsv"
+    if not os.path.exists(p):
+        return ""
+    rows = list(csv.DictReader(open(p), delimiter="\t"))
+    out = ["| document | run | cores busy elsewhere (load) | preview p50 (exact) | display page p50 (sent, = stock) | "
+           "finished page p50 | whole PDF p50 | first page on open |", "|---|---|---|---|---|---|---|---|"]
+    name = {"taudot-pdftex": "patched", "taudot-universal": "universal"}
+    for r in rows:
+        g = lambda k: f(float(r[k])) if r[k] else "–"
+        disp = f"{g('display_p50')} ({r['display_n']}, {r['display_exact']})" if r["display_n"] != "0" else "–"
+        out.append(f"| {r['doc'].replace('synth-', '').replace('arxiv-', '')}{' pp' if r['doc'].startswith('synth') else ''}"
+                   f" | {name[r['system']]} {r['round']} | {r['other_cpu']} ({r['load']}) | {g('para_p50')} "
+                   f"({r['para_exact']}) | {disp} | {g('page_p50')} | {g('final_p50')} | {g('first_page_ms')} |")
+    return "\n".join(out)
+
+
+def opens_table():
+    """First page on open: six runs per driver and document (three ABBA blocks), median [min-max]."""
+    p = f"{RESULTS}/opens.tsv"
+    if not os.path.exists(p):
+        return ""
+    rows = list(csv.DictReader(open(p), delimiter="\t"))
+    out = ["| document | cores busy elsewhere (load) | first page on open: patched | universal | settled: patched | "
+           "universal |", "|---|---|---|---|---|---|"]
+    order = ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762", "arxiv-2103.00020"]
+    for d in sorted(dict.fromkeys(r["doc"] for r in rows), key=lambda d: order.index(d) if d in order else 99):
+        rs = [r for r in rows if r["doc"] == d]
+        oc, ld = [float(r["other_cpu"]) for r in rs], [float(r["load"]) for r in rs]
+
+        def c(system, k):
+            xs = sorted(float(r[k]) for r in rs if r["system"] == system)
+            return f"{f(pct(xs, 50))} [{f(xs[0])}–{f(xs[-1])}]"
+        name = d.replace("synth-", "").replace("arxiv-", "") + (" pp" if d.startswith("synth") else "")
+        out.append(f"| {name} | {min(oc):.1f}–{max(oc):.1f} ({min(ld):.0f}–{max(ld):.0f}) | "
+                   f"{c('taudot-pdftex', 'first_page_ms')} | {c('taudot-universal', 'first_page_ms')} | "
+                   f"{c('taudot-pdftex', 'done_ms')} | {c('taudot-universal', 'done_ms')} |")
+    return "\n".join(out)
+
+
+def burst_table():
+    """The burst script: one row per document, system and engine, both rounds pooled (60 keys)."""
+    kp, rp = f"{RESULTS}/burst.tsv", f"{RESULTS}/burst_runs.tsv"
+    if not os.path.exists(rp):
+        return ""
+    keys, runs = list(csv.DictReader(open(kp), delimiter="\t")), list(csv.DictReader(open(rp), delimiter="\t"))
+    out = ["| document | system | cores busy elsewhere (load), per run | key → first pixels p50 / p90 | "
+           "key → exact page p50 / p90 | keys never shown exact (preview) | outputs = stock | settled PDFs = stock |",
+           "|---|---|---|---|---|---|---|---|"]
+    name = {("taudot-pdftex", "pdflatex"): "patched", ("taudot-universal", "pdflatex"): "universal",
+            ("taudot-universal", "xelatex"): "universal XeLaTeX", ("taudot-universal", "lualatex"): "universal LuaLaTeX"}
+    seen = []
+    for r in runs:
+        g = (r["doc"], r["system"], r["engine"])
+        if g not in seen:
+            seen.append(g)
+    for doc, system, engine in seen:
+        rs = [r for r in runs if (r["doc"], r["system"], r["engine"]) == (doc, system, engine)]
+        ks = [k for k in keys if (k["doc"], k["system"], k["engine"]) == (doc, system, engine)]
+        px = [float(k["pixels_ms"]) for k in ks if k["pixels_ms"]]
+        ex = [float(k["exact_ms"]) for k in ks if k["exact_ms"]]
+        never = sum(k["own_exact"] != "True" for k in ks)
+        nprev = sum(k["own_preview"] != "True" for k in ks)
+        tot = lambda c: sum(int(r[c]) for r in rs)
+        d = doc.replace("synth-", "").replace("arxiv-", "") + (" pp" if doc.startswith("synth") else "")
+        noise = ", ".join(f"{r['other_cpu']} ({r['load']})" for r in rs)
+        out.append(f"| {d} | {name[(system, engine)]} | {noise} | "
+                   f"{f(pct(px, 50))} / {f(pct(px, 90))} | {f(pct(ex, 50))} / {f(pct(ex, 90))} | {never}/{len(ks)} "
+                   f"({nprev}) | {tot('outputs_exact')}/{tot('outputs')} | {tot('finals_exact')}/{tot('finals')} |")
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------------------------------------- chart
 LIGHT = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
 DARK = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181"]
@@ -246,6 +318,29 @@ def main():
         "Cells: **p50 / p90 ms** over the 30 edits. Blank: the system doesn't support that engine.",
         "",
         "Versions: " + "; ".join(f"{s} `{v}`" for s, v in versions) + ".",
+        "",
+        "### pdfLaTeX, patched and universal interleaved",
+        "",
+        "Per document: patched, universal, universal, patched (ABBA), back to back; one row per run of 30 keys. "
+        "The tables below pool both rounds (60 keys per document for these two).",
+        "",
+        interleave_table(),
+        "",
+        "### First page on open, pdfLaTeX",
+        "",
+        "Six opens per driver and document in three ABBA blocks, after one untimed open of each rebuilt binary. "
+        "Median [min–max] ms; open → first PDF, and open → settled.",
+        "",
+        opens_table(),
+        "",
+        "### Burst typing (8 keys a second)",
+        "",
+        "Each spot's word typed at 8 keys a second without waiting, then the compile settles and the next spot "
+        "follows; two runs per row (pdfLaTeX: ABBA, as above), 60 keys. Times from each key to the first output that "
+        "contains it. Outputs = stock: every early, display and tau-pdfmx page sent, checked against latexmk after "
+        "as many keys as the output contains.",
+        "",
+        burst_table(),
         "",
         "### Edit → paragraph preview",
         "",

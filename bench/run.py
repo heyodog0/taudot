@@ -18,7 +18,7 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import (TL_ROOT, BUILD, REPO, TAU_BIN, DOCS, LATEXMK, PDFTEX_BUILD, RESULTS, SRC, UBIN, USTOCK, WORK, TreeRSS, copy, git_rev, log,  # noqa
+from common import (pct, TL_ROOT, BUILD, REPO, TAU_BIN, DOCS, LATEXMK, PDFTEX_BUILD, RESULTS, SRC, UBIN, USTOCK, WORK, TreeRSS, copy, git_rev, log,  # noqa
                     page_count, run_stock, same_file, same_pages, stem, tex_env)
 
 TIMEOUT = 300  # s, per edit
@@ -671,60 +671,65 @@ def run_driver(cls, doc, engine, meta):
     first.update(peak_mb=peak / 2**20, procs=procs)
     # exactness, after the timed part: the early PDF's new pages and the final output against latexmk's
     for r in rows:
-        ref = f"{refs}/{r['n']}.{ext(engine)}"
-        if r["final"] and r["final"].endswith(".pdf") and ref.endswith(".xdv"):  # a XeLaTeX PDF: latexmk's PDF
-            if not os.path.exists(ref[:-4] + ".pdf"):
-                subprocess.run([f"{UBIN}/xdvipdfmx", "-q", "-E", "-o", ref[:-4] + ".pdf", ref], env=tex_env(),
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            ref = ref[:-4] + ".pdf"
-        if "final_exact" not in r:
-            if r["final"] and os.path.exists(r["final"]):
-                try:
-                    r["final_exact"] = "yes" if same_file(r["final"], ref) or \
-                        all(e for _, e in same_pages(r["final"], ref)) else "NO"
-                except Exception as x:
-                    log(f"  check failed: {x}")
-                    r["final_exact"] = "unreadable"
-            else:
-                r["final_exact"] = "none"
-        if r.get("page_is_final"):
-            r["page_exact"] = r["final_exact"]
-        if r.get("early_pdf") and r.get("pdf_path"):  # tau-pdfmx's pages: what stock xdvipdfmx makes of the same
-            # pages of latexmk's XDV, written to the same path (the font subset tags hash the output's name)
-            p = r["pdf_path"]
-            os.makedirs(os.path.dirname(p), exist_ok=True)
-            if os.path.exists(p):
-                os.remove(p)  # our hard link keeps tau-pdfmx's bytes
-            x = r["xdv_path"]  # latexmk's XDV under the event's own name, as tau-pdfmx read it
-            if os.path.exists(x):
-                os.remove(x)
-            shutil.copy(ref, x)
-            subprocess.run([f"{UBIN}/xdvipdfmx", "-q", "-z", "1", "-s", f"{r['pdf_first'] + 1}-{r['pdf_last'] + 1}",
-                            "-o", p, x], cwd=f"{out}/work" if os.path.isdir(f"{out}/work") else out, env=tex_env(),
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            r["page_exact"] = "yes" if os.path.exists(p) and same_file(r["early_pdf"], p) else "NO"
-        if "page_exact" not in r:
-            if r["early"]:
-                new = range(r["early_from"] or 0, r["early_pages"] or 0)
-                try:
-                    r["page_exact"] = "yes" if all(e for _, e in same_pages(r["early"], ref, new)) else "NO"
-                except Exception as x:
-                    log(f"  check failed: {x}")
-                    r["page_exact"] = "unreadable"
-            else:
-                r["page_exact"] = "none"
-    for r in rows:
-        if r.get("display_pdf"):
-            ref = f"{refs}/{r['n']}.{ext(engine)}"
-            try:
-                r["display_exact"] = display_check(r["display_pdf"], r["display_page"], ref)
-            except Exception as x:
-                log(f"  display check failed: {x}")
-                r["display_exact"] = "unreadable"
+        check(r, refs, engine, out)
     if not os.environ.get("BENCH_KEEP"):  # BENCH_KEEP=1: leave the run's files for a look
         for d in (proj, out, f"{out}-keep"):
             shutil.rmtree(d, ignore_errors=True)
     return sysm, first, rows
+
+
+def check(r, refs, engine, out):
+    """One output against latexmk's after edit r['n']: the final PDF (final_exact), the early PDF's new pages or
+    tau-pdfmx's pages (page_exact), the display page (display_exact)."""
+    ref = f"{refs}/{r['n']}.{ext(engine)}"
+    if r["final"] and r["final"].endswith(".pdf") and ref.endswith(".xdv"):  # a XeLaTeX PDF: latexmk's PDF
+        if not os.path.exists(ref[:-4] + ".pdf"):
+            subprocess.run([f"{UBIN}/xdvipdfmx", "-q", "-E", "-o", ref[:-4] + ".pdf", ref], env=tex_env(),
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ref = ref[:-4] + ".pdf"
+    if "final_exact" not in r:
+        if r["final"] and os.path.exists(r["final"]):
+            try:
+                r["final_exact"] = "yes" if same_file(r["final"], ref) or \
+                    all(e for _, e in same_pages(r["final"], ref)) else "NO"
+            except Exception as x:
+                log(f"  check failed: {x}")
+                r["final_exact"] = "unreadable"
+        else:
+            r["final_exact"] = "none"
+    if r.get("page_is_final"):
+        r["page_exact"] = r["final_exact"]
+    if r.get("early_pdf") and r.get("pdf_path"):  # tau-pdfmx's pages: what stock xdvipdfmx makes of the same
+        # pages of latexmk's XDV, written to the same path (the font subset tags hash the output's name)
+        p = r["pdf_path"]
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        if os.path.exists(p):
+            os.remove(p)  # our hard link keeps tau-pdfmx's bytes
+        x = r["xdv_path"]  # latexmk's XDV under the event's own name, as tau-pdfmx read it
+        if os.path.exists(x):
+            os.remove(x)
+        shutil.copy(ref, x)
+        subprocess.run([f"{UBIN}/xdvipdfmx", "-q", "-z", "1", "-s", f"{r['pdf_first'] + 1}-{r['pdf_last'] + 1}",
+                        "-o", p, x], cwd=f"{out}/work" if os.path.isdir(f"{out}/work") else out, env=tex_env(),
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        r["page_exact"] = "yes" if os.path.exists(p) and same_file(r["early_pdf"], p) else "NO"
+    if "page_exact" not in r:
+        if r["early"]:
+            new = range(r["early_from"] or 0, r["early_pages"] or 0)
+            try:
+                r["page_exact"] = "yes" if all(e for _, e in same_pages(r["early"], ref, new)) else "NO"
+            except Exception as x:
+                log(f"  check failed: {x}")
+                r["page_exact"] = "unreadable"
+        else:
+            r["page_exact"] = "none"
+    if r.get("display_pdf"):
+        ref = f"{refs}/{r['n']}.{ext(engine)}"
+        try:
+            r["display_exact"] = display_check(r["display_pdf"], r["display_page"], ref)
+        except Exception as x:
+            log(f"  display check failed: {x}")
+            r["display_exact"] = "unreadable"
 
 
 def display_check(path, k, ref):
@@ -844,6 +849,245 @@ def run(system, doc, engine):
             return
 
 
+def interleave(docs, engine="pdflatex"):
+    """Patched and universal pdfLaTeX in ABBA order per document (patched, universal, universal, patched), so load
+    that drifts over the minutes hits both alike. No reruns: each run's noise is recorded in results/interleave.tsv
+    (one row per run) and both rounds' keys are pooled into edits.tsv/first.tsv (60 keys per system and document)."""
+    order = [("taudot-pdftex", 1), ("taudot-universal", 1), ("taudot-universal", 2), ("taudot-pdftex", 2)]
+    path = f"{RESULTS}/interleave.tsv"
+    cols = ["date", "system", "version", "doc", "round", "load", "other_cpu", "first_page_ms", "para_p50",
+            "display_p50", "page_p50", "final_p50", "para_exact", "display_n", "display_exact", "page_exact",
+            "final_exact"]
+    kept = [l for l in (open(path).read().splitlines()[1:] if os.path.exists(path) else [])
+            if l.split("\t")[3] not in docs]
+    for doc in docs:
+        meta = load(doc)
+        pooled, firsts, sysms = {}, {}, {}
+        for name, rnd in order:
+            log(f"{name} {doc} {engine} round {rnd}")
+            lo = Load()
+            sysm, first, rows = run_driver(SYSTEMS[name], doc, engine, meta)
+            load_, other = lo.done()
+            sysms[name] = sysm
+            for r in rows:
+                r["n"] = (rnd - 1) * 100 + r["n"]  # round 2's keys numbered 101..130
+            pooled.setdefault(name, []).extend(rows)
+            firsts.setdefault(name, []).append(first)
+
+            def p50(k):
+                xs = [r[k] for r in rows if r.get(k) is not None]
+                return f"{pct(xs, 50):.2f}" if xs else ""
+            row = dict(date=time.strftime("%Y-%m-%d"), system=name, version=sysm.version(), doc=doc, round=rnd,
+                       load=f"{load_:.1f}", other_cpu=f"{other:.2f}", first_page_ms=f"{first['first_page_ms']:.1f}",
+                       para_p50=p50("para_ms"), display_p50=p50("display_ms"), page_p50=p50("page_ms"),
+                       final_p50=p50("final_ms"),
+                       para_exact=sum(r["para_state"] == "exact" for r in rows),
+                       display_n=sum(1 for r in rows if r.get("display_ms") is not None),
+                       display_exact=sum(r.get("display_exact") == "yes" for r in rows),
+                       page_exact=sum(r["page_exact"] == "yes" for r in rows),
+                       final_exact=sum(r["final_exact"] == "yes" for r in rows))
+            kept.append("\t".join(str(row[c]) for c in cols))
+            open(path, "w").write("\t".join(cols) + "\n" + "".join(l + "\n" for l in kept))
+        for name, rows in pooled.items():
+            f = firsts[name]
+            first = {k: (sum(x[k] for x in f) / len(f) if isinstance(f[0].get(k), (int, float)) else f[-1].get(k))
+                     for k in f[-1]}
+            write(sysms[name], doc, engine, first, rows)
+
+
+KEY_GAP = 0.125  # s between keys in a burst: 8 keys a second
+
+
+def burst_run(cls, doc, engine, meta, rnd):
+    """Each spot's word typed at 8 keys a second without waiting for outputs; then wait for the compile to settle,
+    rest and go to the next spot. Every output is kept with the edit count it contains, timed against each key it
+    shows, and checked against latexmk's output after that many keys (references exist for every key)."""
+    sysm = cls()
+    refs = ref_dir(doc, engine)
+    proj = f"{WORK}/run/{sysm.name}-{doc}-{engine}"
+    out = f"{proj}-out"
+    copy(f"{DOCS}/{doc}/{engine}", proj)
+    shutil.rmtree(out, ignore_errors=True)
+    os.makedirs(out)
+    sysm.start(proj, engine, meta["variants"][engine]["main"], out)
+    first = sysm.first()
+    spots = {}
+    for n, spot, file, pos, key in script(meta, engine):
+        spots.setdefault(spot, []).append((n, file, pos, key))
+    sent, outs, finals = {}, [], []  # outs: (t, kind, applied, row for check()); kind preview/display/page/early
+    for spot, keys in spots.items():
+        pg = open(f"{refs}/{keys[0][0]}.page").read().strip() if os.path.exists(f"{refs}/{keys[0][0]}.page") else ""
+        page = int(pg) if pg else None
+        if page is not None:
+            sysm.send("goal", page)
+        last = keys[-1][0]
+        runs = {}  # seq -> applied
+        t_start = time.monotonic()
+        i, settled = 0, False
+        while not settled:
+            if i < len(keys):
+                wait = t_start + i * KEY_GAP - time.monotonic()
+                if wait <= 0:
+                    n, file, pos, key = keys[i]
+                    sent[n] = time.monotonic()
+                    sysm.send("change", file, pos, 0, key)
+                    sysm.applied += 1
+                    i += 1
+                    continue
+            else:
+                wait = TIMEOUT
+            try:
+                t, ev = sysm.next(timeout=max(wait, 0.001))
+            except queue.Empty:
+                if i >= len(keys):
+                    raise RuntimeError(f"{sysm.name}: no output for {TIMEOUT} s")
+                continue
+            k, a = ev["ev"], ev.get("applied", 0)
+            if k == "run":
+                runs[ev["seq"]] = a
+            elif k == "para" and ev.get("state") in ("exact", "provisional") and ev.get("path") and a in sent:
+                outs.append((t, "preview", a, None))
+            elif k == "pdf" and a in sent:
+                r = dict(n=a, final=None, early=None)
+                if ev.get("display"):
+                    r.update(display_pdf=ev.get("kept_path"), display_page=ev.get("pages", 1) - 1, page_exact="-",
+                             final_exact="-")
+                    kind = "display"
+                else:
+                    r.update(early=ev.get("kept_path"), early_pages=ev.get("pages"), early_from=ev.get("from_page", 0),
+                             final_exact="-")
+                    if "pdf_first" in ev:
+                        r.update(early_pdf=ev.get("kept_pdf_path"), pdf_first=ev["pdf_first"], pdf_last=ev["pdf_last"],
+                                 pdf_path=ev.get("pdf_path"), xdv_path=ev.get("path"))
+                        if not ev.get("pdf_path"):
+                            r["page_exact"] = "nothing changed"
+                    kind = "page" if page is None or ev.get("final") or ev.get("pages", 0) > page else "early"
+                outs.append((t, kind, a, r))
+            elif k == "done" and ev.get("seq", -1) > sysm.last_seq and runs.get(ev.get("seq"), -1) >= last:
+                sysm.last_seq = ev["seq"]
+                finals.append(dict(n=last, final=sysm.kept_final(ev), page_exact="-"))
+                settled = True
+            elif k == "error":
+                log(f"  {sysm.name}: error {ev}")
+        time.sleep(REST)
+    sysm.close()
+    for _, _, _, r in outs:
+        if r:
+            check(r, refs, engine, out)
+    for r in finals:
+        check(r, refs, engine, out)
+    if not os.environ.get("BENCH_KEEP"):
+        for d in (proj, out, f"{out}-keep"):
+            shutil.rmtree(d, ignore_errors=True)
+    rows = []
+    for n, t0 in sorted(sent.items()):
+        shown = [(t, kind, a) for t, kind, a, _ in outs if a >= n and kind != "early"]
+        exact = [(t, kind, a) for t, kind, a in shown if kind in ("display", "page")]
+        px = min(shown, default=None)
+        ex = min(exact, default=None)
+        rows.append(dict(n=n, pixels_ms=(px[0] - t0) * 1000 if px else None, pixels_kind=px[1] if px else "",
+                         exact_ms=(ex[0] - t0) * 1000 if ex else None, exact_kind=ex[1] if ex else "",
+                         own_preview=any(a == n for _, kind, a in shown if kind == "preview"),
+                         own_exact=any(a == n for _, _, a in exact)))
+    checked = [r for _, _, _, r in outs if r]
+
+    def ok(r):
+        return r.get("display_exact", "yes") == "yes" and r.get("page_exact") in ("yes", "-", "nothing changed")
+    summary = dict(outputs=len(checked), outputs_exact=sum(ok(r) for r in checked),
+                   previews=sum(1 for o in outs if o[1] == "preview"),
+                   finals=len(finals), finals_exact=sum(r["final_exact"] == "yes" for r in finals),
+                   bad=" ".join(f"{r['n']}:{'display' if r.get('display_pdf') else 'page'}" for r in checked if not ok(r)))
+    return sysm, first, rows, summary
+
+
+def burst(docs, engines):
+    """The burst script: pdfLaTeX patched and universal in ABBA order per document, then universal XeLaTeX and
+    LuaLaTeX twice each. One row per key in results/burst.tsv, one per run (with its noise) in burst_runs.tsv."""
+    kcols = ["date", "system", "version", "doc", "engine", "round", "n", "pixels_ms", "pixels_kind", "exact_ms",
+             "exact_kind", "own_preview", "own_exact"]
+    rcols = ["date", "system", "version", "doc", "engine", "round", "load", "other_cpu", "keys", "pixels_p50",
+             "pixels_p90", "exact_p50", "exact_p90", "own_preview", "own_exact", "previews", "outputs",
+             "outputs_exact", "finals", "finals_exact", "bad"]
+    kp, rp = f"{RESULTS}/burst.tsv", f"{RESULTS}/burst_runs.tsv"
+
+    def old(p):
+        return [l for l in (open(p).read().splitlines()[1:] if os.path.exists(p) else [])
+                if (l.split("\t")[3], l.split("\t")[4]) not in [(d, e) for d in docs for e in engines]]
+    keyrows, runrows = old(kp), old(rp)
+    for engine in engines:
+        order = [("taudot-pdftex", 1), ("taudot-universal", 1), ("taudot-universal", 2), ("taudot-pdftex", 2)] \
+            if engine == "pdflatex" else [("taudot-universal", 1), ("taudot-universal", 2)]
+        for doc in docs:
+            meta = load(doc)
+            if engine not in meta["variants"]:
+                continue
+            for name, rnd in order:
+                log(f"burst {name} {doc} {engine} round {rnd}")
+                lo = Load()
+                sysm, first, rows, sm = burst_run(SYSTEMS[name], doc, engine, meta, rnd)
+                load_, other = lo.done()
+                base = dict(date=time.strftime("%Y-%m-%d"), system=name, version=sysm.version(), doc=doc,
+                            engine=engine, round=rnd)
+                for r in rows:
+                    keyrows.append("\t".join(fmt_cell({**base, **r}[c]) for c in kcols))
+                px = [r["pixels_ms"] for r in rows if r["pixels_ms"] is not None]
+                ex = [r["exact_ms"] for r in rows if r["exact_ms"] is not None]
+                row = {**base, **sm, "load": f"{load_:.1f}", "other_cpu": f"{other:.2f}", "keys": len(rows),
+                       "pixels_p50": f"{pct(px, 50):.1f}" if px else "", "pixels_p90": f"{pct(px, 90):.1f}" if px else "",
+                       "exact_p50": f"{pct(ex, 50):.1f}" if ex else "", "exact_p90": f"{pct(ex, 90):.1f}" if ex else "",
+                       "own_preview": sum(r["own_preview"] for r in rows), "own_exact": sum(r["own_exact"] for r in rows)}
+                runrows.append("\t".join(str(row[c]) for c in rcols))
+                log(f"  pixels p50 {row['pixels_p50']} exact p50 {row['exact_p50']}, own exact {row['own_exact']}/"
+                    f"{len(rows)}, outputs {sm['outputs_exact']}/{sm['outputs']} exact, finals {sm['finals_exact']}/"
+                    f"{sm['finals']}, load {row['load']} other {row['other_cpu']} {sm['bad']}")
+                open(kp, "w").write("\t".join(kcols) + "\n" + "".join(l + "\n" for l in keyrows))
+                open(rp, "w").write("\t".join(rcols) + "\n" + "".join(l + "\n" for l in runrows))
+
+
+
+def opens(docs, rounds=3, engine="pdflatex"):
+    """First page on open, patched and universal pdfLaTeX: per document `rounds` ABBA blocks (patched, universal,
+    universal, patched), each run open -> first PDF -> settled -> close, with its noise. Before any timing, one
+    untimed open of each driver: macOS checks a rewritten binary on its first launch (+130-180 ms). One row per run
+    in results/opens.tsv."""
+    cols = ["date", "system", "version", "doc", "run", "load", "other_cpu", "first_page_ms", "done_ms"]
+    path = f"{RESULTS}/opens.tsv"
+    kept = [l for l in (open(path).read().splitlines()[1:] if os.path.exists(path) else [])
+            if l.split("\t")[3] not in docs]
+
+    def one(name, doc):
+        meta = load(doc)
+        sysm = SYSTEMS[name]()
+        proj = f"{WORK}/run/{sysm.name}-{doc}-{engine}"
+        out = f"{proj}-out"
+        copy(f"{DOCS}/{doc}/{engine}", proj)
+        shutil.rmtree(out, ignore_errors=True)
+        os.makedirs(out)
+        sysm.start(proj, engine, meta["variants"][engine]["main"], out)
+        first = sysm.first()
+        sysm.close()
+        for d in (proj, out, f"{out}-keep"):
+            shutil.rmtree(d, ignore_errors=True)
+        return sysm, first
+    for name in ("taudot-pdftex", "taudot-universal"):
+        log(f"warm-up {name} (not timed)")
+        one(name, docs[0])
+    order = ["taudot-pdftex", "taudot-universal", "taudot-universal", "taudot-pdftex"] * rounds
+    for doc in docs:
+        count = {}
+        for name in order:
+            count[name] = count.get(name, 0) + 1
+            lo = Load()
+            sysm, first = one(name, doc)
+            load_, other = lo.done()
+            row = dict(date=time.strftime("%Y-%m-%d"), system=name, version=sysm.version(), doc=doc, run=count[name],
+                       load=f"{load_:.1f}", other_cpu=f"{other:.2f}", first_page_ms=f"{first['first_page_ms']:.1f}",
+                       done_ms=f"{first['done_ms']:.1f}")
+            log(f"  {name} {doc} #{count[name]}: first page {row['first_page_ms']} settled {row['done_ms']}, "
+                f"load {row['load']} other {row['other_cpu']}")
+            kept.append("\t".join(str(row[c]) for c in cols))
+            open(path, "w").write("\t".join(cols) + "\n" + "".join(l + "\n" for l in kept))
+
 def done(system, doc, engine):
     """Already in results/first.tsv (bench/run.py all resumes; delete the rows or the file to redo)."""
     p = f"{RESULTS}/first.tsv"
@@ -859,6 +1103,18 @@ def main():
     ap.add_argument("--docs", nargs="*")
     ap.add_argument("--engines", nargs="*")
     a = ap.parse_args()
+    if a.system == "opens":
+        opens(a.docs or ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762",
+                         "arxiv-2103.00020"])
+        return
+    if a.system == "burst":
+        burst(a.docs or ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762",
+                         "arxiv-2103.00020"], a.engines or ["pdflatex", "xelatex", "lualatex"])
+        return
+    if a.system == "interleave":
+        interleave(a.docs or ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762",
+                              "arxiv-2103.00020"])
+        return
     if a.system == "all":
         docs = a.docs or sorted(d for d in os.listdir(DOCS) if os.path.exists(f"{DOCS}/{d}/edits.json"))
         for engine in a.engines or ("pdflatex", "xelatex", "lualatex", "typst"):  # pdfLaTeX's verdict first

@@ -808,12 +808,18 @@ impl<'a> Gen<'a> {
             }
         }
         let mut normal: Vec<f64> = gaps.iter().filter(|g| g.1 == 1000 || g.1 == 999).map(|g| g.2).collect();
-        if y <= 0.0 || (normal.is_empty() && other_r.is_empty()) {
+        // A heading's "3.1\quad Title": the quad isn't an ordinary space, keep it out of the ratio.
+        let is_rigid = |g: f64| [quad, quad / 2.0].iter().any(|w| (g - w).abs() < 0.006);
+        let only_rigid = !normal.is_empty() && normal.iter().all(|&g| is_rigid(g));
+        normal.retain(|&g| !is_rigid(g));
+        if y <= 0.0 || (normal.is_empty() && other_r.is_empty() && !only_rigid) {
             return;
         }
         normal.sort_by(|a, b| a.partial_cmp(b).unwrap());
         other_r.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let r = if normal.is_empty() {
+        let r = if normal.is_empty() && other_r.is_empty() {
+            0.0 // only quads: a heading's natural width
+        } else if normal.is_empty() {
             other_r[other_r.len() / 2]
         } else {
             let g0 = normal[normal.len() / 2];
@@ -825,19 +831,21 @@ impl<'a> Gen<'a> {
         };
         // Rigid gaps: \quad (section numbers, run-in heads), \enspace, \, (thin space): the exact width, clearly
         // not this line's ordinary space.
-        let rigid = |g: f64, normal: f64| -> Option<u32> {
+        // The em is the current font's: a heading's \quad is in the heading font, not the body's.
+        let rigid = |g: f64, normal: f64, quad: f64| -> Option<u32> {
             if (normal - g).abs() < 0.02 {
                 return None;
             }
             [(quad, 4u32), (quad / 2.0, 5), (quad * 0.16667, 6)].iter().find(|(w, _)| (g - w).abs() < 0.006).map(|x| x.1)
         };
         for &(i, g) in &others {
-            if let Some(m) = rigid(g, pred(1000.0)) {
+            let q = tf(get(&items[i]).0).map_or(quad, |f| f.quad * k);
+            if let Some(m) = rigid(g, pred(1000.0), q) {
                 set(&mut items[i], Some(m));
             }
         }
         for (i, d, g) in gaps {
-            if let Some(m) = rigid(g, pred(d as f64)) {
+            if let Some(m) = rigid(g, pred(d as f64), quad) {
                 set(&mut items[i], Some(m));
                 continue;
             }

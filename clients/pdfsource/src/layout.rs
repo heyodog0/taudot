@@ -119,7 +119,7 @@ pub fn lines_of(page: usize, glyphs: &[Glyph]) -> Vec<Line> {
         for g in &on {
             *fh.entry((g.font, key(g.size, 0.001))).or_default() += 1;
         }
-        let ((font, sk), _) = fh.into_iter().max_by_key(|e| (e.1, e.0 .1)).unwrap();
+        let ((font, sk), _) = fh.into_iter().max_by_key(|e| (e.1, e.0 .1, std::cmp::Reverse(e.0 .0))).unwrap();
         let x0 = gs.iter().map(|g| g.x).fold(f64::MAX, f64::min);
         let x1 = gs.iter().map(|g| g.x + g.adv).fold(f64::MIN, f64::max);
         let off = gs.iter().filter(|g| (g.y - by).abs() >= 0.01 || g.size < 0.0).count();
@@ -164,7 +164,7 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
     for l in &lines {
         *fh.entry((l.font, key(l.size, 0.001))).or_default() += l.glyphs.len();
     }
-    let ((body_font, bs), _) = fh.iter().max_by_key(|e| (*e.1, e.0 .1)).map(|(k, v)| (*k, *v)).unwrap_or(((0, 0), 0));
+    let ((body_font, bs), _) = fh.iter().max_by_key(|e| (*e.1, e.0 .1, std::cmp::Reverse(e.0 .0))).map(|(k, v)| (*k, *v)).unwrap_or(((0, 0), 0));
     let body_size = bs as f64 * 0.001;
     // Margin kerning (protrusion) only with font expansion seen, i.e. microtype.
     let microtype = lines.iter().flat_map(|l| l.glyphs.iter()).any(|g| (g.hscale - 1.0).abs() > 1e-4);
@@ -178,7 +178,7 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
         rights.entry(key(l.x1, 0.5)).or_default().push(l);
     }
     let mut rv: Vec<(i64, Vec<&Line>)> = rights.into_iter().collect();
-    rv.sort_by_key(|e| std::cmp::Reverse(e.1.len()));
+    rv.sort_by_key(|e| (std::cmp::Reverse(e.1.len()), e.0)); // ties by edge: deterministic
     for (_, ls) in rv.iter().take(10) {
         if ls.len() < 4 {
             continue;
@@ -409,7 +409,7 @@ pub fn analyze(pdf: &mut Pdf, only: Option<usize>) -> Doc {
         }
     }
     let mut sv: Vec<(i64, usize)> = sizes.into_iter().filter(|e| e.1 >= 6).collect();
-    sv.sort_by_key(|e| std::cmp::Reverse(e.1));
+    sv.sort_by_key(|e| (std::cmp::Reverse(e.1), e.0));
     for (sk, _) in sv.into_iter().take(3) {
         let s = sk as f64 * 0.001;
         let is_s = |l: &Line| (l.size - s).abs() < 0.01 && l.glyphs.len() >= 3;
