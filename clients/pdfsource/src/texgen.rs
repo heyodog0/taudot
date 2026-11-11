@@ -460,7 +460,12 @@ impl<'a> Gen<'a> {
                     sep = if prev_hy { 2 } else { 1 };
                 } else if gi > 0 {
                     let pg = &l.glyphs[gi - 1];
-                    if g.x - (pg.x + pg.adv) > 0.12 * g.size {
+                    let gap = g.x - (pg.x + pg.adv);
+                    // Right after a formula, a gap narrower than the tightest interword space (space − shrink) is
+                    // no space: TeX ends a formula with its last letter's italic correction ("$T$.").
+                    let after_math = spans.iter().any(|s| gi - 1 >= s.0 && gi - 1 < s.1) && !spans.iter().any(|s| gi >= s.0 && gi < s.1);
+                    let tightest = tf(main_font).map_or(0.0, |f| (f.space[0] - f.space[2]) * 72.0 / 72.27);
+                    if gap > 0.12 * g.size && !(after_math && gap < tightest - 0.05) {
                         sep = 1;
                     }
                 }
