@@ -25,6 +25,7 @@ on a document, since its output after each edit is the reference the others are 
 | `results/opens.tsv` | first page on open (`run.py opens`): one row per open, with its load |
 | `results/memory.tsv` | memory per phase (`run.py memory`, `BENCH_TAG` names the build): phys_footprint, RSS, processes |
 | `results/burst.tsv`, `burst_runs.tsv` | the burst script (`run.py burst`): one row per key, one per run with its load |
+| `results/rosina/` | liveTeX-Rosina against universal: `BENCH_PAIR=rosina-quick,taudot-universal` with `interleave`, `rosina <doc> <engine>`, and `memory` (`BENCH_TAG=rosina BENCH_IDLE_TAIL=10`); `ROSINA_BIN` points at its binary, `BENCH_RESULTS`/`BENCH_WORK` at a separate directory |
 
 Needs TeX Live 2026's store tree and the stock engines from `clients/universal/` (see its README). Other systems'
 code is never copied here; the scripts drive their binaries.

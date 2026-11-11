@@ -73,7 +73,7 @@ LuaLaTeX twice each. Load average 10–33, 3.9–6.6 cores busy elsewhere, recor
 - **Exact page after a key: only Taudot is under 100 ms, on all three engines**, and it barely grows with the
   document: pdfLaTeX 42–75 ms (patched) and 9–34 ms (universal's display page), XeLaTeX 18–35 ms (now a PDF, tau-pdfmx
   included), LuaLaTeX 39–69 ms (display pages 13–27 ms where sent). Every finished page equals stock. The other exact routes take 0.3–9 s and grow with
-  length: latexmk 0.4–1.2 s (LuaLaTeX 0.7–3.3 s), Rosina's full build 0.3–5.7 s, rtex's background layout 1.3–8.9 s.
+  length: latexmk 0.4–1.2 s (LuaLaTeX 0.7–3.3 s), Rosina's whole PDF 0.24–4.8 s, rtex's background layout 1.3–8.9 s.
 - **Whole exact PDF**: Taudot pdfLaTeX (universal) 66 ms / 171 ms / 483 ms at 10 / 100 / 300 pages against latexmk's 413 /
   661 / 1174 ms and a bare stock run's 286 / 543 / 987 ms. LuaLaTeX at 300 pages: Taudot 1.3 s, rtex's export
   3.1 s, latexmk 3.3 s.
@@ -81,9 +81,20 @@ LuaLaTeX twice each. Load average 10–33, 3.9–6.6 cores busy elsewhere, recor
   1.6–4.5 ms and it previewed 30/30 keys (wall through `rtex serve`, display lists as inline JSON: 10–19 ms).
   Taudot universal: 3.7 / 4.2 / 11.9 ms wall at 10 / 100 / 300 pages, on 19–26 of 30 keys (the first key at a new
   spot never gets one; a paragraph across a page or column, or in a box, gets none).
-- **Rosina** previews every key on pdfLaTeX and most on XeLaTeX (provisional by design); its own figure is
-  24–80 ms, but in PDF-output mode the composite PDF makes a saved key show after 0.12–1.5 s. No previews on these
-  LuaLaTeX documents ("paragraph shares a captured row"). One full build in 180 differed from stock (2103.00020).
+- **Rosina** (run in its VS Code viewer's quick mode, driven as its editor drives it; tables below):
+  - **Preview:** on the synthetic documents it previews every pdfLaTeX key and 24 of 30 XeLaTeX keys. These
+    previews are provisional by its design. Its own figure is 27–37 ms (XeLaTeX 66–82 ms); our wall time is
+    71 / 252 / 760 ms at 10 / 100 / 300 pages. In PDF-output mode the wall time is 143 / 473 / 1267 ms.
+  - **No previews on the three papers:** every key falls back to a whole build ("paragraph shares a captured row",
+    "paragraph crosses a page", "included file or asset changed").
+  - **Whole PDF:** 0.24–4.8 s, against universal's 58–461 ms.
+  - **Open:** 1.6–6.6 s until its first output, against universal's first page in 203–357 ms.
+  - **Checked against stock:** 627 of 630 whole PDFs match. The 3 that differ are one key (2103.00020, the 25th
+    edit, on page 24), in every round and in both modes. Page 32 of its whole PDF is the same as before the key,
+    while stock's page 32 changes.
+  - **Memory:** 4–6 processes, flat. It uses less than universal while typing on every document (peak 123–243 MB
+    against 140–506 MB). Idle after open, universal is lower at 10 and 100 pages. 10–15 s after typing, universal
+    is lower at 10 and 100 pages, within 5 MB on 1512.03385 and higher on the other three.
 - **TeXpresso** reaches the edited XDV page in 17–65 ms (p90 2.5 s at 300 pages), writes no PDF, and its XeTeX
   predates TeX Live 2025 (errors on every display equation with LaTeX 2026).
 - **Typst** `watch`: 120–296 ms from the save to the PDF, ~110 ms of it the file watcher; its own compile 6 /
@@ -108,7 +119,7 @@ include the system's own process hand-offs, not drawing.
 
 | Measure | Definition |
 |---|---|
-| **edit → paragraph preview** | The edited paragraph alone, typeset by the real engine and placed on the old page. Taudot: the `para` event (`docs/live-protocol.md`); rtex: `ParagraphUpdate`; Rosina: its `preview` event (a whole PDF with the region replaced). The cell's footnote counts how many of the 30 edits got one, and how many the system itself marks exact (same lines, same heights: the page around it is unchanged) or provisional. |
+| **edit → paragraph preview** | The edited paragraph alone, typeset by the real engine and placed on the old page. Taudot: the `para` event (`docs/live-protocol.md`); rtex: `ParagraphUpdate`; Rosina: its `preview` event (quick mode: the changed region as JSON; PDF mode: a whole PDF with the region replaced). The cell's footnote counts how many of the 30 edits got one, and how many the system itself marks exact (same lines, same heights: the page around it is unchanged) or provisional. |
 | **edit → display page** | tau-live only (pdfLaTeX, LuaLaTeX): a `pdf` event with `display: true`, the last finished PDF with the run's first page after the edit drawn anew, sent before the finish (`docs/live-protocol.md`). Checked against stock's page twice: the content stream byte for byte, and both pages drawn with Core Graphics at 288 dpi, every channel of every pixel. The footnote counts the keys that got one and how many of those showed the edited page itself (the run's first page can be the one before it). |
 | **edit → exact page** | The page holding the edit, as the stock engine would set it. Taudot: the first `pdf` event after the edit that contains that page (the page index comes from latexmk's SyncTeX); its new pages are compared with latexmk's PDF (content stream and fonts; subset tags aside). XeLaTeX on tau-live: the event's `pdf_path` (tau-pdfmx's PDF of the changed pages), compared byte for byte with stock `xdvipdfmx -z 1 -s F-L` of latexmk's XDV written under the same XDV and PDF names, since xdvipdfmx's output depends on both. rtex: the `LayoutUpdate` after the edit (a background LuaLaTeX pass; pages as display lists). TeXpresso: the first `pages` event past the edited page (an XDV page in memory). Rosina, latexmk, Typst: the whole PDF (they write nothing earlier). |
 | **edit → whole exact PDF** | The whole document's PDF, checked byte for byte against latexmk's (PDF `/ID` masked, since LuaTeX hashes the output path into it; XeTeX's XDV compared page by page). rtex: `export_pdf` (its clean LuaLaTeX build), sent with the edit. TeXpresso: its `done` (no file). |
@@ -153,7 +164,7 @@ builds them.
 | **Taudot, patched pdfTeX** | `pdftex-live --serve` and pdfTeX with `clients/pdftex/patches/2026`, built from this commit | the app's protocol, `goal` = the edited page |
 | **Taudot universal** | `tau-live --serve` (libtau under the **unmodified** engines) on pdfTeX, XeTeX, LuaTeX | same |
 | [rtex](https://github.com/HenryXiaoYang/realtime-tex) (MIT) | `rtex serve`, LuaLaTeX only | after each edit, `request_layout` (skips its 300 ms debounce) and `export_pdf` |
-| [liveTeX-Rosina](https://github.com/PetalAdrift/liveTeX-Rosina) (own licence) | `livetex-rosina --editor --debounce-ms 0`, PDF-output mode, fork-snapshot workers | the file saved on disk (it polls every 1 ms) |
+| [liveTeX-Rosina](https://github.com/PetalAdrift/liveTeX-Rosina) (own licence) | `livetex-rosina --editor --debounce-ms 0 --quick-viewer --source-buffer` (its VS Code viewer's mode: changed regions as JSON; also run without `--quick-viewer`, PDF-output mode), fork-snapshot workers | as its editor does: each key written to the buffer file atomically (temporary file, rename); it polls every 1 ms |
 | [TeXpresso](https://github.com/let-def/texpresso) (MIT) | its XeTeX engine and incremental frontend objects, unmodified, without its SDL window (`clients/preview/texpresso/txp-headless.c`) | its editor protocol: `open`, `change`, `goal` |
 | [Typst](https://github.com/typst/typst) 0.15.1 (Apache-2.0) | `typst watch main.typ out.pdf` | the file saved on disk |
 | latexmk | TeX Live 2026's `latexmk.pl` with the stock engines | one `latexmk` run per saved edit (its `-pvc` polling delay left out) |
@@ -162,6 +173,18 @@ builds them.
 - **Rosina's licence** (LicenseRef-liveTeX-Rosina-1.0) allows obtaining, building and running it for one's own
   work (§2); it restricts hosted services (§4) and distributing modified copies, and says nothing against
   publishing measurements. It is run unmodified.
+- **Giving Rosina its best settings.**
+  - Its editor protocol is a buffer file that it polls; it has no stdin or socket channel. The bench writes each key
+    to that file the way its extension does.
+  - `--debounce-ms 0` and its 1 ms poll are its minimums. It has no worker-count, snapshot-spacing or
+    warm-document option. Full correction stays on (`--no-full-correction` would skip the check against a whole
+    build).
+  - Our wall time includes noticing the region file and reading it back: 40 ms more than its own figure at 10
+    pages, more on longer documents. Both are given.
+  - It was built from source with the Core Graphics renderer (no PDFium download); the renderer only draws its
+    PDF-mode composite.
+  - The Rosina rows were rerun on 2026-11-11 in this setup. LuaLaTeX was not rerun; the earlier PDF-mode run had no
+    previews on these LuaLaTeX documents.
 - **texlode** (closed, browser) isn't run. Its published numbers, **theirs**: line breaking 0.17–1.99 ms, round trip
   0.79–6.11 ms (Lode, TUG 2026 preprint, i7-1355U laptop), LuaLaTeX.
 
@@ -183,7 +206,7 @@ builds them.
 <!-- bench:begin -->
 Machine: Apple M4 Pro, 24 GB, macOS 26.5; load average during runs 11.6–33.7 (other agents' work shared the machine). Dates: 2026-11-09, 2026-11-10. Cells: **p50 / p90 ms** over the 30 edits. Blank: the system doesn't support that engine.
 
-Versions: latexmk `Latexmk, John Collins, 15 June 2025. Version 4.87`; rosina `liveTeX-Rosina dff263fc21`; rtex `rtex 0.0.7 fcff7a5c7f`; stock-run `TeX Live 2026 static engines`; taudot-pdftex `pdftex-live 7d514c03af`; taudot-universal `tau-live 7d514c03af`; taudot-universal `tau-live ad58f81329`; texpresso `texpresso e8df770907 via txp-headless ad58f81329`; typst `typst 0.15.1 (9dfd3a08)`.
+Versions: latexmk `Latexmk, John Collins, 15 June 2025. Version 4.87`; rtex `rtex 0.0.7 fcff7a5c7f`; stock-run `TeX Live 2026 static engines`; taudot-pdftex `pdftex-live 7d514c03af`; taudot-universal `tau-live 7d514c03af`; taudot-universal `tau-live ad58f81329`; texpresso `texpresso e8df770907 via txp-headless ad58f81329`; typst `typst 0.15.1 (9dfd3a08)`.
 
 ### pdfLaTeX, patched and universal interleaved
 
@@ -273,6 +296,68 @@ Each spot's word typed at 8 keys a second without waiting, then the compile sett
 | 100 pp | universal LuaLaTeX | 5.13 (15.2), 6.03 (17.1) | 5.1 / 20.9 | 12.3 / 23.0 | 0/60 (16) | 167/167 | 10/10 |
 | 300 pp | universal LuaLaTeX | 6.57 (17.9), 5.41 (16.3) | 4.8 / 33.4 | 14.3 / 42.1 | 0/60 (8) | 226/226 | 10/10 |
 
+### liveTeX-Rosina against universal
+
+One run on 2026-11-11, Rosina and universal interleaved ABBA (60 keys each per document), Rosina's PDF mode one round (30 keys), XeLaTeX one round each. Preview: wall time p50 / p90, Rosina's own `elapsed_ms` p50 in brackets, and how many keys got one. Rosina's previews are provisional by its own design and are not checked; its whole PDFs are.
+
+Versions: rosina `liveTeX-Rosina dff263fc21`; rosina-quick `liveTeX-Rosina dff263fc21`; taudot-universal `tau-live e390e34a10`.
+
+| document | Rosina quick: preview [own] (keys) | Rosina quick: whole PDF | Rosina PDF mode: preview [own] | Rosina PDF mode: whole PDF | universal: display page | universal: exact page | universal: whole PDF |
+|---|---|---|---|---|---|---|---|
+| 10 pp | 71.3 / 86.6 [31.0] (60 of 60) | 239 / 259 | 143 / 159 [34.5] (30 of 30) | 302 / 320 | 14.5 / 24.2 | 41.2 / 78.5 | 57.8 / 105 |
+| 100 pp | 252 / 264 [27.0] (60 of 60) | 1276 / 1306 | 473 / 490 [41.5] (30 of 30) | 1414 / 1424 | 13.9 / 27.4 | 34.8 / 51.7 | 169 / 276 |
+| 300 pp | 760 / 784 [37.0] (60 of 60) | 3957 / 4032 | 1267 / 1285 [52.0] (30 of 30) | 4188 / 4240 | 6.7 / 13.5 | 22.4 / 31.3 | 461 / 796 |
+| 1512.03385 | none (0 of 60) | 645 / 664 | none (0 of 30) | 596 / 616 | 9.8 / 23.7 | 26.0 / 42.8 | 102 / 142 |
+| 1706.03762 | none (0 of 60) | 2846 / 2901 | none (0 of 30) | 2631 / 2652 | 31.8 / 61.9 | 59.8 / 87.5 | 133 / 184 |
+| 2103.00020 | none (0 of 60) | 4804 / 4955 | none (0 of 30) | 4468 / 4630 | 18.6 / 31.8 | 45.6 / 76.3 | 393 / 613 |
+
+XeLaTeX:
+
+| document | Rosina quick: preview [own] (keys) | Rosina quick: whole PDF | universal: exact page | universal: whole PDF |
+|---|---|---|---|---|
+| 10 pp | 83.0 / 101 [65.5] (24 of 30) | 225 / 279 | 31.5 / 43.4 | 40.0 / 63.1 |
+| 100 pp | 260 / 279 [72.0] (24 of 30) | 1092 / 1110 | 42.4 / 50.3 | 138 / 199 |
+| 300 pp | 729 / 756 [82.0] (24 of 30) | 3417 / 3465 | 45.5 / 68.6 | 333 / 523 |
+
+First output on open (ms; universal: first page / settled):
+
+| document | engine | Rosina quick | Rosina PDF mode | universal |
+|---|---|---|---|---|
+| 10 pp | pdflatex | 1643 | 1597 | 203 / 231 |
+| 100 pp | pdflatex | 2816 | 2637 | 212 / 509 |
+| 300 pp | pdflatex | 5597 | 5158 | 249 / 1226 |
+| 1512.03385 | pdflatex | 2715 | 2610 | 318 / 453 |
+| 1706.03762 | pdflatex | 3788 | 3456 | 334 / 752 |
+| 2103.00020 | pdflatex | 6558 | 5939 | 357 / 991 |
+| 10 pp | xelatex | 2494 | – | 260 / 281 |
+| 100 pp | xelatex | 2802 | – | 254 / 466 |
+| 300 pp | xelatex | 5080 | – | 269 / 885 |
+
+Checked against stock (whole PDF; universal also its exact and display pages):
+
+| system | keys | whole PDF = stock |
+|---|---|---|
+| Rosina quick | 450 | 448 |
+| Rosina PDF mode | 180 | 179 |
+| universal | 450 | 450 |
+
+Memory, pdfLaTeX (phys_footprint by process group, as above; Rosina in quick mode):
+
+| document | driver | cores busy elsewhere | idle after open | isolated keys, peak | bursts, peak | 0–5 s after typing | 10–15 s after | summed RSS, peak | processes, most |
+|---|---|---|---|---|---|---|---|---|---|
+| 10 pp | Rosina | 0.95, 1.32 | 103 | 123 | 121 | 105 | 104 | 133–135 | 6 |
+| 10 pp | universal | 1.47 | 72 | 140 | 139 | 102 | 85 | 160–181 | 17 |
+| 100 pp | Rosina | 1.04, 1.35 | 137 | 182 | 157 | 133 | 133 | 196–201 | 6 |
+| 100 pp | universal | 1.55, 1.60 | 129 | 253 | 229–255 | 159 | 118 | 283–284 | 32 |
+| 300 pp | Rosina | 1.07, 1.22 | 160 | 230–243 | 202–238 | 176 | 176 | 315–327 | 6 |
+| 300 pp | universal | 1.55, 1.58 | 232 | 413–423 | 407–481 | 287–315 | 204–228 | 498–522 | 52 |
+| 1512.03385 | Rosina | 0.86, 0.91 | 112 | 143 | 127 | 107 | 107 | 153–157 | 6 |
+| 1512.03385 | universal | 1.35, 1.38 | 135 | 208–247 | 224 | 151 | 112 | 243–267 | 24 |
+| 1706.03762 | Rosina | 0.97, 1.23 | 121 | 125 | 118 | 118 | 118 | 135–135 | 4 |
+| 1706.03762 | universal | 1.14, 1.41 | 149–171 | 258 | 234–244 | 164–179 | 126–139 | 297–300 | 25 |
+| 2103.00020 | Rosina | 0.87, 0.90 | 131 | 190 | 129–144 | 118–134 | 116–135 | 197–198 | 5 |
+| 2103.00020 | universal | 0.66, 0.79 | 269 | 488–506 | 472–483 | 302 | 219 | 548–564 | 46 |
+
 ### Edit → paragraph preview
 
 |  | 10 pp | 100 pp | 300 pp |
@@ -282,9 +367,6 @@ Each spot's word typed at 8 keys a second without waiting, then the compile sett
 | **Taudot** universal, XeLaTeX | 3.9 / 10.9<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 3.6</sub> | 5.5 / 14.6<br><sub>19 exact, 0 prov. of 30</sub><br><sub>own p50 5.0</sub> | 10.4 / 17.3<br><sub>14 exact, 0 prov. of 30</sub><br><sub>own p50 10.0</sub> |
 | **Taudot** universal, LuaLaTeX | 3.7 / 4.6<br><sub>20 exact, 0 prov. of 30</sub><br><sub>own p50 3.5</sub> | 4.2 / 5.3<br><sub>19 exact, 0 prov. of 30</sub><br><sub>own p50 3.9</sub> | 11.9 / 19.6<br><sub>26 exact, 0 prov. of 30</sub><br><sub>own p50 10.9</sub> |
 | rtex, LuaLaTeX | 10.4 / 15.1<br><sub>30 exact, 0 prov. of 30</sub><br><sub>own p50 1.6</sub> | 15.5 / 29.5<br><sub>30 exact, 0 prov. of 30</sub><br><sub>own p50 2.3</sub> | 19.3 / 34.5<br><sub>30 exact, 0 prov. of 30</sub><br><sub>own p50 4.5</sub> |
-| liveTeX-Rosina, pdfLaTeX | 137 / 147<br><sub>30 prov. of 30</sub><br><sub>own p50 24.0</sub> | 497 / 512<br><sub>30 prov. of 30</sub><br><sub>own p50 36.0</sub> | 1498 / 1515<br><sub>30 prov. of 30</sub><br><sub>own p50 49.0</sub> |
-| liveTeX-Rosina, XeLaTeX | 120 / 134<br><sub>24 prov. of 30</sub><br><sub>own p50 66.0</sub> | 469 / 483<br><sub>24 prov. of 30</sub><br><sub>own p50 67.5</sub> | 1436 / 1488<br><sub>24 prov. of 30</sub><br><sub>own p50 79.5</sub> |
-| liveTeX-Rosina, LuaLaTeX | – | – | – |
 
 ### Edit → exact page
 
@@ -297,9 +379,6 @@ Each spot's word typed at 8 keys a second without waiting, then the compile sett
 | **Taudot** universal, LuaLaTeX | 39.1 / 65.4 | 42.6 / 59.0 | 68.5 / 78.4 |
 | ↳ its display page | 12.6 / 15.0<br><sub>24 of 30, 20 the edited page</sub> | 27.1 / 31.1<br><sub>30 of 30, 20 the edited page</sub> | 75.0 / 75.0<br><sub>1 of 30, 0 the edited page</sub> |
 | rtex, LuaLaTeX | 1254 / 1278 | 3618 / 3665 | 8871 / 9023 |
-| liveTeX-Rosina, pdfLaTeX | 305 / 327 | 1457 / 1475 | 4663 / 4686 |
-| liveTeX-Rosina, XeLaTeX | 265 / 285 | 1320 / 1342 | 4256 / 4306 |
-| liveTeX-Rosina, LuaLaTeX | 294 / 300 | 1855 / 1883 | 5685 / 5709 |
 | TeXpresso, XeLaTeX | 16.8 / 34.6<br><sub>own p50 16.6</sub> | 34.6 / 152<br><sub>own p50 34.0</sub> | 64.5 / 2460<br><sub>own p50 63.1</sub> |
 | Typst `watch` (not LaTeX) | 120 / 123<br><sub>own p50 6.2</sub> | 166 / 171<br><sub>own p50 49.7</sub> | 296 / 315<br><sub>own p50 176</sub> |
 | latexmk, pdfLaTeX | 413 / 425 | 661 / 674 | 1174 / 1225 |
@@ -318,9 +397,6 @@ Each spot's word typed at 8 keys a second without waiting, then the compile sett
 | **Taudot** universal, XeLaTeX | 27.9 / 44.7 | 134 / 195 | 322 / 556 |
 | **Taudot** universal, LuaLaTeX | 89.5 / 145 | 488 / 817 | 1320 / 2316 |
 | rtex, LuaLaTeX | 580 / 600 | 1372 / 1396 | 3124 / 3147 |
-| liveTeX-Rosina, pdfLaTeX | 305 / 327 | 1457 / 1475 | 4663 / 4686 |
-| liveTeX-Rosina, XeLaTeX | 265 / 285 | 1320 / 1342 | 4256 / 4306 |
-| liveTeX-Rosina, LuaLaTeX | 294 / 300 | 1855 / 1883 | 5685 / 5709 |
 | TeXpresso, XeLaTeX | 69.8 / 95.6 | 584 / 739 | 1310 / 2475 |
 | Typst `watch` (not LaTeX) | 120 / 123 | 166 / 171 | 296 / 315 |
 | latexmk, pdfLaTeX | 413 / 425 | 661 / 674 | 1174 / 1225 |
@@ -336,14 +412,12 @@ Each spot's word typed at 8 keys a second without waiting, then the compile sett
 |---|---|---|---|
 | **Taudot**, patched pdfTeX | 7.1 / 15.8<br><sub>46 exact, 0 prov. of 60</sub><br><sub>own p50 7.0</sub> | 4.2 / 12.4<br><sub>30 exact, 0 prov. of 60</sub><br><sub>own p50 4.2</sub> | 7.1 / 24.5<br><sub>28 exact, 0 prov. of 60</sub><br><sub>own p50 7.0</sub> |
 | **Taudot** universal, pdfLaTeX | 5.9 / 12.5<br><sub>40 exact, 0 prov. of 60</sub><br><sub>own p50 5.2</sub> | 5.9 / 14.7<br><sub>34 exact, 0 prov. of 60</sub><br><sub>own p50 5.4</sub> | 8.1 / 15.0<br><sub>23 exact, 0 prov. of 60</sub><br><sub>own p50 6.8</sub> |
-| liveTeX-Rosina, pdfLaTeX | – | – | – |
 
 | exact page | 1512.03385 | 1706.03762 | 2103.00020 |
 |---|---|---|---|
 | **Taudot**, patched pdfTeX | 50.5 / 64.0 | 73.6 / 94.2 | 61.5 / 76.4 |
 | **Taudot** universal, pdfLaTeX | 47.3 / 69.4 | 74.3 / 97.2 | 64.2 / 78.3 |
 | ↳ its display page | 16.5 / 32.4<br><sub>60 of 60, 60 the edited page</sub> | 31.7 / 49.9<br><sub>48 of 60, 48 the edited page</sub> | 25.7 / 40.7<br><sub>60 of 60, 36 the edited page</sub> |
-| liveTeX-Rosina, pdfLaTeX | 632 / 650 | 2999 / 3175 | 4736 / 4845 |
 | latexmk, pdfLaTeX | 645 / 687 | 916 / 936 | 1087 / 1138 |
 | one stock run, pdfLaTeX | 481 / 510 | 748 / 774 | 902 / 933 |
 
@@ -351,7 +425,6 @@ Each spot's word typed at 8 keys a second without waiting, then the compile sett
 |---|---|---|---|
 | **Taudot**, patched pdfTeX | 139 / 179 | 149 / 208 | 431 / 631 |
 | **Taudot** universal, pdfLaTeX | 136 / 165 | 148 / 205 | 423 / 646 |
-| liveTeX-Rosina, pdfLaTeX | 632 / 650 | 2999 / 3175 | 4736 / 4845 |
 | latexmk, pdfLaTeX | 645 / 687 | 916 / 936 | 1087 / 1138 |
 | one stock run, pdfLaTeX | 481 / 510 | 748 / 774 | 902 / 933 |
 
@@ -364,9 +437,6 @@ Each spot's word typed at 8 keys a second without waiting, then the compile sett
 | **Taudot** universal, XeLaTeX |  | 90 / 90 | 90 / 90 |
 | **Taudot** universal, LuaLaTeX | 55 / 55 | 90 / 90 | 90 / 90 |
 | rtex, LuaLaTeX |  | claimed (display lists) | 90 / 90 |
-| liveTeX-Rosina, pdfLaTeX |  | 179 / 180 (1 differ) | 179 / 180 (1 differ) |
-| liveTeX-Rosina, XeLaTeX |  | 90 / 90 | 90 / 90 |
-| liveTeX-Rosina, LuaLaTeX |  | 90 / 90 | 90 / 90 |
 | TeXpresso, XeLaTeX |  | not checkable | not checkable |
 | Typst `watch` (not LaTeX) |  | not checkable | not checkable |
 
@@ -379,9 +449,6 @@ Each spot's word typed at 8 keys a second without waiting, then the compile sett
 | **Taudot** universal, XeLaTeX | 291 / 292 ms / 370 MB<br><sub>3.59 cores busy elsewhere</sub> | 485 / 486 ms / 527 MB<br><sub>3.86 cores busy elsewhere</sub> | 952 / 952 ms / 711 MB<br><sub>3.18 cores busy elsewhere</sub> |
 | **Taudot** universal, LuaLaTeX | 617 / 618 ms / 483 MB<br><sub>4.16 cores busy elsewhere</sub> | 1764 / 1768 ms / 1184 MB<br><sub>4.30 cores busy elsewhere</sub> | 3343 / 3353 ms / 2641 MB<br><sub>3.83 cores busy elsewhere</sub> |
 | rtex, LuaLaTeX | 1705 / 1705 ms / 478 MB<br><sub>4.39 cores busy elsewhere</sub> | 8386 / 8386 ms / 768 MB<br><sub>3.92 cores busy elsewhere</sub> | 24643 / 24643 ms / 1361 MB<br><sub>3.39 cores busy elsewhere</sub> |
-| liveTeX-Rosina, pdfLaTeX | 1628 / 1628 ms / 135 MB<br><sub>2.67 cores busy elsewhere</sub> | 2757 / 2757 ms / 197 MB<br><sub>3.88 cores busy elsewhere</sub> | 5537 / 5537 ms / 290 MB<br><sub>3.87 cores busy elsewhere</sub> |
-| liveTeX-Rosina, XeLaTeX | 2178 / 2178 ms / 443 MB<br><sub>4.00 cores busy elsewhere</sub> | 3093 / 3093 ms / 477 MB<br><sub>4.35 cores busy elsewhere</sub> | 5362 / 5362 ms / 548 MB<br><sub>4.83 cores busy elsewhere</sub> |
-| liveTeX-Rosina, LuaLaTeX | 5033 / 5033 ms / 574 MB<br><sub>4.67 cores busy elsewhere</sub> | 8893 / 8893 ms / 678 MB<br><sub>4.01 cores busy elsewhere</sub> | 18091 / 18091 ms / 831 MB<br><sub>3.81 cores busy elsewhere</sub> |
 | TeXpresso, XeLaTeX | 401 / 401 ms / 451 MB<br><sub>3.74 cores busy elsewhere</sub> | 1122 / 1122 ms / 331 MB<br><sub>3.84 cores busy elsewhere</sub> | 3029 / 3029 ms / 646 MB<br><sub>4.01 cores busy elsewhere</sub> |
 | Typst `watch` (not LaTeX) | 111 / 111 ms / 168 MB<br><sub>4.53 cores busy elsewhere</sub> | 377 / 377 ms / 1362 MB<br><sub>6.42 cores busy elsewhere</sub> | 1087 / 1087 ms / 3741 MB<br><sub>3.86 cores busy elsewhere</sub> |
 | latexmk, pdfLaTeX | 407 / 407 ms / 50 MB<br><sub>4.11 cores busy elsewhere</sub> | 704 / 704 ms / 50 MB<br><sub>2.61 cores busy elsewhere</sub> | 1207 / 1207 ms / 50 MB<br><sub>3.94 cores busy elsewhere</sub> |

@@ -21,9 +21,6 @@ ROWS = [  # (system, engine, label)
     ("taudot-universal", "lualatex", "**Taudot** universal, LuaLaTeX"),
     ("taudot-universal", "lualatex", "↳ its display page", "display_ms"),
     ("rtex", "lualatex", "rtex, LuaLaTeX"),
-    ("rosina", "pdflatex", "liveTeX-Rosina, pdfLaTeX"),
-    ("rosina", "xelatex", "liveTeX-Rosina, XeLaTeX"),
-    ("rosina", "lualatex", "liveTeX-Rosina, LuaLaTeX"),
     ("texpresso", "xelatex", "TeXpresso, XeLaTeX"),
     ("typst", "typst", "Typst `watch` (not LaTeX)"),
     ("latexmk", "pdflatex", "latexmk, pdfLaTeX"),
@@ -56,7 +53,7 @@ def f(x):
 
 
 NO_PREVIEW = ("latexmk", "stock-run", "typst", "texpresso")
-OWN = {"para_ms": ("taudot-pdftex", "taudot-universal", "rtex", "rosina"), "page_ms": ("typst", "texpresso")}
+OWN = {"para_ms": ("taudot-pdftex", "taudot-universal", "rtex"), "page_ms": ("typst", "texpresso")}
 
 
 def table(edits, docs, key, title, note=None, extra=None):
@@ -161,10 +158,10 @@ def interleave_table():
     return "\n".join(out)
 
 
-def memory_table(tag=None):
+def memory_table(tag=None, path=None, systems=("taudot-pdftex", "taudot-universal")):
     """Memory per document and driver: phys_footprint summed over the process tree (MB; idle phases: mean, typing
     phases: peak), summed RSS's peak and the most processes; each cell the two runs' range."""
-    p = f"{RESULTS}/memory.tsv"
+    p = path or f"{RESULTS}/memory.tsv"
     if not os.path.exists(p):
         return ""
     rows = list(csv.DictReader(open(p), delimiter="\t"))
@@ -175,9 +172,9 @@ def memory_table(tag=None):
            "0–5 s after typing | " + ("10–15 s after | " if rest else "") + "summed RSS, peak | processes, most |",
            "|---|---|---|---|---|---|---|" + ("---|" if rest else "") + "---|---|"]
     order = ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762", "arxiv-2103.00020"]
-    name = {"taudot-pdftex": "patched", "taudot-universal": "universal"}
+    name = {"taudot-pdftex": "patched", "taudot-universal": "universal", "rosina-quick": "Rosina"}
     for d in sorted(dict.fromkeys(r["doc"] for r in rows), key=lambda d: order.index(d) if d in order else 99):
-        for system in ("taudot-pdftex", "taudot-universal"):
+        for system in systems:
             rs = [r for r in rows if r["doc"] == d and r["system"] == system]
             if not rs:
                 continue
@@ -194,6 +191,66 @@ def memory_table(tag=None):
                        f"{m('keys', 'fp_peak_mb')} | {m('burst', 'fp_peak_mb')} | {m('idle after', 'fp_mean_mb')} | "
                        + (f"{m(rest, 'fp_mean_mb')} | " if rest else "") +
                        f"{rss[0]:.0f}–{rss[-1]:.0f} | {procs} |")
+    return "\n".join(out)
+
+
+def rosina_tables():
+    """liveTeX-Rosina against universal, from results/rosina/ (one run of `BENCH_PAIR=rosina-quick,taudot-universal`:
+    interleave, `rosina` per document, XeLaTeX, memory with `BENCH_TAG=rosina BENCH_IDLE_TAIL=10`)."""
+    d_ = f"{RESULTS}/rosina"
+    if not os.path.exists(f"{d_}/edits.tsv"):
+        return ""
+    ed = list(csv.DictReader(open(f"{d_}/edits.tsv"), delimiter="\t"))
+    fi = list(csv.DictReader(open(f"{d_}/first.tsv"), delimiter="\t"))
+
+    def rs(s, d, e):
+        return [r for r in ed if r["system"] == s and r["doc"] == d and r["engine"] == e]
+
+    def pc(rows, k, p90=True):
+        xs = [num(r[k]) for r in rows if num(r.get(k)) is not None]
+        return "–" if not xs else f"{f(pct(xs, 50))} / {f(pct(xs, 90))}" if p90 else f(pct(xs, 50))
+
+    def prev(rows):
+        n = sum(num(r["para_ms"]) is not None for r in rows)
+        if not n:
+            return f"none (0 of {len(rows)})"
+        return f"{pc(rows, 'para_ms')} [{pc(rows, 'self_ms', False)}] ({n} of {len(rows)})"
+
+    def dn(d):
+        return d.replace("synth-", "").replace("arxiv-", "") + (" pp" if d.startswith("synth") else "")
+    vs = sorted({(r["system"], r["version"]) for r in fi})
+    out = ["Versions: " + "; ".join(f"{s} `{v}`" for s, v in vs) + ".", "",
+           "| document | Rosina quick: preview [own] (keys) | Rosina quick: whole PDF | Rosina PDF mode: preview "
+           "[own] | Rosina PDF mode: whole PDF | universal: display page | universal: exact page | universal: whole PDF |",
+           "|---|---|---|---|---|---|---|---|"]
+    for d in SIZES + PAPERS:
+        q, pm, u = rs("rosina-quick", d, "pdflatex"), rs("rosina", d, "pdflatex"), rs("taudot-universal", d, "pdflatex")
+        out.append(f"| {dn(d)} | {prev(q)} | {pc(q, 'final_ms')} | {prev(pm)} | {pc(pm, 'final_ms')} | "
+                   f"{pc(u, 'display_ms')} | {pc(u, 'page_ms')} | {pc(u, 'final_ms')} |")
+    out += ["", "XeLaTeX:", "",
+            "| document | Rosina quick: preview [own] (keys) | Rosina quick: whole PDF | universal: exact page | "
+            "universal: whole PDF |", "|---|---|---|---|---|"]
+    for d in SIZES:
+        q, u = rs("rosina-quick", d, "xelatex"), rs("taudot-universal", d, "xelatex")
+        out.append(f"| {dn(d)} | {prev(q)} | {pc(q, 'final_ms')} | {pc(u, 'page_ms')} | {pc(u, 'final_ms')} |")
+    out += ["", "First output on open (ms; universal: first page / settled):", "",
+            "| document | engine | Rosina quick | Rosina PDF mode | universal |", "|---|---|---|---|---|"]
+    for e, docs in (("pdflatex", SIZES + PAPERS), ("xelatex", SIZES)):
+        for d in docs:
+            def o(s, both=False):
+                r = [r for r in fi if r["system"] == s and r["doc"] == d and r["engine"] == e]
+                if not r:
+                    return "–"
+                a, b = num(r[0]["first_page_ms"]), num(r[0]["done_ms"])
+                return f"{f(a)} / {f(b)}" if both else f(a)
+            out.append(f"| {dn(d)} | {e} | {o('rosina-quick')} | {o('rosina')} | {o('taudot-universal', True)} |")
+    out += ["", "Checked against stock (whole PDF; universal also its exact and display pages):", "",
+            "| system | keys | whole PDF = stock |", "|---|---|---|"]
+    for s, label in (("rosina-quick", "Rosina quick"), ("rosina", "Rosina PDF mode"), ("taudot-universal", "universal")):
+        r = [r for r in ed if r["system"] == s]
+        out.append(f"| {label} | {len(r)} | {sum(x['final_exact'] == 'yes' for x in r)} |")
+    out += ["", "Memory, pdfLaTeX (phys_footprint by process group, as above; Rosina in quick mode):", "",
+            memory_table("rosina", f"{d_}/memory.tsv", ("rosina-quick", "taudot-universal"))]
     return "\n".join(out)
 
 
@@ -260,7 +317,7 @@ PANELS = [
     ("pdfLaTeX: edit → exact page", "page_ms", [
         ("taudot-pdftex", "pdflatex", "Taudot (patched)"), ("taudot-universal", "pdflatex", "Taudot universal"),
         ("taudot-universal", "pdflatex", "universal: display page", "display_ms"),
-        ("latexmk", "pdflatex", "latexmk"), ("rosina", "pdflatex", "Rosina (full build)")]),
+        ("latexmk", "pdflatex", "latexmk")]),
     ("XeLaTeX, LuaLaTeX, Typst: edit → page", "page_ms", [
         ("taudot-universal", "xelatex", "Taudot, XeLaTeX"), ("taudot-universal", "lualatex", "Taudot, LuaLaTeX"),
         ("rtex", "lualatex", "rtex layout"), ("texpresso", "xelatex", "TeXpresso*"), ("typst", "typst", "Typst watch")]),
@@ -320,7 +377,7 @@ def chart(edits):
     g.append(f'<text x="{left}" y="{H - 26}">* TeXpresso: an XDV page in memory, not a PDF, from an engine older '
              f'than TeX Live 2025: not checkable against stock.</text>')
     g.append(f'<text x="{left}" y="{H - 10}">rtex: a background layout of display lists (exact by its own check). '
-             f'Rosina, latexmk, Typst: the whole PDF. Typst is its own typesetter.</text>')
+             f'latexmk, Typst: the whole PDF. Typst is its own typesetter.</text>')
     g.append("</svg>")
     open(SVG, "w").write("\n".join(g) + "\n")
 
@@ -385,6 +442,15 @@ def main():
         "as many keys as the output contains.",
         "",
         burst_table(),
+        "",
+        "### liveTeX-Rosina against universal",
+        "",
+        "One run on 2026-11-11, Rosina and universal interleaved ABBA (60 keys each per document), Rosina's PDF mode "
+        "one round (30 keys), XeLaTeX one round each. Preview: wall time p50 / p90, Rosina's own `elapsed_ms` p50 in "
+        "brackets, and how many keys got one. Rosina's previews are provisional by its own design and are not "
+        "checked; its whole PDFs are.",
+        "",
+        rosina_tables(),
         "",
         "### Edit → paragraph preview",
         "",

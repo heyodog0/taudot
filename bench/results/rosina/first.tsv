@@ -1,0 +1,25 @@
+date	system	version	doc	engine	pages	first_page_ms	done_ms	peak_mb	procs	load	other_cpu
+2026-11-11	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	pdflatex	10.00	1643.42	1643.42	136.45	6.00		
+2026-11-11	taudot-universal	tau-live e390e34a10	synth-10	pdflatex	10.00	202.87	231.27	170.41	17.00		
+2026-11-11	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	pdflatex	100.00	2816.45	2816.45	193.65	6.00		
+2026-11-11	taudot-universal	tau-live e390e34a10	synth-100	pdflatex	100.00	212.12	508.57	283.79	31.50		
+2026-11-11	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	pdflatex	300.00	5596.70	5596.70	310.20	5.00		
+2026-11-11	taudot-universal	tau-live e390e34a10	synth-300	pdflatex	300.00	248.82	1226.46	523.78	53.00		
+2026-11-11	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	12.00	2715.11	2715.11	160.91	6.00		
+2026-11-11	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	pdflatex	12.00	317.74	453.09	244.12	21.50		
+2026-11-11	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	15.00	3788.17	3788.17	134.92	4.00		
+2026-11-11	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	pdflatex	15.00	334.45	752.04	293.83	26.00		
+2026-11-11	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	48.00	6558.31	6558.31	192.70	4.00		
+2026-11-11	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	pdflatex	48.00	357.36	990.69	554.53	45.00		
+2026-11-11	rosina	liveTeX-Rosina dff263fc21	synth-10	pdflatex	10	1597.46	1597.46	134.20	6	4.9	1.09
+2026-11-11	rosina	liveTeX-Rosina dff263fc21	synth-100	pdflatex	100	2637.26	2637.26	193.36	6	4.4	1.07
+2026-11-11	rosina	liveTeX-Rosina dff263fc21	synth-300	pdflatex	300	5158.44	5158.44	311.28	5	3.9	1.14
+2026-11-11	rosina	liveTeX-Rosina dff263fc21	arxiv-1512.03385	pdflatex	12	2609.58	2609.58	159.89	6	4.4	1.27
+2026-11-11	rosina	liveTeX-Rosina dff263fc21	arxiv-1706.03762	pdflatex	15	3456.01	3456.01	132.25	4	4.3	1.37
+2026-11-11	rosina	liveTeX-Rosina dff263fc21	arxiv-2103.00020	pdflatex	48	5938.61	5938.61	188.41	4	4.9	1.30
+2026-11-11	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	xelatex	10	2494.25	2494.25	443.23	7	4.5	1.39
+2026-11-11	taudot-universal	tau-live e390e34a10	synth-10	xelatex	10	259.57	281.14	342.91	17	4.2	1.41
+2026-11-11	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	xelatex	102	2801.52	2801.52	479.61	7	4.0	1.30
+2026-11-11	taudot-universal	tau-live e390e34a10	synth-100	xelatex	102	254.19	465.99	492.89	33	4.3	1.46
+2026-11-11	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	xelatex	303	5080.08	5080.08	557.95	7	3.8	1.06
+2026-11-11	taudot-universal	tau-live e390e34a10	synth-300	xelatex	303	268.74	884.68	679.48	41	4.1	1.57

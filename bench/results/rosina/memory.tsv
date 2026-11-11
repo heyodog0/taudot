@@ -1,0 +1,169 @@
+date	tag	system	version	doc	round	phase	fp_peak_mb	fp_mean_mb	rss_peak_mb	procs	load	other_cpu
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	1	open	103	46	111	4	4.6	1.32
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	1	idle	103	103	111	4	4.6	1.32
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	1	keys	125	109	135	6	4.6	1.32
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	1	burst	122	93	133	6	4.6	1.32
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	1	idle after	105	105	115	4	4.6	1.32
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	1	idle +5-10 s	105	105	115	4	4.6	1.32
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	1	idle +10-15 s	105	105	115	4	4.6	1.32
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	1	open	1	1	2	2	3.9	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	1	idle	83	72	92	6	3.9	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	1	keys	140	117	159	17	3.9	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	1	burst	139	125	181	17	3.9	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	1	idle after	127	102	140	14	3.9	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	1	idle +5-10 s	86	86	95	7	3.9	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	1	idle +10-15 s	86	86	95	7	3.9	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	2	open	1	1	2	2	3.8	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	2	idle	83	73	91	6	3.8	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	2	keys	140	115	159	17	3.8	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	2	burst	141	123	160	17	3.8	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	2	idle after	129	105	145	15	3.8	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	2	idle +5-10 s	85	85	95	7	3.8	1.47
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-10	2	idle +10-15 s	85	85	95	7	3.8	1.47
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	2	open	100	39	106	4	3.4	0.95
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	2	idle	104	104	112	4	3.4	0.95
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	2	keys	123	107	132	6	3.4	0.95
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	2	burst	121	94	133	6	3.4	0.95
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	2	idle after	106	105	114	4	3.4	0.95
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	2	idle +5-10 s	104	104	114	4	3.4	0.95
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-10	2	idle +10-15 s	104	104	114	4	3.4	0.95
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	1	open	137	71	144	4	3.7	1.04
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	1	idle	137	137	144	4	3.7	1.04
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	1	keys	182	153	201	6	3.7	1.04
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	1	burst	160	129	191	6	3.7	1.04
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	1	idle after	139	139	169	4	3.7	1.04
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	1	idle +5-10 s	139	139	169	4	3.7	1.04
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	1	idle +10-15 s	139	139	169	4	3.7	1.04
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	1	open	182	94	197	19	3.3	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	1	idle	178	130	199	18	3.3	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	1	keys	253	199	283	32	3.3	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	1	burst	255	196	268	30	3.3	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	1	idle after	232	167	260	29	3.3	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	1	idle +5-10 s	123	123	135	11	3.3	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	1	idle +10-15 s	123	123	135	11	3.3	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	2	open	179	92	200	19	3.2	1.60
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	2	idle	177	129	198	18	3.2	1.60
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	2	keys	254	198	284	32	3.2	1.60
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	2	burst	229	191	256	28	3.2	1.60
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	2	idle after	221	159	246	27	3.2	1.60
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	2	idle +5-10 s	118	118	130	10	3.2	1.60
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-100	2	idle +10-15 s	118	118	130	10	3.2	1.60
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	2	open	137	67	145	4	3.1	1.35
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	2	idle	137	137	145	4	3.1	1.35
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	2	keys	182	155	196	6	3.1	1.35
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	2	burst	157	127	187	6	3.1	1.35
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	2	idle after	133	133	166	4	3.1	1.35
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	2	idle +5-10 s	133	133	166	4	3.1	1.35
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-100	2	idle +10-15 s	133	133	166	4	3.1	1.35
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	1	open	160	91	193	4	4.3	1.22
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	1	idle	160	160	193	4	4.3	1.22
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	1	keys	243	189	315	6	4.3	1.22
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	1	burst	202	171	288	6	4.3	1.22
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	1	idle after	177	177	263	4	4.3	1.22
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	1	idle +5-10 s	177	177	263	4	4.3	1.22
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	1	idle +10-15 s	177	177	263	4	4.3	1.22
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	1	open	322	169	363	39	3.7	1.58
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	1	idle	373	232	421	44	3.7	1.58
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	1	keys	423	318	470	47	3.7	1.58
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	1	burst	481	332	522	52	3.7	1.58
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	1	idle after	445	315	495	51	3.7	1.58
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	1	idle +5-10 s	228	228	249	20	3.7	1.58
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	1	idle +10-15 s	228	228	249	20	3.7	1.58
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	2	open	317	164	358	39	3.6	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	2	idle	384	235	434	46	3.6	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	2	keys	413	313	498	48	3.6	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	2	burst	407	312	471	46	3.6	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	2	idle after	406	287	454	46	3.6	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	2	idle +5-10 s	213	213	236	18	3.6	1.55
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	synth-300	2	idle +10-15 s	204	204	229	18	3.6	1.55
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	2	open	160	91	193	4	3.4	1.07
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	2	idle	160	160	193	4	3.4	1.07
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	2	keys	230	183	310	6	3.4	1.07
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	2	burst	238	179	327	6	3.4	1.07
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	2	idle after	176	176	264	4	3.4	1.07
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	2	idle +5-10 s	176	176	264	4	3.4	1.07
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	synth-300	2	idle +10-15 s	176	176	264	4	3.4	1.07
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	1	open	112	59	119	4	3.2	0.91
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	1	idle	112	112	119	4	3.2	0.91
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	1	keys	149	120	153	6	3.2	0.91
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	1	burst	127	99	144	6	3.2	0.91
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	1	idle after	107	107	130	4	3.2	0.91
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	1	idle +5-10 s	107	107	130	4	3.2	0.91
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	1	idle +10-15 s	107	107	130	4	3.2	0.91
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	1	open	182	84	198	15	2.7	1.38
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	1	idle	174	135	192	14	2.7	1.38
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	1	keys	208	180	229	20	2.7	1.38
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	1	burst	228	178	243	22	2.7	1.38
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	1	idle after	217	157	239	21	2.7	1.38
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	1	idle +5-10 s	112	112	123	8	2.7	1.38
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	1	idle +10-15 s	112	112	123	8	2.7	1.38
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	2	open	188	89	198	15	3.4	1.35
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	2	idle	172	135	190	14	3.4	1.35
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	2	keys	247	178	267	24	3.4	1.35
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	2	burst	224	176	235	21	3.4	1.35
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	2	idle after	208	151	231	20	3.4	1.35
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	2	idle +5-10 s	113	113	125	8	3.4	1.35
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1512.03385	2	idle +10-15 s	113	113	125	8	3.4	1.35
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	2	open	112	56	119	4	3.1	0.86
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	2	idle	112	112	119	4	3.1	0.86
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	2	keys	143	123	157	6	3.1	0.86
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	2	burst	135	107	152	6	3.1	0.86
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	2	idle after	115	115	131	4	3.1	0.86
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	2	idle +5-10 s	115	115	131	4	3.1	0.86
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1512.03385	2	idle +10-15 s	115	115	131	4	3.1	0.86
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	1	open	121	65	129	4	3.7	0.97
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	1	idle	121	121	129	4	3.7	0.97
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	1	keys	125	88	135	4	3.7	0.97
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	1	burst	118	87	133	4	3.7	0.97
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	1	idle after	118	118	133	4	3.7	0.97
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	1	idle +5-10 s	118	118	133	4	3.7	0.97
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	1	idle +10-15 s	118	118	133	4	3.7	0.97
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	1	open	199	104	214	14	3.5	1.14
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	1	idle	183	149	198	13	3.5	1.14
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	1	keys	262	196	300	25	3.5	1.14
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	1	burst	234	191	261	21	3.5	1.14
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	1	idle after	215	164	237	20	3.5	1.14
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	1	idle +5-10 s	126	126	140	9	3.5	1.14
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	1	idle +10-15 s	126	126	140	9	3.5	1.14
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	2	open	174	98	186	13	3.7	1.41
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	2	idle	202	171	220	15	3.7	1.41
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	2	keys	258	208	297	25	3.7	1.41
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	2	burst	244	198	264	22	3.7	1.41
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	2	idle after	228	179	249	21	3.7	1.41
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	2	idle +5-10 s	139	139	152	10	3.7	1.41
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-1706.03762	2	idle +10-15 s	139	139	152	10	3.7	1.41
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	2	open	126	69	133	4	3.9	1.23
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	2	idle	126	126	133	4	3.9	1.23
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	2	keys	127	90	135	4	3.9	1.23
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	2	burst	121	89	132	4	3.9	1.23
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	2	idle after	121	121	132	4	3.9	1.23
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	2	idle +5-10 s	121	121	132	4	3.9	1.23
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-1706.03762	2	idle +10-15 s	121	121	132	4	3.9	1.23
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	1	open	134	93	141	4	3.3	0.90
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	1	idle	134	134	141	3	3.3	0.90
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	1	keys	190	127	197	5	3.3	0.90
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	1	burst	129	111	156	5	3.3	0.90
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	1	idle after	118	118	145	3	3.3	0.90
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	1	idle +5-10 s	118	118	145	3	3.3	0.90
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	1	idle +10-15 s	118	116	145	3	3.3	0.90
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	1	open	316	147	346	26	2.3	0.79
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	1	idle	417	273	462	35	2.3	0.79
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	1	keys	488	384	564	45	2.3	0.79
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	1	burst	472	345	518	42	2.3	0.79
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	1	idle after	461	303	505	41	2.3	0.79
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	1	idle +5-10 s	219	219	238	16	2.3	0.79
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	1	idle +10-15 s	219	219	238	16	2.3	0.79
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	2	open	307	142	339	25	2.1	0.66
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	2	idle	410	269	451	33	2.1	0.66
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	2	keys	506	385	548	46	2.1	0.66
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	2	burst	483	354	522	43	2.1	0.66
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	2	idle after	452	302	494	41	2.1	0.66
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	2	idle +5-10 s	222	222	242	16	2.1	0.66
+2026-11-11	rosina	taudot-universal	tau-live e390e34a10	arxiv-2103.00020	2	idle +10-15 s	222	221	242	16	2.1	0.66
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	2	open	131	92	138	4	3.4	0.87
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	2	idle	131	131	138	3	3.4	0.87
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	2	keys	191	134	198	5	3.4	0.87
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	2	burst	144	119	166	5	3.4	0.87
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	2	idle after	135	134	147	3	3.4	0.87
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	2	idle +5-10 s	135	135	141	3	3.4	0.87
+2026-11-11	rosina	rosina-quick	liveTeX-Rosina dff263fc21	arxiv-2103.00020	2	idle +10-15 s	135	135	141	3	3.4	0.87

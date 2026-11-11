@@ -31,11 +31,6 @@
 <g stroke="var(--s)" stroke-width="2" paint-order="stroke"><path d="M94.0,157.1L99.5,167.1L88.5,167.1Z" fill="var(--c3)"/><title>latexmk, synth-10: 413 ms</title></g>
 <g stroke="var(--s)" stroke-width="2" paint-order="stroke"><path d="M224.0,141.3L229.5,151.3L218.5,151.3Z" fill="var(--c3)"/><title>latexmk, synth-100: 661 ms</title></g>
 <g stroke="var(--s)" stroke-width="2" paint-order="stroke"><path d="M354.0,122.1L359.5,132.1L348.5,132.1Z" fill="var(--c3)"/><title>latexmk, synth-300: 1174 ms</title></g>
-<polyline fill="none" stroke-width="2" stroke="var(--c4)" points="94.0,172.7 224.0,120.4 354.0,81.5"/>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><circle cx="94.0" cy="172.7" r="4.5" fill="var(--s)" stroke="var(--c4)" stroke-width="2"/><title>Rosina (full build), synth-10: 305 ms</title></g>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><circle cx="224.0" cy="120.4" r="4.5" fill="var(--s)" stroke="var(--c4)" stroke-width="2"/><title>Rosina (full build), synth-100: 1457 ms</title></g>
-<g stroke="var(--s)" stroke-width="2" paint-order="stroke"><circle cx="354.0" cy="81.5" r="4.5" fill="var(--s)" stroke="var(--c4)" stroke-width="2"/><title>Rosina (full build), synth-300: 4663 ms</title></g>
-<text class="l" x="364.0" y="85.5">Rosina (full build)</text>
 <text class="l" x="364.0" y="131.6">latexmk</text>
 <text class="l" x="364.0" y="240.3">Taudot (patched)</text>
 <text class="l" x="364.0" y="254.3">Taudot universal</text>
@@ -81,5 +76,5 @@
 <text class="l" x="884.0" y="240.6">TeXpresso*</text>
 <text class="l" x="884.0" y="254.6">Taudot, XeLaTeX</text>
 <text x="64" y="414">* TeXpresso: an XDV page in memory, not a PDF, from an engine older than TeX Live 2025: not checkable against stock.</text>
-<text x="64" y="430">rtex: a background layout of display lists (exact by its own check). Rosina, latexmk, Typst: the whole PDF. Typst is its own typesetter.</text>
+<text x="64" y="430">rtex: a background layout of display lists (exact by its own check). latexmk, Typst: the whole PDF. Typst is its own typesetter.</text>
 </svg>
