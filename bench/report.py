@@ -163,15 +163,17 @@ def interleave_table():
 
 def memory_table(tag=None):
     """Memory per document and driver: phys_footprint summed over the process tree (MB; idle phases: mean, typing
-    phases: peak), summed RSS's peak and the most processes; each cell the mean of the two runs."""
+    phases: peak), summed RSS's peak and the most processes; each cell the two runs' range."""
     p = f"{RESULTS}/memory.tsv"
     if not os.path.exists(p):
         return ""
     rows = list(csv.DictReader(open(p), delimiter="\t"))
     tag = tag if tag is not None else [r["tag"] for r in rows if r["tag"].startswith("main-")][-1]
     rows = [r for r in rows if r["tag"] == tag]
-    out = ["| document | driver | cores busy elsewhere | idle | isolated keys | bursts | idle after | summed RSS, peak | "
-           "processes, most |", "|---|---|---|---|---|---|---|---|---|"]
+    rest = "idle +10-15 s" if any(r["phase"] == "idle +10-15 s" for r in rows) else None
+    out = ["| document | driver | cores busy elsewhere | idle after open | isolated keys, peak | bursts, peak | "
+           "0–5 s after typing | " + ("10–15 s after | " if rest else "") + "summed RSS, peak | processes, most |",
+           "|---|---|---|---|---|---|---|" + ("---|" if rest else "") + "---|---|"]
     order = ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762", "arxiv-2103.00020"]
     name = {"taudot-pdftex": "patched", "taudot-universal": "universal"}
     for d in sorted(dict.fromkeys(r["doc"] for r in rows), key=lambda d: order.index(d) if d in order else 99):
@@ -190,6 +192,7 @@ def memory_table(tag=None):
             dn = d.replace("synth-", "").replace("arxiv-", "") + (" pp" if d.startswith("synth") else "")
             out.append(f"| {dn} | {name[system]} | {', '.join(other)} | {m('idle', 'fp_mean_mb')} | "
                        f"{m('keys', 'fp_peak_mb')} | {m('burst', 'fp_peak_mb')} | {m('idle after', 'fp_mean_mb')} | "
+                       + (f"{m(rest, 'fp_mean_mb')} | " if rest else "") +
                        f"{rss[0]:.0f}–{rss[-1]:.0f} | {procs} |")
     return "\n".join(out)
 
@@ -362,8 +365,8 @@ def main():
         "### Memory, pdfLaTeX (phys_footprint)",
         "",
         "One session per run: open, 5 s idle, the 30 isolated keys, the same spots again as bursts at 8 keys a "
-        "second, 5 s idle. phys_footprint (`proc_pid_rusage`) summed over the driver's process tree, MB: mean over "
-        "the idle phases, peak over the typing ones. Two runs per driver in ABBA order; each cell their range (one figure when within 10 MB).",
+        "second, then 15 s idle. phys_footprint (`proc_pid_rusage`) summed over the driver's process tree and every "
+        "process in a group the tree has had, MB: mean over the idle phases, peak over the typing ones. Two runs per driver in ABBA order; each cell their range (one figure when within 10 MB).",
         "",
         memory_table(),
         "",

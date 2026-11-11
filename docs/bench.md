@@ -33,17 +33,19 @@ elsewhere, load average 8–19. 6 documents × 2 rounds × 30 keys each; per-run
   225 / 225 / 231, and 334–370 ms against 359–398 ms on the three papers. Settled: 7 % faster than patched on
   the papers, 2 % faster at 10 pages, 5 % slower at 100 and 300 pages. The first-page table below has every document. Two documents
   were rerun because a burst of other work (10–12 cores) hit both drivers' runs.
-- **Memory: less when idle; while typing, 15–60 MB more, which stays** (main a3cabae with uspeed's 12a2e2a, one
-  warm pass child; phys_footprint summed over the driver's processes, which counts a page shared copy-on-write with
-  a fork once; two runs per driver in ABBA order, 2.1–4.9 cores busy elsewhere; table below). Idle after opening,
-  universal uses 2–19 % less than patched (89 against 110 MB at 10 pages, 152–163 against 174 MB on 1512.03385; on
-  par at 300 pages). Typing peaks: +16–29 MB at 10 pages, +15–50 MB at 100 and 300 pages, +24–62 MB on the papers
-  (from +50–135 MB on 0318961). Universal runs more processes (18–60 against 8–56).
-- **It doesn't drop back when typing stops, but it doesn't grow either.** Over 35 s of quiet after the bursts
-  (`BENCH_IDLE_TAIL=30`), both drivers' footprints stay flat, and so does their process count. Universal stays at
-  132–133 MB on 10 pages (83 MB before typing; 14 processes against 6), patched at 114–121 (104). On 1512.03385
-  universal stays at 234 MB (153 before; 33 processes against 12), patched at 180–189 (169). The extra is kept
-  forked processes, not growth.
+- **Memory: universal uses less than patched in every phase** (main d27b64d with ureap: tau-live reaps kept
+  processes after 2.5 s idle; two runs per driver in ABBA order, 1.9–4.7 cores busy elsewhere; table below).
+  phys_footprint, summed over the driver's process tree **and every process in a process group the tree has
+  had**, since both drivers leave processes outside their tree: universal's reaped snapshots' children, and
+  patched's engines (re-parented to launchd after their parent exits; on 10 pages a 214 MB one). Patched kills its
+  groups on exit, so this is memory held while the session is open. Earlier tables counted the tree only and
+  missed both, patched's most.
+  - Idle after open: universal 73–262 MB against patched 111–472 (−30 to −41 %).
+  - Typing peak: 140–497 against 352–780 MB (−35 to −63 %).
+  - After typing stops: universal falls back within 10–15 s, to 84 / 125 / 229 MB at 10 / 100 / 300 pages (its
+    idle level or below) and 120–215 MB on the papers; patched stays at its typing level (344–694 MB) until it exits.
+  - Summed RSS (which counts shared pages per process) shows the same order: universal 156–542 MB, patched
+    752–1211 MB. Processes, most: 17–53 against 13–56.
 
 ### Burst typing: 8 keys a second (2026-11-10, main fcb58ce)
 
@@ -112,7 +114,7 @@ include the system's own process hand-offs, not drawing.
 | **edit → whole exact PDF** | The whole document's PDF, checked byte for byte against latexmk's (PDF `/ID` masked, since LuaTeX hashes the output path into it; XeTeX's XDV compared page by page). rtex: `export_pdf` (its clean LuaLaTeX build), sent with the edit. TeXpresso: its `done` (no file). |
 | **first compile** | Start → first page available, and start → settled, from a project whose `.aux` is already settled (a reopened project). |
 | **memory** | Peak resident size summed over the system's process tree, sampled every 200 ms with `ps` (latexmk: the peak of its child processes). Forked snapshots share copy-on-write pages, which this sum counts once per process: for Taudot, TeXpresso and Rosina it's an upper bound. |
-| **memory (phys_footprint)** | `bench/run.py memory`: one session per run (open, 5 s idle, the 30 isolated keys, the same spots again as bursts at 8 keys a second, 5 s idle). Every 200 ms, each process in the driver's tree is sampled with `proc_pid_rusage` (`ri_phys_footprint`, the memory macOS charges it: anonymous and compressed pages it dirtied, so a page shared copy-on-write with a fork counts once), and the sum is kept per phase with the summed RSS and the process count. |
+| **memory (phys_footprint)** | `bench/run.py memory`: one session per run (open, 5 s idle, the 30 isolated keys, the same spots again as bursts at 8 keys a second, 5 s idle, then 10 s more with `BENCH_IDLE_TAIL=10`). Every 200 ms, each process in the driver's tree, and in any process group a tree member has had (drivers start in their own session), is sampled with `proc_pid_rusage` (`ri_phys_footprint`, the memory macOS charges it: anonymous and compressed pages it dirtied, so a page shared copy-on-write with a fork counts once), and the sum is kept per phase with the summed RSS and the process count. |
 
 p50 and p90 are over the 30 edits of one document.
 
@@ -216,22 +218,22 @@ Per document: patched, universal, universal, patched (ABBA), back to back; one r
 
 ### Memory, pdfLaTeX (phys_footprint)
 
-One session per run: open, 5 s idle, the 30 isolated keys, the same spots again as bursts at 8 keys a second, 5 s idle. phys_footprint (`proc_pid_rusage`) summed over the driver's process tree, MB: mean over the idle phases, peak over the typing ones. Two runs per driver in ABBA order; each cell their range (one figure when within 10 MB).
+One session per run: open, 5 s idle, the 30 isolated keys, the same spots again as bursts at 8 keys a second, then 15 s idle. phys_footprint (`proc_pid_rusage`) summed over the driver's process tree and every process in a group the tree has had, MB: mean over the idle phases, peak over the typing ones. Two runs per driver in ABBA order; each cell their range (one figure when within 10 MB).
 
-| document | driver | cores busy elsewhere | idle | isolated keys | bursts | idle after | summed RSS, peak | processes, most |
-|---|---|---|---|---|---|---|---|---|
-| 10 pp | patched | 3.38, 3.49 | 110 | 114 | 113 | 112 | 117–118 | 8 |
-| 10 pp | universal | 3.19, 3.64 | 89 | 130 | 142 | 121 | 124–143 | 18 |
-| 100 pp | patched | 4.21, 4.38 | 214 | 225–235 | 223 | 218–230 | 234–241 | 24 |
-| 100 pp | universal | 3.47, 4.73 | 209 | 250 | 251 | 245 | 238–251 | 32 |
-| 300 pp | patched | 3.92, 4.82 | 408–429 | 444 | 446–465 | 442–454 | 508–521 | 56 |
-| 300 pp | universal | 3.46, 4.85 | 403–455 | 472–494 | 490 | 465 | 514–530 | 60 |
-| 1512.03385 | patched | 3.59, 3.67 | 174 | 206–222 | 197–208 | 187–208 | 222–242 | 18 |
-| 1512.03385 | universal | 3.31, 3.49 | 152–163 | 246–268 | 251–267 | 249 | 286–286 | 36 |
-| 1706.03762 | patched | 2.08, 2.37 | 206 | 236 | 225 | 217 | 253–262 | 18 |
-| 1706.03762 | universal | 2.77, 2.91 | 181 | 264 | 254 | 241 | 288–293 | 26 |
-| 2103.00020 | patched | 3.58, 3.68 | 415–445 | 449 | 440 | 421 | 490–491 | 36 |
-| 2103.00020 | universal | 3.65, 3.70 | 396–410 | 489 | 471–481 | 459 | 538–544 | 45 |
+| document | driver | cores busy elsewhere | idle after open | isolated keys, peak | bursts, peak | 0–5 s after typing | 10–15 s after | summed RSS, peak | processes, most |
+|---|---|---|---|---|---|---|---|---|---|
+| 10 pp | patched | 1.88, 2.35 | 111 | 365 | 352–367 | 344 | 344 | 752–761 | 13 |
+| 10 pp | universal | 2.64, 3.36 | 73 | 143 | 140 | 105 | 84 | 156–164 | 17 |
+| 100 pp | patched | 4.15, 4.40 | 211 | 470–485 | 471 | 448–471 | 448–471 | 870–887 | 27 |
+| 100 pp | universal | 4.39, 4.50 | 147 | 247–279 | 236 | 166 | 125 | 267–312 | 36 |
+| 300 pp | patched | 3.81, 4.28 | 395 | 708–722 | 684–694 | 682–694 | 682–694 | 1138–1150 | 56 |
+| 300 pp | universal | 4.25, 4.71 | 244 | 438–453 | 451 | 315 | 229 | 503–505 | 53 |
+| 1512.03385 | patched | 3.08, 3.33 | 176 | 434–602 | 424 | 419 | 419 | 834–1006 | 19 |
+| 1512.03385 | universal | 3.89, 4.07 | 119 | 202–222 | 201–229 | 156 | 120 | 242–252 | 22 |
+| 1706.03762 | patched | 2.20, 2.39 | 216–226 | 476–496 | 465–487 | 465 | 465 | 869–893 | 21 |
+| 1706.03762 | universal | 2.71, 2.99 | 147 | 233–258 | 239 | 182 | 142 | 278–281 | 24 |
+| 2103.00020 | patched | 3.73, 4.22 | 422–472 | 706–780 | 696–711 | 679–691 | 679–691 | 1127–1211 | 48 |
+| 2103.00020 | universal | 3.99, 4.16 | 262 | 486–497 | 471 | 305 | 215 | 542–542 | 45 |
 
 ### First page on open, pdfLaTeX
 
