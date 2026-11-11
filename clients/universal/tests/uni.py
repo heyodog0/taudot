@@ -1165,7 +1165,161 @@ def display(engine, src, main, n=40, seed=3):
     return same == checked and refused_ok > 0
 
 
+def group_memory(pgid):
+    """Every process of a session started in its own process group (orphaned snapshots and double-forked finishers
+    included): summed phys_footprint (MB) and the count."""
+    import ctypes
+    libc = ctypes.CDLL("/usr/lib/libSystem.dylib")
+    out = subprocess.run(["ps", "-axo", "pid=,pgid=,stat="], capture_output=True, text=True).stdout
+    fp, n = 0, 0
+    for line in out.splitlines():
+        p, g, st = line.split()
+        if int(g) != pgid or st.startswith("Z"):
+            continue
+        buf = (ctypes.c_uint64 * 40)()
+        if libc.proc_pid_rusage(int(p), 2, ctypes.byref(buf)) == 0:
+            fp += buf[9]  # ri_phys_footprint
+        n += 1
+    return fp / 2**20, n
+
+
+def reap(engine, src, main, spots=4, keys=8, cycles=8, seed=6):
+    """Idle reap (--reap-ms): a session as the app runs it (--serve --engine, in its own process group) opens SRC,
+    rests, types KEYS keys at each of SPOTS spots, rests again. After the rest the summed phys_footprint and the process
+    count must be near the post-open level. Then CYCLES times: a pause (the reap), a key, two more keys at typing pace;
+    key -> preview, -> display page, -> exact page of the first key after a pause against the keys after it. The same
+    with --reap-ms 0 for comparison (the pause alone). Every settled output equals a stock run's."""
+    name = os.path.basename(os.path.abspath(src))
+    base = settle(engine, src, main, name)
+    text0 = open(f"{base}/{main}", "rb").read()
+    lo = text0.find(b"\\begin{document}")
+    pos = [m.end() for m in re.finditer(rb"[a-z]{4,}\. ", text0[lo:])]
+    eng = f"{UBIN}/{ENGINES[engine][0][0]}"
+    env = dict(os.environ)
+    env.pop("TAU_FETCH", None)
+    env.pop("TEXSTORE_URL", None)
+    ext = ENGINES[engine][1]
+    ref = f"{WORK}/r-ref"
+    copy(base, ref)
+    ok = True
+
+    def session(reap_ms):
+        nonlocal ok
+        rng = random.Random(seed)
+        text = text0
+        out = f"{WORK}/r-out"
+        shutil.rmtree(out, ignore_errors=True)
+        lv = Live.__new__(Live)
+        lv.events = []
+        e = dict(env, TAU_LIVE_LOG=f"{env['TAU_LIVE_LOG']}.{reap_ms}") if env.get("TAU_LIVE_LOG") else env
+        lv.p = subprocess.Popen([f"{UBIN}/tau-live", "--serve", "--engine", eng, "--reap-ms", str(reap_ms), base, main,
+                                 out], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=e,
+                                start_new_session=True)
+        lv.send("goal", 0)
+        lv.until(lambda e: e["ev"] == "done", timeout=600)
+        rest = max(reap_ms, 2500) / 1000 + 1.5
+        time.sleep(rest)
+        m_open = group_memory(lv.p.pid)
+
+        def key(p, ch):
+            t0 = time.monotonic()
+            lv.send("change", main, p, 0, ch)
+            run = newer_run(lv)
+            r = {}
+            while True:
+                e = lv.until(lambda e: True)
+                ms = (time.monotonic() - t0) * 1000
+                if e["ev"] == "para" and e.get("seq") == run["seq"] and e.get("state") in ("exact", "provisional"):
+                    r.setdefault("para", ms)
+                if e["ev"] == "pdf" and e.get("seq") == run["seq"]:
+                    r.setdefault("display" if e.get("display") else "page", ms)
+                if e["ev"] == "done" and e.get("seq") == run["seq"]:
+                    r["done"] = e
+                    return r
+
+        def settled(done, text):
+            nonlocal ok
+            open(f"{ref}/{main}", "wb").write(text)
+            stock_rule(engine, ref, main)
+            same = same_output(engine, open(done["path"], "rb").read(), open(f"{ref}/{stem(main)}.{ext}", "rb").read())
+            ok &= same
+            return same
+
+        # spots in document order, so each one's line snapshots outlive the typing at the next (an edit before them
+        # would replace them anyway)
+        spots_at = []
+        for s, q in enumerate(sorted(rng.sample(pos, spots))):
+            p = lo + q + s * keys
+            spots_at.append(p)
+            for i in range(keys):
+                time.sleep(0.15)
+                r = key(p + i, "abcdefgh"[i % 8])
+                text = text[:p + i] + b"abcdefgh"[i % 8:i % 8 + 1] + text[p + i:]
+        same = settled(r["done"], text)
+        time.sleep(rest)
+        m_idle = group_memory(lv.p.pid)
+        lv.send("stats")
+        st = lv.until(lambda e: e["ev"] == "stats")
+        first, later = collections.defaultdict(list), collections.defaultdict(list)
+        p += keys  # where typing stopped
+        for c in range(cycles):
+            time.sleep(rest)
+            for j in range(3):
+                r = key(p, "xyz"[j])
+                text = text[:p] + b"xyz"[j:j + 1] + text[p:]
+                p += 1
+                for k in ("para", "display", "page"):
+                    if k in r:
+                        (first if j == 0 else later)[k].append(r[k])
+                time.sleep(0.3)
+        same &= settled(r["done"], text)
+        # a jump after a reap: a key at the first spot (its line snapshots are gone; it resumes from one before it)
+        time.sleep(rest)
+        r = key(spots_at[0], "j")
+        text = text[:spots_at[0]] + b"j" + text[spots_at[0]:]
+        jump = {k: r[k] for k in ("para", "display", "page") if k in r}
+        same &= settled(r["done"], text)
+        lv.p.stdin.close()
+        lv.p.wait(20)
+        # every process of the session exits with it (reaped snapshots' children were reparented, outside the
+        # driver's tree; they go when its lifeline closes)
+        t0 = time.monotonic()
+        while (left := group_memory(lv.p.pid)[1]) and time.monotonic() - t0 < 10:
+            time.sleep(0.2)
+        ok &= left == 0
+        shutil.rmtree(out, ignore_errors=True)
+        return m_open, m_idle, st, first, later, same, jump, left
+
+    def p50(v):
+        return f"{statistics.median(v):5.1f}" if v else "    -"
+
+    res = {}
+    for reap_ms in (2500, 0):
+        res[reap_ms] = session(reap_ms)
+        (fo, no), (fi, ni), st, first, later, same, jump, left = res[reap_ms]
+        kinds = collections.Counter(x["role"] + ("/dense" if x.get("dense") else "") for x in st.get("procs", []))
+        print(f"  --reap-ms {reap_ms}: post-open {fo:.0f} MB, {no} processes; after typing and a rest {fi:.0f} MB, "
+              f"{ni} processes ({dict(kinds)}); settled outputs = stock: {same}")
+        for k in ("para", "display", "page"):
+            print(f"    key -> {k:7s} p50: first after a pause {p50(first[k])} ms ({len(first[k])}), "
+                  f"keys after it {p50(later[k])} ms ({len(later[k])})")
+        print(f"    a jump to the first spot after a pause: {({k: round(v, 1) for k, v in jump.items()})} ms; "
+              f"processes left after it closed: {left}")
+    (fi, ni), st = res[2500][1:3]
+    fo, no = res[0][0]  # after opening, not reaped (the session with --reap-ms reaps after opening too)
+    kinds = collections.Counter(x["role"] + ("/dense" if x.get("dense") else "") for x in st.get("procs", []))
+    # near: of the line snapshots only the next key's resume point and its warm child; the other snapshots spaced as
+    # an open run leaves them
+    near = kinds["snapshot/dense"] <= 1 and kinds["warm"] <= 1 and fi <= fo * 1.1 + 10 and ni <= no + 2
+    print(f"reap {engine} {name}: after a rest {fi:.0f} MB / {ni} processes against {fo:.0f} / {no} after opening "
+          f"({'near' if near else 'NOT near'}); without reaping {res[0][1][0]:.0f} MB / {res[0][1][1]}; outputs = stock: "
+          f"{ok}")
+    return ok and near
+
+
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["reap"]:
+        sys.exit(0 if reap(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["serve"]:
         serve(*sys.argv[2:5])
         sys.exit(0)

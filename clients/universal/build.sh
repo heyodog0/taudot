@@ -12,7 +12,7 @@ ls -l "$BIN"
 # tau-tdl (readers/): TeXpresso's DVI interpreter and the renderer's runtime and TDL device, from clients/render (not
 # modified, compiled into our own objects), and kpathsea from the engines' build.
 R=$(cd "$here/../render" && pwd)
-O=$TAUDOT_REF/universal/obj-tdl
+O=${OBJ:-$TAUDOT_REF/universal/obj-tdl}  # (own OBJ beside an own BIN: builds in parallel)
 K=$TAUDOT_REF/universal/build-2026-dz/texk
 KS=$TAUDOT_REF/universal/src-2026/texk
 BREW=$(brew --prefix)
