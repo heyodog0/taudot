@@ -98,6 +98,7 @@ function M.define_highlights()
   for i, g in ipairs(groups) do
     link('TaudotAuthor' .. i, g)
   end
+  link('TaudotAuthor0', config.options.disk_group)  -- (author index 0: disk edits)
   link('TaudotUnconfirmed', 'TaudotUnconfirmedDefault')
   api.nvim_set_hl(0, 'TaudotUnconfirmedDefault', { underdotted = true })
   link('TaudotComment', 'DiagnosticUnderlineInfo')
@@ -128,7 +129,7 @@ function M.define_highlights()
     M.query_terminal()
   end
   local tgc = vim.o.termguicolors
-  for i = 1, #groups do
+  for i = 0, #groups do
     local a = resolved('TaudotAuthor' .. i)
     local fg = a.fg or a.sp
     -- Fade: a background tint that thins out step by step, then nothing.
@@ -147,6 +148,9 @@ function M.define_highlights()
         local cterm = a.ctermfg or (i % 6) + 1
         api.nvim_set_hl(0, name, { ctermfg = cterm, underline = s <= FADE_STEPS / 2 })
       end
+      -- Deleted text's place: the characters on both sides underlined (twice) in the colour, for the first two thirds.
+      api.nvim_set_hl(0, ('TaudotDeleted%d_%d'):format(i, s),
+        s <= FADE_STEPS * 2 / 3 and (fg and { sp = fg, underdouble = true } or { underdouble = true }) or {})
     end
     -- Cursor: the author colour as a block, label in the same colour.
     -- Tracked changes: inserts underlined in the author colour on a light tint, deletes struck through in it.
@@ -321,6 +325,9 @@ local function touch_autocmds()
 end
 
 function M.author_index(user)
+  if user and user.user_id == 'disk' then
+    return 0 -- edits made on disk: their own colour (disk_group)
+  end
   local id = user and user.user_id or '?'
   if not authors[id] then
     n_authors = n_authors + 1
@@ -351,7 +358,7 @@ local function fade_tick()
             id = f.id,
             end_row = d.end_row,
             end_col = d.end_col,
-            hl_group = ('TaudotFade%d_%d'):format(f.idx, step),
+            hl_group = ((f.group or 'TaudotFade') .. '%d_%d'):format(f.idx, step),
             priority = 150,
           })
           keep[#keep + 1] = f
@@ -384,6 +391,38 @@ function M.mark_remote(buf, row, col, end_row, end_col, author)
     return
   end
   fading[#fading + 1] = { buf = buf, id = id, idx = idx, born = vim.uv.now() }
+  M._fading = fading
+  if not fade_timer then
+    fade_timer = vim.uv.new_timer()
+  end
+  if not fade_timer:is_active() then
+    local step = math.floor(config.options.fade_ms / FADE_STEPS)
+    fade_timer:start(step, step, vim.schedule_wrap(fade_tick))
+  end
+end
+
+-- Mark where a collaborator (or a disk edit) deleted text: the characters on both sides of [row, col), fading.
+function M.mark_deleted(buf, row, col, author)
+  local line = api.nvim_buf_get_lines(buf, row, row + 1, false)[1]
+  if not line or #line == 0 then
+    return
+  end
+  local a = math.max(0, math.min(col, #line) - 1)
+  local b = math.min(#line, math.max(col, 0) + 1)
+  if b <= a then
+    return
+  end
+  local idx = M.author_index(author)
+  local ok, id = pcall(api.nvim_buf_set_extmark, buf, M.ns.author, row, a, {
+    end_row = row,
+    end_col = b,
+    hl_group = ('TaudotDeleted%d_1'):format(idx),
+    priority = 151,
+  })
+  if not ok then
+    return
+  end
+  fading[#fading + 1] = { buf = buf, id = id, idx = idx, born = vim.uv.now(), group = 'TaudotDeleted' }
   M._fading = fading
   if not fade_timer then
     fade_timer = vim.uv.new_timer()

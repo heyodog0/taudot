@@ -538,12 +538,18 @@ function M:on_changed(p)
   self.base = ot.apply_string(self.base, p.edits)
   self.unflushed = nil -- texts before a remote edit: no longer a base we can diff against
   local edits = ot.to_edits(remote)
-  self:apply(edits, p.author)
+  -- (a disk edit: an editor or an agent outside Neovim changed the file; its own colour)
+  self:apply(edits, p.source == 'disk' and { user_id = 'disk', name = 'on disk' } or p.author)
   self.text = ot.apply_string(self.text, edits)
   self.len = remote.target
   local now = M.buffer_text(self.buf)
   if self.text == now then
     text_changed(self, edits)
+    -- the Mac app marks it (the PDF, the changes list, follow); after the text, which its copy needs first
+    local app = package.loaded['taudot.app']
+    if app and app.outside and #edits > 0 then
+      pcall(app.outside, self, edits, p.author, p.origin, p.source)
+    end
   else
     text_changed(self, nil, now)
     vim.notify(('Taudot: %s: buffer drifted from the doc. Resyncing.'):format(self.path), vim.log.levels.WARN)
@@ -596,6 +602,12 @@ function M:apply_one(e, author)
       lines = { '' }
     end
     api.nvim_buf_set_lines(buf, row, n, false, lines)
+    if #e.ins == 0 and e.del > 0 then
+      local dr, dc = M.pos_to_rc(buf, math.min(e.pos, doc_len(buf)))
+      if dr then
+        ui.mark_deleted(buf, dr, dc, author)
+      end
+    end
     if #e.ins > 0 then
       local sr, sc = M.pos_to_rc(buf, e.pos)
       local er, ec = M.pos_to_rc(buf, e.pos + #e.ins)
@@ -613,6 +625,8 @@ function M:apply_one(e, author)
     local end_row = sr + #lines - 1
     local end_col = (#lines == 1 and sc or 0) + #lines[#lines]
     ui.mark_remote(buf, sr, sc, end_row, end_col, author)
+  elseif e.del > 0 then
+    ui.mark_deleted(buf, sr, sc, author)
   end
 end
 

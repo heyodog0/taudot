@@ -50,6 +50,7 @@ interface HistoryEntry {
   edits: Edit[];
   author: User;
   origin: "local" | "remote";
+  source?: "disk";
 }
 
 export interface Doc {
@@ -61,6 +62,7 @@ export interface Doc {
   subscribers: Set<Conn>;
   ranges: Range[];
   writeTimer?: ReturnType<typeof setTimeout>;
+  written?: Uint8Array; // what this engine last wrote to the file
 }
 
 interface Presence extends User {
@@ -184,6 +186,7 @@ export class Engine {
             edits: h.edits,
             author: h.author,
             origin: h.origin,
+            ...(h.source ? { source: h.source } : {}),
           });
         }
         return { seq: d.seq };
@@ -306,7 +309,7 @@ export class Engine {
   // ---- state changes ----------------------------------------------------------------------------------------
 
   // Apply edits written against `seq`. Returns the new seq. `sender` doesn't get its own edit back.
-  applyEdit(d: Doc, edits: Edit[], seq: number, author: User, origin: "local" | "remote", sender: Conn | null) {
+  applyEdit(d: Doc, edits: Edit[], seq: number, author: User, origin: "local" | "remote", sender: Conn | null, source?: "disk") {
     const lenAt = seq === d.seq ? d.text.length : d.history[seq].op.base;
     let op = fromEdits(edits, lenAt);
     for (const h of d.history.slice(seq)) op = transform(h.op, op)[1];
@@ -320,7 +323,7 @@ export class Engine {
     }
     d.text = applyEdits(d.text, out);
     d.seq++;
-    d.history.push({ seq: d.seq, op, edits: out, author, origin });
+    d.history.push({ seq: d.seq, op, edits: out, author, origin, ...(source ? { source } : {}) });
     if (out.length === 0) return d.seq;
 
     for (const r of d.ranges) {
@@ -333,7 +336,7 @@ export class Engine {
       if (pr.doc_id === d.doc_id && pr.pos !== null) pr.pos = mapPos(op, pr.pos, "right");
     }
 
-    const msg = { doc_id: d.doc_id, seq: d.seq, edits: out, author, origin };
+    const msg = { doc_id: d.doc_id, seq: d.seq, edits: out, author, origin, ...(source ? { source } : {}) };
     for (const c of d.subscribers) if (c !== sender) this.notify(c, "doc.changed", msg);
     if (d.ranges.length) this.rangesChanged(d);
 
@@ -416,10 +419,48 @@ export class Engine {
     for (const c of this.conns) if (c.activity) this.notify(c, "activity", a);
   }
 
+  // The real engine sends a file edited on disk (an editor, an agent) as a local edit with `source: "disk"`: the same
+  // here, as one edit from the common prefix and suffix (byte offsets).
+  async watchDisk() {
+    const pending = new Map<string, ReturnType<typeof setTimeout>>();
+    const real = Deno.realPathSync(this.folder);  // (the watcher reports /private/var/…, not /var/…)
+    for await (const ev of Deno.watchFs(this.folder)) {
+      for (const p of ev.paths) {
+        const d = this.byPath.get(relative(real, p));
+        if (!d || ev.kind === "access") continue;
+        clearTimeout(pending.get(d.path));
+        pending.set(d.path, setTimeout(() => this.diskChanged(d), 50));
+      }
+    }
+  }
+
+  async diskChanged(d: Doc) {
+    let now: Uint8Array;
+    try {
+      now = await Deno.readFile(join(this.folder, d.path));
+    } catch {
+      return;
+    }
+    // our own write (possibly behind d.text by edits since): not an edit made on disk
+    if (d.written && d.written.length === now.length && d.written.every((b, i) => b === now[i])) return;
+    const old = d.text;
+    let a = 0;
+    while (a < old.length && a < now.length && old[a] === now[a]) a++;
+    let b = 0;
+    while (b < old.length - a && b < now.length - a && old[old.length - 1 - b] === now[now.length - 1 - b]) b++;
+    if (a === old.length && a === now.length) return;
+    // (not inside a UTF-8 sequence)
+    while (a > 0 && (old[a] & 0xc0) === 0x80) a--;
+    while (b > 0 && (old[old.length - b] & 0xc0) === 0x80) b--;
+    const ins = dec.decode(now.slice(a, now.length - b));
+    this.applyEdit(d, [{ pos: a, del: old.length - b - a, ins }], d.seq, ME, "local", null, "disk");
+  }
+
   scheduleWrite(d: Doc) {
     if (d.writeTimer !== undefined) return;
     d.writeTimer = setTimeout(async () => {
       d.writeTimer = undefined;
+      d.written = d.text;  // (the watcher ignores the file while it is what we wrote)
       await Deno.writeFile(join(this.folder, d.path), d.text);
     }, 300);
   }

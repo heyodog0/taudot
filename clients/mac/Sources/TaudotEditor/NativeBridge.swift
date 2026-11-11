@@ -47,6 +47,10 @@ import TaudotShared
       await e.jump(path: path, line: line, col: col)
       return .null
     }
+    if code.contains("taudot.app').replace") {
+      guard args.count >= 4, let path = args[0].str, let pos = args[1].num, let del = args[2].num, let ins = args[3].str else { return .bool(false) }
+      return .bool(e.replace(path: path, pos: pos, del: del, ins: ins))
+    }
     if code.contains("taudot.app').cursor(true)") {
       e.forwardSearch()
       return .null

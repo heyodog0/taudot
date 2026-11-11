@@ -48,6 +48,12 @@ public struct DocRange: Equatable {
   /// Every change to `text`, in order and in byte offsets, applied one after another: the user's, the remote ones,
   /// a rebase's. The PDF pane typesets from it (pdfpipe).
   var onText: ((_ edits: [Edit]) -> Void)?
+  /// A remote change applied (after onText and onRemote): its edits in local byte offsets and the engine's params
+  /// (author, origin, source). The app marks outside edits from it (editfix item 9).
+  var onOutside: ((_ edits: [Edit], _ params: [String: Any]) -> Void)?
+  /// Who made the change being applied (onRemote): an author key (user id, else name), or "disk" for an edit made on
+  /// disk (an editor or an agent outside Taudot); nil for a rebase's.
+  private(set) var remoteWho: String?
   private var sendTimer: Timer?
   /// doc.changed that arrived before the result of our doc.edit (its continuation runs after them).
   private var early: [Int: [String: Any]] = [:]
@@ -172,7 +178,11 @@ public struct DocRange: Equatable {
     text = text.applying(local)
     if !local.isEmpty { onText?(local) }
     move(remote)
+    let a = p["author"] as? [String: Any]
+    remoteWho = p["source"] as? String == "disk" ? "disk" : (a?["user_id"] as? String ?? a?["name"] as? String ?? "?")
     onRemote?(local, old)
+    remoteWho = nil
+    if !local.isEmpty { onOutside?(local, p) }
     if let r = rangesAt, r.seq == seq { rangesAt = nil; setRanges(r.list, seq: r.seq) }
   }
 

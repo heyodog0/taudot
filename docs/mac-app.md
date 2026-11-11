@@ -58,6 +58,14 @@ skeleton has the first version:
   `execLua(code, args) async -> Value`, `command(String)`.
 - `PDFPane` (pdf): `jump(path, line)` (forward search: scroll to and flash the line), `onInverseSearch: (path, line)
   -> Void` (double-click on the PDF; the app calls `:Taudot` to open the file at that line).
+- Outside edits (editfix item 9): both editors send `taudot_app_outside path edits author origin source` after a
+  remote change is applied (Neovim's `taudot.app.outside`, called by the plugin; the native editor's NativeDoc), the
+  edits in the buffer's byte offsets and after its `taudot_app_text`. `source` is the engine's (`"disk"`: the file
+  was edited outside Taudot). The window keeps them in `OutsideEdits` (TaudotEditor): the sidebar's Changes tab, View ▸
+  Follow Edits (waits 2 s after a key), the pill for an edit out of view, Undo through `taudot.app.replace`, and the
+  PDF's fading marks (`TaudotPDFPane.markEdit`). A disk edit is "Claude" while the Claude pane's terminal wrote
+  output in the last 20 s. The editors tint the text themselves (Neovim: the plugin's fade, disk edits in
+  `disk_group`; native: `NativeEditorView.flash`). Check: `Tests/outside_check.sh FILE.tex neovim|native`.
 
 ## Bar
 

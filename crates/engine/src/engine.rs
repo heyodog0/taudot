@@ -110,6 +110,8 @@ pub struct Change {
     pub origin: &'static str,
     /// `{user_id, name, initials}`, as in `doc.changed`.
     pub author: Value,
+    /// Where a local change came from when it wasn't a client: `"disk"` (the folder's file was edited), else none.
+    pub source: Option<&'static str>,
 }
 
 pub struct Doc {
@@ -354,6 +356,7 @@ pub async fn open_project(
         last_keepalive: Instant::now(),
         online_since: Some(Instant::now()),
         quick_drops: 0,
+        edit_source: None,
         reconnect_at: None,
     };
     tokio::spawn(actor.run(rx));
@@ -393,6 +396,8 @@ struct Actor {
     online_since: Option<Instant>,
     quick_drops: u32,
     reconnect_at: Option<Instant>,
+    /// Set while a change from the folder is recorded (`Change::source`).
+    edit_source: Option<&'static str>,
 }
 
 impl Actor {
@@ -843,10 +848,11 @@ impl Actor {
             None => json!({"user_id": null}),
         };
         self.review_record(doc_id, &op, origin);
+        let source = if origin == "local" { self.edit_source } else { None };
         let d = self.docs.get_mut(doc_id).unwrap();
         d.seq += 1;
         let seq = d.seq;
-        d.log.push_back(Change { seq, edits: edits.clone(), op, origin, author: author.clone() });
+        d.log.push_back(Change { seq, edits: edits.clone(), op, origin, author: author.clone(), source });
         while d.log.len() > LOG_KEEP {
             d.log.pop_front();
         }
@@ -856,7 +862,7 @@ impl Actor {
         self.note_from(
             "doc.changed",
             Some(doc_id),
-            json!({"doc_id": doc_id, "seq": seq, "edits": edits, "origin": origin, "author": author}),
+            changed_params(doc_id, seq, &edits, origin, &author, source),
             from,
         );
     }
@@ -1476,4 +1482,14 @@ pub fn write_atomic_bytes(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
     std::fs::write(&tmp, bytes).with_context(|| format!("writing {}", tmp.display()))?;
     std::fs::rename(&tmp, path).with_context(|| format!("renaming onto {}", path.display()))?;
     Ok(())
+}
+
+/// `doc.changed`'s params; `source` only when there is one (`"disk"`: the folder's file was edited, by an editor or an
+/// agent outside Taudot).
+pub fn changed_params(doc_id: &str, seq: u64, edits: &[Edit], origin: &str, author: &Value, source: Option<&str>) -> Value {
+    let mut p = json!({"doc_id": doc_id, "seq": seq, "edits": edits, "origin": origin, "author": author});
+    if let Some(s) = source {
+        p["source"] = json!(s);
+    }
+    p
 }

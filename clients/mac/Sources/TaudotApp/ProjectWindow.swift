@@ -45,6 +45,20 @@ import TaudotShared
   var mainFile: String?
   /// The last run's TeX errors and warnings (Issues.swift), their popover, and whether Neovim has the diagnostics module.
   let issues = IssuesModel()
+  /// Edits made outside this window (OutsideEditsUI.swift, editfix item 9).
+  let outside = OutsideEdits()
+  let changesView = ChangesView(frame: .zero)
+  let editPill = EditPill()
+  var followEdits = UserDefaults.standard.bool(forKey: "taudot.followEdits") {
+    didSet { UserDefaults.standard.set(followEdits, forKey: "taudot.followEdits"); changesView.following = followEdits }
+  }
+  var lastTyped: CFTimeInterval = 0
+  var pendingFollow: OutsideEdits.Change?
+  var followTimer: Timer?
+  var typingMonitor: Any?
+  /// The doc the editor shows (its caret reports), and when the Claude pane's claude last wrote output.
+  var editorPath: String?
+  var claudeOutputAt: CFTimeInterval = 0
   /// The strip over the PDF pane and what it shows.
   let strip = IssuesStripState()
   var stripView: NSView?
@@ -226,11 +240,12 @@ import TaudotShared
     native?.onError = { [weak self] e in self?.status.note(e) }
     // The PDF typesets the native editor's own text: its edits skip the engine round trip (pdfpipe, step 2).
     native?.docFeed = .init(
-      held: { [weak self] path, text in self?.pdf.editorHolds(path, text: text) },
-      changed: { [weak self] path, pos, del, ins in self?.pdf.editorChanged(path, pos, del, ins) },
-      released: { [weak self] path in self?.pdf.editorReleased(path) })
+      held: { [weak self] path, text in self?.pdf.editorHolds(path, text: text); self?.outside.held(path, text) },
+      changed: { [weak self] path, pos, del, ins in self?.pdf.editorChanged(path, pos, del, ins); self?.outside.changed(path, pos, del, ins) },
+      released: { [weak self] path in self?.pdf.editorReleased(path); self?.outside.released(path) })
     wireIssues()
     wireNativeIssues()
+    wireOutside()
   }
 
   /// Right of every screen, for background runs.
@@ -470,6 +485,7 @@ import TaudotShared
         let text = args[3].string
       else { return }
       self.pdf.showCaret(path: path, line: line, column: col, text: text, sentAt: args.count > 4 ? args[4].double : nil)
+      self.editorPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
     }
     // Neovim → PDF: the buffer's own text (pdfpipe, step 2), as the native editor's docFeed.
     bridge.notify("taudot_app_text") { [weak self] args in
@@ -477,17 +493,21 @@ import TaudotShared
       let path = p.hasPrefix("/") ? String(p.dropFirst()) : p
       if args.count > 2, let text = args[2].string {
         self.pdf.editorHolds(path, text: text)
+        self.outside.held(path, text)
       } else if args.count > 1, let edits = args[1].array {
         for e in edits {
           guard let pos = e["pos"]?.int, let del = e["del"]?.int else { continue }
           self.pdf.editorChanged(path, pos, del, e["ins"]?.string ?? "")
+          self.outside.changed(path, pos, del, e["ins"]?.string ?? "")
         }
       }
     }
     bridge.notify("taudot_app_text_released") { [weak self] args in
       guard let p = args.first?.string else { return }
       self?.pdf.editorReleased(p.hasPrefix("/") ? String(p.dropFirst()) : p)
+      self?.outside.released(p.hasPrefix("/") ? String(p.dropFirst()) : p)
     }
+    wireOutsideNotify()
     bridge.notify("taudot_app_status") { [weak self] args in
       if args.first?["connection"]?.string == "online" { timeline("engine online") }
       guard let p = args.first else { return }
@@ -648,6 +668,7 @@ import TaudotShared
       if let c = ProcessInfo.processInfo.environment["TAUDOT_CYCLECHECK"] { Task { await CycleCheck(self, out: URL(fileURLWithPath: c)).run() } }
       if let c = ProcessInfo.processInfo.environment["TAUDOT_FLOATCHECK"] { Task { await FloatCheck(self, out: URL(fileURLWithPath: c)).run() } }
     if let c = ProcessInfo.processInfo.environment["TAUDOT_ZOOMCHECK"] { Task { await ZoomCheck(self, out: URL(fileURLWithPath: c)).run() } }
+    if let c = ProcessInfo.processInfo.environment["TAUDOT_OUTSIDECHECK"] { Task { await OutsideCheck(self, out: URL(fileURLWithPath: c)).run() } }
       if let b = ProcessInfo.processInfo.environment["TAUDOT_BENCH"] { Task { await Bench(self, out: URL(fileURLWithPath: b)).run() } }
     } catch is WindowClosed {
     } catch {
@@ -818,6 +839,7 @@ import TaudotShared
     if let c = ProcessInfo.processInfo.environment["TAUDOT_CYCLECHECK"] { Task { await CycleCheck(self, out: URL(fileURLWithPath: c)).run() } }
     if let c = ProcessInfo.processInfo.environment["TAUDOT_FLOATCHECK"] { Task { await FloatCheck(self, out: URL(fileURLWithPath: c)).run() } }
     if let c = ProcessInfo.processInfo.environment["TAUDOT_ZOOMCHECK"] { Task { await ZoomCheck(self, out: URL(fileURLWithPath: c)).run() } }
+    if let c = ProcessInfo.processInfo.environment["TAUDOT_OUTSIDECHECK"] { Task { await OutsideCheck(self, out: URL(fileURLWithPath: c)).run() } }
   }
 
   /// The editor column takes the editor's background; the window's chrome (title bar, status bar, the issues strip,
@@ -1029,6 +1051,26 @@ function M.text(b, edits, text)
   else vim.rpcnotify(chan, 'taudot_app_text', b.path, vim.NIL, text or b.text) end
 end
 function M.text_released(b) vim.rpcnotify(chan, 'taudot_app_text_released', b.path) end
+-- An outside edit applied to a doc (a coauthor's, or one made on disk): `taudot_app_outside path edits author origin
+-- source`, edits in the buffer's byte offsets, applied one after another (after its taudot_app_text).
+function M.outside(b, edits, author, origin, source)
+  vim.rpcnotify(chan, 'taudot_app_outside', b.path, edits, author or vim.NIL, origin or vim.NIL, source or vim.NIL)
+end
+-- The app's Undo of an outside edit: replace `del` bytes at byte `pos` of the doc at `path` with `ins`, as if typed (the
+-- plugin sends it). True when the doc is open here.
+function M.replace(path, pos, del, ins)
+  local B = require('taudot.buffer')
+  for _, b in pairs(B.by_buf or {}) do
+    if b.path == path and api.nvim_buf_is_valid(b.buf) then
+      local sr, sc = B.pos_to_rc(b.buf, pos)
+      local er, ec = B.pos_to_rc(b.buf, pos + del)
+      if not (sr and er) then return false end
+      api.nvim_buf_set_text(b.buf, sr, sc, er, ec, vim.split(ins, '\\n', { plain = true }))
+      return true
+    end
+  end
+  return false
+end
 do  -- buffers attached before this ran
   local okb, buffer = pcall(require, 'taudot.buffer')
   if okb and buffer.by_buf then

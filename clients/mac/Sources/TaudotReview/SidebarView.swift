@@ -3,7 +3,7 @@
 import AppKit
 
 @MainActor public final class SidebarView: NSView {
-  public enum Tab: String, Sendable { case files, comments, history }
+  public enum Tab: String, Sendable { case files, comments, history, changes }
   /// The Comments tab: this file's cards beside their lines, or every comment in the project.
   public enum Scope: String, Sendable { case file, all }
 
@@ -57,7 +57,7 @@ import AppKit
       UserDefaults.standard.set(tab.rawValue, forKey: tabKey)
       let from = content(oldValue, scope)
       apply()
-      switched(from: from, toward: Self.order(tab) > Self.order(oldValue) ? 1 : -1)
+      switched(from: from, toward: index(tab) > index(oldValue) ? 1 : -1)
       onTabChange?(tab)
     }
   }
@@ -77,24 +77,45 @@ import AppKit
   /// The overview is what the sidebar shows.
   public var overviewVisible: Bool { tab == .comments && scope == .all && !isHiddenOrHasHiddenAncestor }
 
-  private func content(_ t: Tab, _ s: Scope) -> NSView { t == .files ? files : t == .history ? (history ?? files) : (s == .all ? overview : margin) }
+  private func content(_ t: Tab, _ s: Scope) -> NSView {
+    t == .files ? files : t == .history ? (history ?? files) : t == .changes ? (changes ?? files) : (s == .all ? overview : margin)
+  }
   public var onTabChange: ((Tab) -> Void)?
-  private static func order(_ t: Tab) -> Int { t == .files ? 0 : t == .comments ? 1 : 2 }
+  /// The tabs shown, in order: Files, Comments, then History and Changes when the app gave them.
+  private var available: [Tab] { [.files, .comments] + (history != nil ? [.history] : []) + (changes != nil ? [.changes] : []) }
+  private func index(_ t: Tab) -> Int { available.firstIndex(of: t) ?? 0 }
 
   /// The History tab's pane (TaudotHistory, set by the app): a third tab appears when it is set.
   public var history: NSView? {
     didSet {
       oldValue?.removeFromSuperview()
-      guard let h = history else { tabs.segmentCount = 2; apply(); return }
-      h.frame = bounds
-      addSubview(h, positioned: .below, relativeTo: header)
-      tabs.segmentCount = 3
-      tabLabels[2] = "History"
-      tabs.setImage(NSImage(systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: "History"), forSegment: 2)
-      tabs.setImageScaling(.scaleProportionallyDown, forSegment: 2)
-      tabs.setToolTip("Version history", forSegment: 2)
-      apply()
+      if let h = history { h.frame = bounds; addSubview(h, positioned: .below, relativeTo: header) }
+      segments()
     }
+  }
+  /// The Changes tab's pane (the app's list of outside edits, editfix item 9): a tab after History when it is set.
+  public var changes: NSView? {
+    didSet {
+      oldValue?.removeFromSuperview()
+      if let c = changes { c.frame = bounds; addSubview(c, positioned: .below, relativeTo: header) }
+      segments()
+    }
+  }
+  /// The Changes tab's label: "Changes", or with a count.
+  public var changesLabel = "Changes" { didSet { if changesLabel != oldValue { segments() } } }
+  private var commentsLabel = "Comments"
+  /// One segment per available tab: its word, symbol and tooltip.
+  private func segments() {
+    let tabsNow = available
+    tabs.segmentCount = tabsNow.count
+    tabLabels = tabsNow.map { t in t == .files ? "Files" : t == .comments ? commentsLabel : t == .history ? "History" : changesLabel }
+    for (i, t) in tabsNow.enumerated() where t == .history || t == .changes {
+      let (sym, tip) = t == .history ? ("clock.arrow.circlepath", "Version history") : ("pencil.and.list.clipboard", "Edits made outside this window (a coauthor, Claude, another editor)")
+      tabs.setImage(NSImage(systemSymbolName: sym, accessibilityDescription: t == .history ? "History" : "Changes"), forSegment: i)
+      tabs.setImageScaling(.scaleProportionallyDown, forSegment: i)
+      tabs.setToolTip(tip, forSegment: i)
+    }
+    apply()
   }
 
   /// The project folder: the Files tab's root, and the key the tab is remembered under.
@@ -210,6 +231,7 @@ import AppKit
     files.frame = bounds
     overview.frame = bounds
     history?.frame = bounds
+    changes?.frame = bounds
     overview.topInset = hh
     margin.coveredTop = hh
     scopes.sizeToFit()
@@ -292,8 +314,9 @@ import AppKit
   public var inlineFrame: NSRect { inlineButton.frame }
 
   private func apply() {
-    tabs.selectedSegment = min(Self.order(tab), tabs.segmentCount - 1)
+    tabs.selectedSegment = min(index(tab), tabs.segmentCount - 1)
     history?.isHidden = tab != .history
+    changes?.isHidden = tab != .changes
     scopes.selectedSegment = scope == .file ? 0 : 1
     // Hiding the margin is what makes its thread float (and its inline notes come back).
     margin.isHidden = !(tab == .comments && scope == .file)
@@ -387,7 +410,8 @@ import AppKit
     let open = margin.openCount
     _ = open
     // The badge counts open comments only; suggestions are counted on the filter row under it.
-    tabLabels[1] = c > 0 ? "Comments \(c)" : "Comments"
+    commentsLabel = c > 0 ? "Comments \(c)" : "Comments"
+    if tabLabels.count > 1 { tabLabels[1] = commentsLabel }
     tabs.setToolTip("\(c == 1 ? "1 open comment" : "\(c) open comments") · \(sg == 1 ? "1 suggestion" : "\(sg) suggestions") (⇧⌘M)", forSegment: 1)
     let r = margin.resolvedCount
     resolvedButton.toolTip = margin.showResolved ? "Hide resolved" : (r == 0 ? "No resolved comments" : "Show resolved (\(r))")
@@ -474,7 +498,7 @@ import AppKit
   }
 
   @objc private func scopeClicked() { scope = scopes.selectedSegment == 0 ? .file : .all }
-  @objc private func tabClicked() { tab = [.files, .comments, .history][min(2, max(0, tabs.selectedSegment))] }
+  @objc private func tabClicked() { let a = available; tab = a[min(a.count - 1, max(0, tabs.selectedSegment))] }
   @objc private func toggleResolved() {
     margin.showResolved.toggle()
     updateCounts()
@@ -485,6 +509,7 @@ import AppKit
     switch tab {
     case .files: files.focus()
     case .history: if let h = history { window?.makeFirstResponder(h) }
+    case .changes: if let c = changes { window?.makeFirstResponder(c) }
     case .comments where scope == .all: overview.focus()
     case .comments:
       // The pane takes the keys (↑↓ move, ↩ reply, ⌘↩ accept…), not a reply field.

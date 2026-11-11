@@ -23,6 +23,7 @@ nvim --headless --clean -l "$here/connect_spec.lua"
 nvim --headless --clean -l "$here/ot_spec.lua"
 nvim --headless --clean -l "$here/ot_fixtures_spec.lua"
 nvim --headless --clean -l "$here/pdffeed_spec.lua"
+nvim --headless --clean -l "$here/outside_spec.lua"
 
 status=0
 TAUDOT_SOCKET="$tmp/e.sock" TAUDOT_FOLDER="$tmp" MOCK_LOG="$tmp/mock.log" \

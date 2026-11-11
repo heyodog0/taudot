@@ -49,7 +49,29 @@ extension NSColor {
   /// Every review tint, comments marked (setTints).
   private var allTints: [(range: NSRange, color: NSColor, strength: CGFloat, comment: Bool)] = []
   /// The tints drawn: all of them, less comments while `commentsHidden`.
-  var tints: [(NSRange, NSColor, CGFloat)] { allTints.filter { !(commentsHidden && $0.comment) }.map { ($0.range, $0.color, $0.strength) } }
+  var tints: [(NSRange, NSColor, CGFloat)] {
+    allTints.filter { !(commentsHidden && $0.comment) }.map { ($0.range, $0.color, $0.strength) } + flashTints
+  }
+  /// Outside edits (editfix item 9): text a coauthor inserted, or an edit made on disk (an editor or an agent outside
+  /// Taudot), tinted in their colour and fading over `flashSeconds`; a deletion's place as the characters on both
+  /// sides of it, fainter. The ranges move with later edits (textStorage(_:didProcessEditing:...)).
+  struct Flash { var range: NSRange; let color: NSColor; let born: CFTimeInterval; let deletion: Bool }
+  private(set) var flashes: [Flash] = []
+  private var flashTimer: Timer?
+  nonisolated(unsafe) public static var flashSeconds: CFTimeInterval = 4
+  /// Edits made on disk: their own colour (Neovim: the plugin's disk_group).
+  public static let diskColor = NSColor.systemPurple
+  private var flashTints: [(NSRange, NSColor, CGFloat)] {
+    let now = CACurrentMediaTime()
+    return flashes.map { f in
+      let left = max(0, 1 - (now - f.born) / Self.flashSeconds)
+      return (f.range, f.color, CGFloat((f.deletion ? 0.35 : 0.45) * left))
+    }
+  }
+  /// For checks: the outside edits tinted now.
+  public var flashRanges: [NSRange] { flashes.map(\.range) }
+  /// For checks: (inserted texts tinted, deletion places marked).
+  public var flashCounts: (inserted: Int, deleted: Int) { (flashes.filter { !$0.deletion }.count, flashes.filter(\.deletion).count) }
   /// Comment highlights hidden in the text (tracked changes still shown). Both editors (TextKit and Metal).
   public var commentsHidden = false { didSet { if commentsHidden != oldValue { retint(); lineNotesChanged() } } }
   /// End-of-line comment notes (LineNotes.swift; LineNotesView.swift draws them), redrawn at once when set.
@@ -318,12 +340,15 @@ extension NSColor {
   /// Remote edits (already transformed), applied in order to `old`, the doc's text before them.
   private func remote(_ edits: [Edit], old: [UInt8]) {
     guard let st = textView.textStorage, let d = doc else { return }
+    let who = d.remoteWho
+    let color = who == "disk" ? Self.diskColor : who.map(NativeEditor.color)
     var bytes = old
     applying = true
     for e in edits {
       let loc = Utf.utf16(bytes, e.pos)
       let len = Utf.utf16(bytes, e.pos + e.del) - loc
       st.replaceCharacters(in: NSRange(location: loc, length: len), with: e.ins)
+      if let color { flash(loc, inserted: (e.ins as NSString).length, color: color) }
       vim?.textEdited(at: loc, deleted: len, inserted: (e.ins as NSString).length)  // (A9)
       bytes = bytes.applying([e])
     }
@@ -339,6 +364,7 @@ extension NSColor {
 
   public func textStorage(_ st: NSTextStorage, didProcessEditing mask: NSTextStorageEditActions, range: NSRange, changeInLength delta: Int) {
     guard mask.contains(.editedCharacters) else { metalView?.setNeedsRender(); return }
+    if !flashes.isEmpty { moveFlashes(range, delta) }
     if !applying { Latency.shared.record(.model, key: Latency.shared.lastKey) }
     let s = st.mutableString as NSString
     if let lay = textLayout {
@@ -724,5 +750,62 @@ final class OthersOverlay: NSView {
         label.draw(at: NSPoint(x: box.minX + 3, y: box.minY), withAttributes: attrs)
       }
     }
+  }
+}
+
+// MARK: outside edits (editfix item 9)
+
+extension NativeEditorView {
+  /// Tint what an outside edit inserted at `loc` (UTF-16), or mark where it deleted (nothing inserted).
+  func flash(_ loc: Int, inserted: Int, color: NSColor) {
+    let n = textView.textStorage?.length ?? 0
+    let r = inserted > 0
+      ? NSRange(location: loc, length: inserted)
+      : NSRange(location: max(0, loc - 1), length: min(n, loc + 1) - max(0, loc - 1))
+    guard r.length > 0 else { return }
+    flashes.append(Flash(range: r, color: color, born: CACurrentMediaTime(), deletion: inserted == 0))
+    if flashTimer == nil {
+      let t = Timer(timeInterval: 1.0 / 15, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.fadeStep() } }
+      RunLoop.main.add(t, forMode: .common)
+      flashTimer = t
+    }
+    retint()
+  }
+
+  private func fadeStep() {
+    let now = CACurrentMediaTime()
+    flashes.removeAll { now - $0.born >= Self.flashSeconds }
+    if flashes.isEmpty { flashTimer?.invalidate(); flashTimer = nil }
+    retint()
+  }
+
+  /// An edit replaced `range.length - delta` characters at `range.location` with `range.length`: the tints after it
+  /// move, the ones it cut into shrink to what's left (an edit inside one grows it).
+  func moveFlashes(_ range: NSRange, _ delta: Int) {
+    let start = range.location, oldEnd = range.location + range.length - delta
+    flashes = flashes.compactMap { f in
+      var f = f
+      let a = f.range.location, b = NSMaxRange(f.range)
+      if a >= oldEnd { f.range.location += delta; return f }
+      if b <= start { return f }
+      if a >= start && b <= oldEnd { return nil }  // replaced whole
+      let na = a < start ? a : start + range.length
+      let nb = b > oldEnd ? b + delta : start + (a < start ? range.length : 0)
+      f.range = NSRange(location: na, length: max(0, nb - na))
+      return f.range.length > 0 ? f : nil
+    }
+  }
+}
+
+extension NativeEditorView {
+  /// A replacement in the doc's bytes, through the text view as typing goes (undo, the doc's edit, colours).
+  func replaceBytes(pos: Int, del: Int, ins: String) -> Bool {
+    guard let d = doc, pos >= 0, pos + del <= d.text.count, let st = textView.textStorage else { return false }
+    let loc = Utf.utf16(d.text, pos), end = Utf.utf16(d.text, pos + del)
+    let r = NSRange(location: loc, length: end - loc)
+    guard textView.shouldChangeText(in: r, replacementString: ins) else { return false }
+    st.replaceCharacters(in: r, with: ins)
+    textView.didChangeText()
+    return true
   }
 }

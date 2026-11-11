@@ -70,9 +70,14 @@ public struct EditorError: Error, CustomStringConvertible {
   }
 
   private func feed(_ d: NativeDoc) {
+    let path = d.path
+    // outside edits (a coauthor's, or one made on disk) to the app, as Neovim's taudot.app sends them (item 9)
+    d.onOutside = { [weak self] edits, p in
+      let es = Value.array(edits.map { Value.obj([("pos", .int(Int64($0.pos))), ("del", .int(Int64($0.del))), ("ins", .string($0.ins))]) })
+      self?.bridge.emit("taudot_app_outside", [.string(path), es, Value.from(p["author"]), Value.from(p["origin"]), Value.from(p["source"])])
+    }
     guard let f = docFeed else { d.onText = nil; return }
     f.held(d.path, d.string)
-    let path = d.path
     d.onText = { edits in for e in edits { f.changed(path, e.pos, e.del, e.ins) } }
   }
 
@@ -522,7 +527,7 @@ public struct EditorError: Error, CustomStringConvertible {
   ]
 
   /// An author's colour, as the margin picks it (ReviewItem.authorColor).
-  static func color(_ key: String) -> NSColor {
+  public static func color(_ key: String) -> NSColor {
     let h = key.unicodeScalars.reduce(UInt32(5381)) { ($0 &* 33) &+ $1.value }
     return palette[Int(h % UInt32(palette.count))].0
   }
@@ -530,5 +535,14 @@ public struct EditorError: Error, CustomStringConvertible {
   static func hex(_ c: NSColor) -> String {
     let s = c.usingColorSpace(.sRGB) ?? c
     return String(format: "#%02x%02x%02x", Int(s.redComponent * 255), Int(s.greenComponent * 255), Int(s.blueComponent * 255))
+  }
+}
+
+extension NativeEditor {
+  /// Replace `del` bytes at byte `pos` of the doc at `path` with `ins`, as if typed (undoable, sent as the user's
+  /// edit): the app's Undo of an outside edit. Only the doc on screen; false otherwise.
+  public func replace(path: String, pos: Int, del: Int, ins: String) -> Bool {
+    guard let d = view.doc, d.path == path else { return false }
+    return view.replaceBytes(pos: pos, del: del, ins: ins)
   }
 }

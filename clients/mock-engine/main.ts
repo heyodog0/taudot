@@ -32,6 +32,7 @@ const log = (line: string) => console.log(`${stamp()} ${line}`);
 
 const engine = new Engine({ folder: args.folder, latencyMs: Number(args.latency ?? 0), log });
 await engine.load();
+engine.watchDisk();  // files edited on disk reach the editors (source "disk"), as with the real engine
 if (args["synthetic-review"]) {
   const [c, k] = String(args["synthetic-review"]).split(",").map(Number);
   seedReview(engine, c || 0, k || 0);
