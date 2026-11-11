@@ -168,7 +168,7 @@ def memory_table(tag=None):
     if not os.path.exists(p):
         return ""
     rows = list(csv.DictReader(open(p), delimiter="\t"))
-    tag = tag if tag is not None else rows[-1]["tag"]
+    tag = tag if tag is not None else [r["tag"] for r in rows if r["tag"].startswith("main-")][-1]
     rows = [r for r in rows if r["tag"] == tag]
     out = ["| document | driver | cores busy elsewhere | idle | isolated keys | bursts | idle after | summed RSS, peak | "
            "processes, most |", "|---|---|---|---|---|---|---|---|---|"]

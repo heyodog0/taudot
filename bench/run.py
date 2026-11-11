@@ -1146,6 +1146,10 @@ def memory(docs, engine="pdflatex", tag=""):
                 time.sleep(REST)
             mem.phase("idle after")
             time.sleep(IDLE)
+            tail = int(os.environ.get("BENCH_IDLE_TAIL", 0))  # more quiet seconds, in 5 s phases: does it drop back?
+            for k in range(IDLE, IDLE + tail, 5):
+                mem.phase(f"idle +{k}-{k + 5} s")
+                time.sleep(5)
             mem.done()
             sysm.close()
             load_, other = lo.done()
