@@ -412,6 +412,8 @@ static void exact_resources(pdf *D, char **fonts_out, char **xobjs_out)
   *fonts_out = fonts, *xobjs_out = xobjs;
 }
 
+static void exact_prep(exact_pdf *E);
+static const char *scan_content(exact_pdf *E, const unsigned char *c, size_t n, int collect);
 static int cmd_pdf(const char *exact_path, long page, const char *pass_path, const char *out_pdf, const char *out_tdl,
                    int has_dy, double dy_in)
 {
@@ -424,6 +426,13 @@ static int cmd_pdf(const char *exact_path, long page, const char *pass_path, con
   if (!pb) return fail("cannot read the inputs");
   unsigned char *content = pass_content(pb, pn, &cn);
   if (!content) { free(pb); return fail("no content stream in the pass's output"); }
+  // drawn from the exact PDF's fonts only if they draw it: every (font, code) the pass shows is drawn somewhere in it
+  // and every resource it names is there (as `page`). A new character isn't in the subsets; and a pass before the
+  // first page names a font after the first of its name it uses (/F58), where the exact run may have used another
+  // first (/F89): its codes are under that name, and /F58's object, if any, is another subset.
+  exact_prep(E);
+  const char *why = scan_content(E, content, cn, 0);
+  if (why) { free(pb); free(content); return fail(why); }
   pdf *D = &E->d;
   long pg = pdf_page(D, page);
   if (pg <= 0) return fail("no such page");

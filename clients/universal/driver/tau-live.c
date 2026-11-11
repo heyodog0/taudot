@@ -774,11 +774,11 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
   // (a pass from far back would typeset pages before the paragraph: slower than the exact page, and not the
   // paragraph's own lines if a float or page break comes between; the next key resumes at the edited line)
   if (dbg && para && hook && !rerun && nch == 1 &&
-      !(s->cur && !strcmp(s->cur, ch[0].rel) && s->cur_pos <= ch[0].k && ch[0].k - s->cur_pos < 4096 && s->pages > 0))
+      !(s->cur && !strcmp(s->cur, ch[0].rel) && s->cur_pos <= ch[0].k && ch[0].k - s->cur_pos < 4096))
     fprintf(dbg, "no pass: snapshot in %s at %ld, edit at %ld, pages %d\n", s->cur ? s->cur : "-", s->cur_pos, ch[0].k,
             s->pages), fflush(dbg);
   if (para && hook && !rerun && nch == 1 && s->cur && !strcmp(s->cur, ch[0].rel) && s->cur_pos <= ch[0].k &&
-      ch[0].k - s->cur_pos < 4096 && s->pages > 0) {  // (before the first page: font map, title page)
+      ch[0].k - s->cur_pos < 4096) {
     text *t = get_text(ch[0].rel);
     pid_t warm = s->warm;
     if (warm > 0) snprintf(p, sizeof p, "%s/ctl-warm-%d", tdir, warm);

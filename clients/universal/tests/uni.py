@@ -169,9 +169,10 @@ def same_output(engine, a, b):
     return a == b
 
 
-def random_edit(rng, text, lo):
-    """An edit inside running text after byte LO: insert a word, delete a word, or change a letter."""
-    ms = [m for m in WORD.finditer(text, lo)]
+def random_edit(rng, text, lo, span=None):
+    """An edit inside running text after byte LO (and within SPAN bytes of it): insert a word, delete a word, or
+    change a letter."""
+    ms = [m for m in WORD.finditer(text, lo) if span is None or m.start() < lo + span]
     m = rng.choice(ms)
     kind = rng.choice(["ins", "del", "chr"])
     if kind == "ins":
@@ -381,7 +382,7 @@ def paragraph(engine, src, main, n=20, seed=4):
     place = {"exact": 0, "provisional": 0, "none": 0, "px0": 0, "worst": 0}
     for i in range(n):
         time.sleep(0.15)
-        pos, dl, ins = random_edit(rng, text, lo)
+        pos, dl, ins = random_edit(rng, text, lo, int(os.environ["PARA_SPAN"]) if os.environ.get("PARA_SPAN") else None)  # (PARA_SPAN: e.g. the first page)
         text = text[:pos] + ins.encode() + text[pos + dl:]
         live.send("change", main, pos, dl, ins)
         run = newer_run(live)
