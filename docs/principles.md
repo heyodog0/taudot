@@ -47,8 +47,8 @@ Each rule says where it came from.
 
 ## Workflow (from Glideshow)
 
-15. **Docs first, then a plan worked top to bottom.** `docs/plan.md` items get checked off with a one-line note of what
-    was done and how it was checked.
+15. **Docs first, then a plan worked top to bottom.** Each step gets a one-line note of what was done and how it was
+    checked.
 16. **Measure against the real thing.** Glideshow's fidelity harness compares against Google's own render. Here the
     reference is Overleaf CE running its own code, with a real browser client in the same test.
 17. **Tests never touch real data.** Test servers and projects live in temp folders and local Docker, never on

@@ -21,6 +21,5 @@ $ pdftex-live --serve --state STATE DIR main.tex OUT  # JSON on stdin/stdout: do
 ## Docs
 
 - [DESIGN.md](DESIGN.md): the patches, how the engine works, the TeX Live store, latexmk's rule, `--serve`.
-- [docs/exact-typesetting.md](../../docs/exact-typesetting.md): why exact, and the plan.
 
 Licence: GPL-2.0-or-later, like pdfTeX.
