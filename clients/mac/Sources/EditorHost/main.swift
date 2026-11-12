@@ -34,7 +34,7 @@ let projectOpt = opt("--project")
 /// For the engine-restart step: a file holding the engine's pid, and a shell command that starts it again (and writes
 /// its pid there).
 let enginePidFile = opt("--engine-pidfile")
-/// Checks run in the background (docs/agents/README.md, "Tests must not disturb the user's screen"): no Dock icon, no
+/// Checks run in the background (docs/developing.md, "Tests stay off the screen"): no Dock icon, no
 /// activation, the window off every screen. TAUDOT_ONSCREEN=1 (opt-in) puts it on screen; so does a run without
 /// --check (EditorHost as a manual tool).
 let onScreen = ProcessInfo.processInfo.environment["TAUDOT_ONSCREEN"] != nil || CommandLine.arguments.firstIndex(of: "--check") == nil

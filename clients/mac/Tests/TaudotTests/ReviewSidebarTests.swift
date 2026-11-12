@@ -1,4 +1,4 @@
-// The sidebar (Files | Comments): docs/agents/margin-sidebar.md.
+// The sidebar (Files | Comments).
 import AppKit
 import Testing
 @testable import TaudotReview

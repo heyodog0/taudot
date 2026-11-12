@@ -1,4 +1,4 @@
-// A project as it was at a past version, on its own pane (History, docs/agents/history.md): typeset once by the
+// A project as it was at a past version, on its own pane (History, docs/history.md): typeset once by the
 // project's typesetter, then kept as a finished PDF beside the version's files, and its changes marked on the pages.
 // Insertions are boxed in their author's colour; a deletion is a small mark where the text was, its words on hover.
 // The marks are placed the way review comments are (SyncTeX's line, then the words read off the page).

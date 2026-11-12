@@ -1,4 +1,4 @@
-// The floating card (margin hidden, cursor in a comment): docs/agents/margin-float.md.
+// The floating card (margin hidden, cursor in a comment).
 import AppKit
 import Testing
 @testable import TaudotReview

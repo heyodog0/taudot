@@ -1,5 +1,5 @@
-// Settings ▸ every page, in Rex's language on Liquid Glass in the Taudot palette (docs/agents/shell-settings-style.md,
-// option B): a floating glass sidebar over a teal ground (traffic lights inside it, a capsule search, coloured
+// Settings ▸ every page, in Rex's language on Liquid Glass in the Taudot palette:
+// a floating glass sidebar over a teal ground (traffic lights inside it, a capsule search, coloured
 // squircle icons, the selection a lit glass capsule as in the Files tab); on the right a glass back/forward capsule
 // and a bold title, bold headings over glass-tinted cards with hairline separators, a live preview card at the top of
 // a section (solid inside, so it stays legible), label left / control right, glass capsule buttons, lime (dark) or

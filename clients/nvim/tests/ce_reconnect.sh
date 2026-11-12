@@ -1,5 +1,5 @@
 #!/bin/sh
-# The engine restarts while Neovim types, on the local Overleaf CE (docs/agents/editor-reconnect.md): killed (-9, then
+# The engine restarts while Neovim types, on the local Overleaf CE: killed (-9, then
 # a clean SIGINT) with edits in flight and pending, Bob types in Overleaf meanwhile, Neovim types more; the engine
 # comes back on the same home. Overleaf must end with everything, once, and equal to Neovim's buffer.
 #   clients/nvim/tests/ce_reconnect.sh [--history-ot]   (CE up: docker/up.sh; harness: npm install in harness/)

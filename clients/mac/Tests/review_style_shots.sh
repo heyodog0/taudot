@@ -1,5 +1,5 @@
 #!/bin/sh
-# Screenshots for docs/agents/margin-float.md: every comment_style, cursor outside and inside a comment, on Neovim's
+# Screenshots of the floating card: every comment_style, cursor outside and inside a comment, on Neovim's
 # default colourscheme dark and light, and the floating card (below, above, stacked, following a scroll, a reply
 # being typed). The real app (debug taudot-app) on a COPY of a .tex file, mock engine, the margin hidden.
 #   swift build --product taudot-app && clients/mac/Tests/review_style_shots.sh FILE.tex OUTDIR

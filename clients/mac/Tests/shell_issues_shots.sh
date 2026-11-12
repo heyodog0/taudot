@@ -1,5 +1,5 @@
 #!/bin/sh
-# Screenshots of LaTeX errors (docs/agents/errors.md): a small broken project (an unbalanced }, an unknown command, an
+# Screenshots of LaTeX errors: a small broken project (an unbalanced }, an unknown command, an
 # undefined citation and reference, an overfull line) typeset for real in taudot-app (CONFIG=debug|release), off
 # screen (TAUDOT_ISSUESSHOT): the issues strip over the PDF collapsed, expanded, atop the editor column with the PDF
 # hidden, then "Fix all with Claude" (the prompt typed in Claude's pane, here a fake `claude` that echoes). Window

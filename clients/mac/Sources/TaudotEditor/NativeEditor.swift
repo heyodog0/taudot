@@ -317,7 +317,7 @@ public struct EditorError: Error, CustomStringConvertible {
     show(d)
   }
 
-  // MARK: LaTeX errors (docs/agents/errors.md)
+  // MARK: LaTeX errors
 
   /// The last typeset's errors and warnings, all files: the shown doc marks its own.
   public private(set) var issues: [EditorIssue] = []

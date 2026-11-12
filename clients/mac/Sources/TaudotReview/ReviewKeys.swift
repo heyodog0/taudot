@@ -1,4 +1,4 @@
-// Review shortcuts a non-Neovim user would guess (docs/agents/margin-keys.md): the review pane's keys, like Mail's
+// Review shortcuts a non-Neovim user would guess: the review pane's keys, like Mail's
 // message list, and the verbs they share with the app's Review menu.
 import AppKit
 

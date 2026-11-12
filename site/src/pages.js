@@ -7,7 +7,7 @@ const CONTACT = 'heyodogo@gmail.com';   // the user's choice (2026-11-05); remov
 const ORIGIN = 'https://taudot.app';
 
 /* The clips (public/clips/<id>.mp4 and .jpg poster, made by tools/camera.py), shown one at a time in the panel. `ready: false` shows an
-   empty window until it's recorded. The fourth waits until "ours equals Overleaf's" is verified (docs/agents/site.md). */
+   empty window until it's recorded. The fourth waits until "ours equals Overleaf's" is verified. */
 export const CLIPS = [
   { id: 'type', ready: true, label: 'No compile button', caption: 'Type, and the PDF beside it follows.' },
   { id: 'coauthor', ready: true, label: 'Coauthors, live', caption: 'Your coauthor types in Overleaf in the browser. Each keystroke shows up in Taudot, and the PDF follows.' },

@@ -1,7 +1,7 @@
 #!/bin/sh
-# Settings, every page, light and dark (docs/agents/shell-settings-style.md: the Taudot palette on Liquid Glass), plus
+# Settings, every page, light and dark (the Taudot palette on Liquid Glass), plus
 # the Reduce Transparency fallback (TAUDOT_REDUCE_TRANSPARENCY=1) of two pages, a sheet of them all, and a side-by-side
-# with the Projects window (docs/agents/home-shots/home-list-*.png) so they read as one family. taudot-app
+# with the Projects window (home_shots.sh's home-list-*.png) so they read as one family. taudot-app
 # (CONFIG=debug|release) off screen (TAUDOT_SETTINGSSHOT); the previews' theme and font pinned by read-only launch
 # arguments (nothing is written to the user's settings). Window captures into OUT (default /tmp/txs-settings-final).
 #   swift build --product taudot-app && clients/mac/Tests/shell_settings_shots.sh [OUT]

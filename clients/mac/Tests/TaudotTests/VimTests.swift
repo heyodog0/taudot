@@ -253,7 +253,7 @@ let golden: [(String, String, String, String)] = [
   #expect(!v.textView.blockCaret)
 }
 
-// MARK: review keys and the caret's shape (docs/agents/editor-vim-cursor.md)
+// MARK: review keys and the caret's shape
 
 @MainActor @Test func vimCursorShapes() {
   let b = MemBuffer("one two\n")

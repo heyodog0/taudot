@@ -3,7 +3,7 @@
 #   clients/mac/Tests/perf/launch.sh OUT FOLDER SOCKET N [SECONDS] [VAR=VALUE...]
 # FOLDER "-": launched without a folder; the Projects window (sign-in and the projects list) is measured.
 #
-# Off the user's screen (docs/agents/README.md, "Tests must not disturb the user's screen"): the app runs with
+# Off the user's screen (docs/developing.md, "Tests stay off the screen"): the app runs with
 # TAUDOT_OFFSCREEN=1 (no Dock icon, never activated, windows off every display) and probe stops it if a window
 # comes on screen anyway. An app without TAUDOT_OFFSCREEN is refused. PERF_ONSCREEN=1 opts into an on-screen run
 # (behind other windows, TAUDOT_ONSCREEN): rare, batched, noted in the log.

@@ -1,4 +1,4 @@
-// ReviewHost: the review margin beside a plain text view, to build and check it alone (docs/agents/margin.md).
+// ReviewHost: the review margin beside a plain text view, to build and check it alone.
 //
 //   swift run ReviewHost                       fake comments and changes on a sample document
 //   swift run ReviewHost --nvim                headless `nvim --embed` with the plugin and the mock engine's bot

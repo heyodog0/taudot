@@ -633,8 +633,8 @@ mod tests {
         assert_eq!(t.to_json()["comments"][0]["op"]["c"], "öß");
     }
 
-    /// Differential test against Overleaf's own `RangesTracker`. Set `TAUDOT_RANGES_JS` to its `index.cjs` (in the
-    /// Overleaf checkout, see docs/agents/OVERLEAF_SRC.md) and have `node` on the PATH; skipped otherwise.
+    /// Differential test against Overleaf's own `RangesTracker`. Set `TAUDOT_RANGES_JS` to its `index.cjs` (in an
+    /// Overleaf CE source checkout) and have `node` on the PATH; skipped otherwise.
     #[test]
     fn matches_overleaf_ranges_tracker() {
         let Ok(js) = std::env::var("TAUDOT_RANGES_JS") else {

@@ -537,7 +537,7 @@ import TaudotShared
     return true
   }
 
-  // ---- the editor's own text (docs/agents/pdfpipe.md, step 2) ------------------------------------------------------
+  // ---- the editor's own text ------------------------------------------------------
   /// Docs an editor in this window holds. Their text comes from the editor, every change to its buffer in order (the
   /// user's edits, the remote ones it merged, a rebase's), not from the engine's stream: the typesetter's text is the
   /// editor's after every step, and a keystroke reaches it without the engine round trip. Kept across `close()` (the

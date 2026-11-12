@@ -5,7 +5,7 @@
 //   probe --out DIR --seconds S [--match TITLE] [--script FILE] [--scale N] -- APP ARGS...
 //   probe --out DIR --seconds S --pid PID --match TITLE [--script FILE]
 // Off-screen only: if any window of the app comes onto a display, probe stops the app and exits 3 (the rule in
-// docs/agents/README.md). --allow-onscreen lifts that, for opt-in runs (PERF_ONSCREEN=1 in the scripts).
+// docs/developing.md). --allow-onscreen lifts that, for opt-in runs (PERF_ONSCREEN=1 in the scripts).
 //
 // DIR/windows.tsv   t  id  pid  alpha  onscreen  x y w h  title     (every change of any window of the app)
 // DIR/frames.bin    per changed frame: f64 t, u16 w, u16 h, w*h u8 luminance (mean of scale x scale blocks)
@@ -112,7 +112,7 @@ func pollWindows() {
     if target == nil, rect.width >= 400, rect.height >= 300, match == nil || cur.title == match {
       target = id
     }
-    // Off-screen runs only (docs/agents/README.md): a window of the app on any display stops the run at once.
+    // Off-screen runs only (docs/developing.md): a window of the app on any display stops the run at once.
     if !allowOnScreen, cur.on, rect.width > 0, displaysUnion().intersects(rect) {
       kill(pid, SIGTERM)
       FileHandle.standardError.write("probe: a window of the app came on screen (\(rect)); stopped it. Use an app with TAUDOT_OFFSCREEN, or --allow-onscreen.\n".data(using: .utf8)!)

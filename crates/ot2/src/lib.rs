@@ -2,7 +2,7 @@
 //! machine. Pure library, no I/O.
 //!
 //! Written clean-room from `docs/protocol.md`, ShareJS 0.6's text type and client (MIT, Joseph Gentle) and ot.js
-//! (MIT, Tim Baumann); see `docs/agents/otclean.log.md` for what each module was written from.
+//! (MIT, Tim Baumann).
 //!
 //! - [`text`]: the classic format, `sharejs-text-ot`, positions in UTF-16 code units.
 //! - [`units`]: UTF-8 byte offsets to and from UTF-16 indexes, and Latin-1 packing.

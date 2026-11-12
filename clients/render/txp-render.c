@@ -1,4 +1,4 @@
-// txp-render: txp-headless plus the renderer project's commands (docs/agents/renderer/README.md).
+// txp-render: txp-headless plus the renderer project's commands.
 //
 // It includes driver.c whole (our copy of the preview's txp-headless.c, dvi/README.md), so the preview protocol
 // stays the same, and answers its own verbs first through the TXP_EXTRA_COMMANDS hook. Each verb lives in its own file, owned by one agent:

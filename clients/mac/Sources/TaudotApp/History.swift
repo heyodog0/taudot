@@ -2,7 +2,7 @@
 // visible tab the editor column shows the selected file's changes read-only, in both editor modes, with a bar to go
 // back to editing. The diff and the version's PDF move together: the diff's current change is shown on the pages, a
 // mark clicked is the diff's current change, a double-click in the diff is a forward search, and the arrows of either
-// bar step through the changes. Owner: the history agent (docs/agents/history.md); ProjectWindow only calls wireHistory().
+// bar step through the changes. Data: docs/history.md; ProjectWindow only calls wireHistory().
 import AppKit
 import TaudotHistory
 import TaudotNeovim

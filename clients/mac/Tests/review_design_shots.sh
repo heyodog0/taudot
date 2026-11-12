@@ -1,5 +1,5 @@
 #!/bin/sh
-# Screenshots for docs/agents/margin-redesign.md step 1: each direction (TAUDOT_MARGIN_DESIGN = classic, quiet,
+# Screenshots of the review margin's designs: each direction (TAUDOT_MARGIN_DESIGN = classic, quiet,
 # rail, overleaf) in the real app on a synthetic doc (the mock's --synthetic-review: three reviewers' suggestions in
 # clusters, a few comments), Neovim's default colours dark and light: at the top of the file, and mid-file with a
 # comment selected (its card and its tint), the sidebar on Comments.

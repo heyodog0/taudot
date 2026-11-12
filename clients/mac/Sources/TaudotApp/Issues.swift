@@ -1,4 +1,4 @@
-// LaTeX errors and warnings (docs/agents/errors.md): the run's issues gathered from the PDF pane, shown in the issues
+// LaTeX errors and warnings: the run's issues gathered from the PDF pane, shown in the issues
 // strip (over the PDF, or atop the editor column while the PDF is hidden; ⌥⌘E expands it), published to Neovim as
 // diagnostics, and handed to Claude ("Ask Claude to fix": the prompt typed at the Claude pane, not sent).
 import AppKit

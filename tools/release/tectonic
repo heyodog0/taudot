@@ -1,7 +1,7 @@
 #!/bin/sh
 # Taudot's stand-in for `tectonic`, as TeXpresso's file provider calls it (libcommon.a, tectonic_provider.c): the
 # three commands it runs, answered from Tectonic's TeX bundle over HTTPS with the system's curl. Tectonic itself
-# isn't shipped (its binary contains xdvipdfmx, GPL; docs/agents/renderer/licences.md, Blocker 4).
+# isn't shipped (its binary contains xdvipdfmx, GPL; docs/release.md).
 #
 #   tectonic -X show user-cache-dir     the cache folder (the layout Tectonic 0.16 uses: data/<digest>.index and
 #                                       data/<digest>/<file>)

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Scrolling on the CE replica "Demo Paper (replica)" (docs/agents/README.md): the real engine as alice on the local
+# Scrolling on the CE replica "Demo Paper (replica)": the real engine as alice on the local
 # CE, the app on a fresh mirror folder, the shell's TAUDOT_SCROLLTRACE flicks and TAUDOT_MARGIN_TRACE per frame.
 # Output stays outside the repo (the paper belongs to the user's collaborators): pass an OUTDIR outside it.
 #   swift build --product taudot-app && clients/mac/Tests/review_replica_trace.sh OUTDIR [replica name]

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Screenshots of the home window (docs/agents/home-shots/home-*.png), light and dark: signed out (an engine with no
+# Screenshots of the home window (home-*.png), light and dark: signed out (an engine with no
 # session) and the list (an engine signed in to the local CE).
 # By default nothing shows on screen: HomeHost runs in the background with its window off every screen, so controls
 # draw inactive. TAUDOT_ONSCREEN=1 (opt-in, rare, note it in your log) puts the window on screen and brings it to

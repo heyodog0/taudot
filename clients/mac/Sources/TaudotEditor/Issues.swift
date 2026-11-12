@@ -1,4 +1,4 @@
-// LaTeX errors and warnings in the native editor (docs/agents/errors.md, "Inline in the editor"): a wavy underline under
+// LaTeX errors and warnings in the native editor: a wavy underline under
 // the spot, a dot in the left margin, and, with the caret on the line or the pointer on the mark, a small card with the
 // message in plain words and "Ask Claude to fix". The shell parses TeX's output and decides when to show (not while a
 // line is half typed); it hands the list to `NativeEditor.setIssues` and gets `onAskClaude` back.
