@@ -41,6 +41,7 @@ One JSON array per line, UTF-8. Paths are relative to `DIR`. Offsets are UTF-8 b
 | `["change", path, pos, del, ins]` | Replace `del` bytes at `pos` with `ins`. Many may come in a burst (typing); the driver may coalesce them before resuming. |
 | `["goal", page]` | The last page in view, 0-based; `-1` means the whole document. See *When a PDF comes*. |
 | `["finish"]` | Finish a PDF of the pages shipped so far now, even if the goal isn't reached (the app asks when a run has been quiet for a while, e.g. a long figure page). |
+| `["cursor", path, line, column]` or `["cursor", path, pos]` | Optional (tau-live only; others ignore or reject it). The editor's cursor came to rest: `line` 1-based, `column` in UTF-8 bytes, or a byte offset `pos`. The driver keeps snapshots near it when it gives memory back, and may typeset quietly up to it (no events) so a first key there is as quick as the next ones (`docs/universal.md`, the scout). The app sends it 300 ms after the cursor stops, once per place. |
 | `["rescan"]` | Files changed on disk that the engine doesn't get as text (`.bib`, `.bst`, images, `.sty` in the project): reread them and apply latexmk's rule (a `.bib` change → BibTeX, rerun if the `.bbl` changed). |
 
 Every `open` and `change` counts as one *applied* command, in order. Events carry `applied`, the count the driver

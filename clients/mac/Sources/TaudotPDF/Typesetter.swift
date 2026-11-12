@@ -30,6 +30,37 @@ import TaudotCursor
   func synctex() async -> String?
   func glyphs(page: Int) async -> PageGlyphs?
   func render(page: Int, scale: Double, x: Int, y: Int, w: Int, h: Int) async -> TileImage?
+  /// The editor's cursor came to rest (line 1-based, column in UTF-8 bytes): tau-live prepares for a key there
+  /// (docs/live-protocol.md `cursor`). Others ignore it.
+  func cursor(_ path: String, line: Int, column: Int)
+}
+
+extension Typesetter {
+  public func cursor(_ path: String, line: Int, column: Int) {}
+}
+
+/// The cursor for the typesetter, once it rests: moves closer together than `delay` send only the last one, and the
+/// same place twice is sent once.
+@MainActor final class CursorFeed {
+  let delay: TimeInterval
+  let send: (String, Int, Int) -> Void
+  private var gen = 0
+  private var last: (String, Int, Int)?
+  init(delay: TimeInterval = 0.3, send: @escaping (String, Int, Int) -> Void) { self.delay = delay; self.send = send }
+  func moved(_ path: String, line: Int, column: Int) {
+    gen += 1
+    let g = gen
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+      MainActor.assumeIsolated {
+        guard let self, self.gen == g else { return }
+        if let l = self.last, l == (path, line, column) { return }
+        self.last = (path, line, column)
+        self.send(path, line, column)
+      }
+    }
+  }
+  /// A new typesetter (a restart): it hasn't heard of the cursor.
+  func reset() { last = nil }
 }
 
 extension Txp: Typesetter {

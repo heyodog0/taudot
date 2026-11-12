@@ -786,6 +786,9 @@ final class Trash: @unchecked Sendable {
   public func open(_ path: String, _ text: String) { sent += 1; send(["open", path, text]) }
   public func change(_ path: String, _ pos: Int, _ del: Int, _ ins: String) { sent += 1; send(["change", path, pos, del, ins]) }
   public func rescan() { send(["rescan"]) }
+  public func cursor(_ path: String, line: Int, column: Int) {
+    if universal != nil { send(["cursor", path, line, column]) }  // (tau-live only; pdftex-live has no `cursor`)
+  }
   public func finish() { send(["finish"]) }
   public func goal(_ page: Int) {
     if page == goalPage { return }

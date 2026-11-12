@@ -2081,8 +2081,22 @@ static void on_cmd(char *line) {
     set_text(v[1].s, d, v[2].n, "open");
   } else if (!strcmp(c, "stats")) {
     stats();
-  } else if (!strcmp(c, "cursor") && n == 3 && v[1].is_str && !v[2].is_str) {  // where the next key is likely
-    snprintf(cursor_at.rel, sizeof cursor_at.rel, "%s", v[1].s), cursor_at.k = (long)v[2].i;  // (the reap's focus)
+  } else if (!strcmp(c, "cursor") && (n == 3 || n == 4) && v[1].is_str && !v[2].is_str && (n == 3 || !v[3].is_str)) {
+    // where the next key is likely: a byte offset, or a line (1-based) and a column in bytes, as editors keep it
+    long k = (long)v[2].i;
+    if (n == 4) {
+      text *t = get_text(v[1].s);
+      long at = 0;
+      for (long l = 1; l < k && at < (long)t->len; l++) {
+        const char *nl = memchr(t->data + at, '\n', t->len - at);
+        at = nl ? nl - t->data + 1 : (long)t->len;
+      }
+      const char *nl = at < (long)t->len ? memchr(t->data + at, '\n', t->len - at) : NULL;
+      long end = nl ? nl - t->data : (long)t->len;
+      k = at + (v[3].i > 0 ? (long)v[3].i : 0);
+      if (k > end) k = end;
+    }
+    snprintf(cursor_at.rel, sizeof cursor_at.rel, "%s", v[1].s), cursor_at.k = k;  // (the reap's focus)
     scout_want_at = now_us() + 100000;  // (once the cursor rests)
   } else if (!strcmp(c, "goal") && n == 2 && !v[1].is_str) {  // the last page in view: finish there at once
     goal_seen = (int)v[1].i;
