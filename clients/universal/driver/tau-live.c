@@ -2,6 +2,7 @@
 //
 //   tau-live [--lib LIBTAU] [--snapshot-ms N] [--finish every|none] [--max-snapshots N] [--keep N]
 //            [--reap-ms N] [--reap-snapshot-ms N] [--reap-open-ms N]
+//            [--mem-budget-mb N] [--mem-extra-mb N] [--snap-far-ms N] [--snap-near-ms N] [--no-scout]
 //            DIR MAIN OUT -- ENGINE ARGS...
 //
 // DIR is never written: the engine runs in OUT/work, an APFS clone. Commands on stdin, events on stdout, both
@@ -234,6 +235,33 @@ static long reap_open_ms = 0;  // --reap-open-ms: after an open (no key typed si
 static int quiet_typed;        // the quiet started with a key (change), not an open or a rescan
 static char last_rel[1024];  // the last edit: its snapshots near it are kept (the next key is likely there)
 static long last_k = -1;
+// The memory budget (--mem-budget-mb): the reap keeps the snapshots spaced by how far (engine time along the run) they
+// are from where the next key is likely: the recent edits, the cursor (`cursor` command) and the pages in view
+// (`goal`). Near them --reap-snapshot-ms apart; farther, the gap grows with the distance, as much as the budget needs.
+static long mem_budget_mb = -1;  // the session's total, MB (0: none, the fixed spacing alone; -1: the base + mem_extra_mb)
+static long mem_extra_mb = 64;   // --mem-extra-mb: with no absolute budget, what snapshots may hold beyond the base: the
+                                 // engine's image (the first snapshot), the snapshots up to the first page (fonts), the
+                                 // driver, reader and converter. ~150 MB in all on pdfLaTeX at any length.
+static long snap_far_ms = 100, snap_near_ms = 150;  // --snap-far-ms (0: off), --snap-near-ms: a run after a key
+                                                     // snapshots every 20 ms near the key, every far ms elsewhere
+typedef struct { char rel[256]; long k; } spot;
+static spot recent[8];  // the last edits' spots, newest at (nrecent - 1) % 8
+static int nrecent;
+static spot cursor_at = {"", -1};
+static int goal_seen = -1;  // the last `goal` (the last page in view), -1: none
+static int reap_passes;     // budget passes since the quiet began (the first reap and checks after it)
+static int64_t reap_check_at;  // when to measure the session again after a budgeted reap
+static uint64_t budget_now;     // the last reap's budget, bytes (0: none)
+// The scout: when the cursor rests far past the snapshot a key there would resume from (the reap kept few), that
+// snapshot is resumed with no edit (ctl `scout`, `dense`, `halt`): it runs to the cursor's line, leaves line snapshots
+// there (inserted after it: the array stays in reading order) and exits (K). The first key there is then as quick as
+// the next ones.
+static int scout_on = 1;          // --no-scout
+static long scout_bytes = 2048;   // a cursor further than this past its resume point sends a scout
+static pid_t scout_from = -1, scout_runner = -1;  // the snapshot resumed, and the runner (-1: none yet)
+static int scout_ins;             // where its next snapshot goes in snaps[]
+static int64_t scout_t0, scout_rc0, scout_want_at, scout_since;
+static int go;  // each resume's orders differ (a snapshot woken twice for the same orders forks one runner)
 static pid_t runner = -1, root = -1;
 static pid_t fins[256];
 static int nfins;
@@ -759,13 +787,22 @@ static void drop_deferred(void);
 static void flush_texts(void);
 static void apply_run(change *ch, int nch, const char *why, int rerun);
 static void apply(change *ch, int nch, const char *why) { apply_run(ch, nch, why, 0); }
+static void scout_stop(void) {
+  if (scout_runner > 0) kill(scout_runner, SIGKILL);
+  scout_from = scout_runner = -1;
+}
 static void apply_run(change *ch, int nch, const char *why, int rerun) {
   if (rerun) run_no++;
   else { seq++; run_no = 1; blg_this[0] = 0; }
-  if (!rerun && nch >= 1) snprintf(last_rel, sizeof last_rel, "%s", ch[0].rel), last_k = ch[0].k;
+  if (!rerun && nch >= 1) {
+    snprintf(last_rel, sizeof last_rel, "%s", ch[0].rel), last_k = ch[0].k;
+    spot *r = &recent[nrecent++ % 8];
+    snprintf(r->rel, sizeof r->rel, "%s", ch[0].rel), r->k = ch[0].k;
+  }
   drop_deferred();
   if (!rerun) applied_at_run = applied;
   t_apply = now_us();
+  scout_stop();  // (its snapshots so far stay: they read text before the cursor, in order like any other)
   for (int i = 0; i < nfins; i++) { kill(fins[i], SIGSTOP); doom(fins[i]); }  // (stopped now, killed after the
   nfins = 0;                                                                    // preview: kill_doomed)
   int best = -1;
@@ -857,7 +894,6 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
   flush_texts();  // (the runner reloads the changed files from the clone)
   snprintf(p, sizeof p, "%s/ctl-%d", tdir, s->pid);
   FILE *f = fopen(p, "w");
-  static int go;  // each resume's orders differ (a snapshot woken twice for the same orders forks one runner)
   fprintf(f, "seq %d\ngo %d\n", seq, ++go);
   for (int c = 0; c < nch; c++) fprintf(f, "load %s\n", ch[c].rel);
   if (nch) fprintf(f, "edit %s %ld\n", ch[0].rel, ch[0].k);
@@ -872,6 +908,8 @@ static void apply_run(change *ch, int nch, const char *why, int rerun) {
   }
   fprintf(f, "finish %s\n", finish_every ? "every" : "rule");
   fprintf(f, "snapms %ld\n", snapshot_ms);
+  if (snap_far_ms > 0 && last_k >= 0)  // sparse away from the last key (a rerun too: its spot is still the key's)
+    fprintf(f, "snapfar %ld %ld %d %s %ld\n", snap_far_ms, snap_near_ms, 16384, last_rel, last_k);
   fclose(f);
   t_resume = now_us();
   kill(s->pid, SIGUSR1);
@@ -1668,8 +1706,33 @@ static void on_msg(char *line) {
     fflush(EVO);
     return;
   }
+  if (sscanf(line, "K %d %d %lld", &a, &c, &t) == 3) {  // the scout is at the cursor (or gave up)
+    if (a == scout_runner) {
+      if (dbg) fprintf(dbg, "%lld scout done: %d snapshots in %lld ms\n", (long long)now_us(), scout_ins,
+                       (long long)(t - scout_t0) / 1000), fflush(dbg);
+      scout_from = scout_runner = -1;
+      if (reaped && budget_now) reap_check_at = now_us() + 400000, reap_passes = 0;  // (its snapshots: in budget?)
+    }
+    return;
+  }
   if (sscanf(line, "S %d %d %d %lld", &a, &b, &c, &t) == 4) {
     if (c != seq) { kill(a, SIGKILL); kill(b, SIGKILL); return; }  // a killed lineage's late word
+    if (scout_runner > 0 && a == scout_runner) {  // the scout's: in reading order, after the one it resumed
+      if (nsnaps == capsnaps) snaps = realloc(snaps, (capsnaps = capsnaps ? capsnaps * 2 : 64) * sizeof *snaps);
+      if (scout_ins > nsnaps) scout_ins = nsnaps;
+      memmove(&snaps[scout_ins + 1], &snaps[scout_ins], (nsnaps - scout_ins) * sizeof *snaps);
+      nsnaps++;
+      snap *s = &snaps[scout_ins];
+      memset(s, 0, sizeof *s);
+      s->pid = a, s->seq = c, s->t = t;
+      s->rc = scout_rc0 + (t > scout_t0 ? t - scout_t0 : 0);
+      if (scout_ins > 0 && s->rc < snaps[scout_ins - 1].rc) s->rc = snaps[scout_ins - 1].rc;
+      if (scout_ins + 1 < nsnaps && s->rc >= snaps[scout_ins + 1].rc) s->rc = snaps[scout_ins + 1].rc - 1;
+      read_extents(s);
+      scout_ins++;
+      scout_runner = b;
+      return;
+    }
     if (a != runner) { defer(line); return; }  // its parent's S hasn't come yet (one pipe, many writers)
     if (nsnaps == capsnaps) snaps = realloc(snaps, (capsnaps = capsnaps ? capsnaps * 2 : 64) * sizeof *snaps);
     snap *s = &snaps[nsnaps++];
@@ -1709,6 +1772,7 @@ static void on_msg(char *line) {
   }
   if (sscanf(line, "R %d %d %d %lld", &a, &b, &c, &t) == 4) {
     if (c != seq) { kill(b, SIGKILL); return; }
+    if (a == scout_from && scout_runner < 0) { scout_runner = b; return; }
     runner = b;
     return;
   }
@@ -1778,6 +1842,40 @@ static void on_msg(char *line) {
   (void)kind;
 }
 
+// Send a scout to the cursor if a key there would resume far before it. 0: busy now, try again later.
+static int scout_start(void) {
+  if (!scout_on || cursor_at.k < 0 || nsnaps == 0) return 1;
+  if (run_open || njobs || scout_from > 0) return 0;
+  text *t = get_text(cursor_at.rel);
+  long k = cursor_at.k;
+  if (!t || k > (long)t->len) return 1;
+  int best = -1;
+  for (int i = nsnaps - 1; i >= 0 && best < 0; i--)
+    if (snap_extent(&snaps[i], cursor_at.rel) <= k) best = i;
+  if (best < 0) return 1;
+  snap *s = &snaps[best];
+  if (s->cur && !strcmp(s->cur, cursor_at.rel) && s->cur_pos <= k && k - s->cur_pos <= scout_bytes) return 1;
+  long ls = k;  // as apply_run: line snapshots from the start of the cursor's line (or `dense` bytes before it)
+  while (ls > 0 && (size_t)ls <= t->len && t->data[ls - 1] != '\n') ls--;
+  long lo = k > dense ? k - dense : 0;
+  if (ls < lo) lo = ls;
+  flush_texts();
+  char p[4096];
+  snprintf(p, sizeof p, "%s/ctl-%d", tdir, s->pid);
+  FILE *f = fopen(p, "w");
+  if (!f) return 1;
+  fprintf(f, "seq %d\ngo %d\nscout\nfinish none\nsnapms 100000\ndense %s %ld %ld\nhalt %s %ld\n", seq, ++go,
+          cursor_at.rel, lo, k + 1, cursor_at.rel, k);
+  fclose(f);
+  scout_from = s->pid, scout_runner = -1, scout_ins = best + 1;
+  scout_t0 = scout_since = now_us(), scout_rc0 = s->rc;
+  kill(s->pid, SIGUSR1);
+  if (dbg)
+    fprintf(dbg, "%lld scout from snapshot %d (%d of %d) at %ld to the cursor %s@%ld\n", (long long)now_us(), s->pid,
+            best, nsnaps, s->cur_pos, cursor_at.rel, k), fflush(dbg);
+  return 1;
+}
+
 static uint64_t pid_fp(pid_t p);
 // Reap (docs/universal.md, "Giving memory back"): when typing stops, the session keeps what the next key needs and
 // lets the rest go. Each edit leaves a snapshot at every line near it (dense: the next key there resumes at its own
@@ -1785,6 +1883,43 @@ static uint64_t pid_fp(pid_t p);
 // snapshots a plain run leaves (at most one per --reap-snapshot-ms of engine time along the run, rc), and of the dense ones only
 // the one the next key at the last edit resumes from, with the one warm pass child. A key at another spot resumes
 // from the snapshot before it, as a first key there does. Then tau-live and the reader return freed memory.
+// The run clock of the snapshot the next key at REL:K would resume from (newest not read past it); -1: none
+static int64_t spot_rc(const char *rel, long k) {
+  if (!rel[0] || k < 0) return -1;
+  for (int i = nsnaps - 1; i >= 0; i--)
+    if (snap_extent(&snaps[i], rel) <= k) return snaps[i].rc;
+  return -1;
+}
+// Which snapshots a reap keeps, for a slope (gap = --reap-snapshot-ms + slope x distance to the nearest focus);
+// returns the footprint they hold (fp[i] each).
+static uint64_t reap_pick(const int64_t *focus, int nfocus, double slope, int at, int cat, const uint64_t *fp,
+                          char *keep) {
+  int64_t t_kept = 0;
+  uint64_t sum = 0;
+  for (int i = 0; i < nsnaps; i++) {
+    snap *x = &snaps[i];
+    int64_t d = INT64_MAX;
+    for (int f = 0; f < nfocus; f++) {
+      int64_t e = x->rc > focus[f] ? x->rc - focus[f] : focus[f] - x->rc;
+      if (e < d) d = e;
+    }
+    if (!nfocus) d = x->rc;  // (nothing known: the document's start, where an open shows it)
+    double gap = reap_snap_ms * 1000.0 + slope * (double)d;
+    keep[i] = i == 0 || i == at || i == cat || (!x->dense && (double)(x->rc - t_kept) >= gap);
+    if (keep[i]) t_kept = x->rc, sum += fp[i];
+  }
+  return sum;
+}
+static uint64_t session_fp(void);
+// Reap (docs/universal.md, "Giving memory back"): when typing stops, the session keeps what the next key needs and
+// lets the rest go. Each edit leaves a snapshot at every line near it (dense: the next key there resumes at its own
+// line), and those stay until an edit before them; over many spots they add up (+50-80 MB, flat). Kept: the
+// snapshots a plain run leaves (at most one per --reap-snapshot-ms of engine time along the run, rc), and of the dense ones only
+// the one the next key at the last edit resumes from, with the one warm pass child. A key at another spot resumes
+// from the snapshot before it, as a first key there does. Then tau-live and the reader return freed memory.
+// With a budget, the spacing grows with the distance from the focus (recent edits, cursor, pages in view) until the
+// session's footprint fits: every snapshot costs about the same (the run rewrites the same hot pages between any two),
+// so the budget sets how many, and the focus where.
 static void reap(void) {
   reaped = 1;
   kill_doomed();  // (finishers exit by themselves; a stale pid is never signalled here)
@@ -1794,17 +1929,59 @@ static void reap(void) {
   // changed), one of the rerun's.
   for (int i = nsnaps - 1; i >= 0 && at < 0 && last_k >= 0; i--)
     if (snap_extent(&snaps[i], last_rel) <= last_k) at = i;
-  int64_t t_kept = 0;
+  int cat = -1;  // and the cursor's (a scout may have left it)
+  for (int i = nsnaps - 1; i >= 0 && cat < 0 && cursor_at.k >= 0; i--)
+    if (snap_extent(&snaps[i], cursor_at.rel) <= cursor_at.k) cat = i;
+  uint64_t *fp = calloc(nsnaps + 1, sizeof *fp);
+  char *keep = calloc(nsnaps + 1, 1);
+  uint64_t others = pid_fp(getpid()) + pid_fp(reader) + pid_fp(pdfmx);
+  for (int i = 0; i < nsnaps; i++) fp[i] = pid_fp(snaps[i].pid) + pid_fp(snaps[i].warm);
+  int64_t focus[12];
+  int nfocus = 0;
+  if (at >= 0) focus[nfocus++] = snaps[at].rc;
+  for (int r = 0; r < nrecent && r < 8; r++) {
+    int64_t f = spot_rc(recent[r].rel, recent[r].k);
+    if (f >= 0) focus[nfocus++] = f;
+  }
+  if (cursor_at.k >= 0 && (focus[nfocus] = spot_rc(cursor_at.rel, cursor_at.k)) >= 0) nfocus++;
+  if (goal_seen >= 0) {  // the pages in view: from the snapshot before the page above the last one in view
+    int64_t f = -1;
+    for (int i = 0; i < nsnaps; i++)
+      if (snaps[i].pages <= (goal_seen > 0 ? goal_seen - 1 : 0)) f = snaps[i].rc;
+    if (f >= 0) focus[nfocus++] = f;
+  }
+  double slope = 0;
+  static uint64_t base;  // what no spacing changes, as the first reap finds it (later reaps let the first snapshots
+  if (!base) {           // go, and their pages move to the ones kept: the base would seem to shrink)
+    base = others;
+    for (int i = 0; i < nsnaps; i++) {
+      base += fp[i];
+      if (snaps[i].pages > 0) break;
+    }
+  }
+  budget_now = mem_budget_mb >= 0 ? (uint64_t)mem_budget_mb << 20 : base + ((uint64_t)mem_extra_mb << 20);
+  uint64_t budget = budget_now, held = reap_pick(focus, nfocus, 0, at, cat, fp, keep);
+  if (budget && others + held > budget) {  // the smallest slope that fits (or the steepest tried)
+    double lo = 0, hi = 1;
+    while (hi < 4096 && others + reap_pick(focus, nfocus, hi, at, cat, fp, keep) > budget) lo = hi, hi *= 2;
+    for (int it = 0; it < 24 && hi < 4096; it++) {
+      double mid = (lo + hi) / 2;
+      if (others + reap_pick(focus, nfocus, mid, at, cat, fp, keep) > budget) lo = mid;
+      else hi = mid;
+    }
+    slope = hi;
+    held = reap_pick(focus, nfocus, slope, at, cat, fp, keep);
+  }
   uint64_t freed = 0;
   for (int i = 0; i < nsnaps; i++) {
     snap *x = &snaps[i];
-    int keep = i == 0 || i == at || (!x->dense && x->rc - t_kept >= reap_snap_ms * 1000);
-    if (keep) { t_kept = x->rc; snaps[w++] = *x; continue; }
-    freed += pid_fp(x->pid) + pid_fp(x->warm);
+    if (keep[i]) { snaps[w++] = *x; continue; }
+    freed += fp[i] + pid_fp(x->warm);
     kill(x->pid, SIGKILL);
     free_snap(x);
   }
   nsnaps = w;
+  free(fp), free(keep);
   int warm = 0;
   for (int i = 0; i < nsnaps; i++) warm += snaps[i].warm > 0;
   for (int k = 1; k < 8 && k < nouts; k++) sx_free(&sxs[(nouts - 1 - k) % 8]);  // older outputs' SyncTeX (reloaded
@@ -1815,9 +1992,21 @@ static void reap(void) {
   }
   malloc_zone_pressure_relief(NULL, 0);
   nreaps++;
+  reap_passes++;
+  // a kept snapshot takes over pages it shared only with the ones let go: look again once they are gone
+  reap_check_at = budget_now && reap_passes < 3 ? now_us() + 400000 : 0;
   if (dbg)
-    fprintf(dbg, "%lld reap: snapshots %d -> %d (%llu MB), warm %d, last edit %s@%ld\n", (long long)now_us(), before,
-            nsnaps, (unsigned long long)(freed >> 20), warm, last_rel, last_k), fflush(dbg);
+    fprintf(dbg, "%lld reap: snapshots %d -> %d (%llu MB), kept %llu + others %llu MB, slope %.3f, focus %d, warm %d, "
+            "budget %llu, last edit %s@%ld\n", (long long)now_us(), before, nsnaps, (unsigned long long)(freed >> 20),
+            (unsigned long long)(held >> 20), (unsigned long long)(others >> 20), slope, nfocus, warm,
+            (unsigned long long)(budget_now >> 20), last_rel, last_k),
+            fflush(dbg);
+}
+// After a budgeted reap: the session's footprint now (snapshots, their kept warm child, the driver, reader, converter)
+static uint64_t session_fp(void) {
+  uint64_t t = pid_fp(getpid()) + pid_fp(reader) + pid_fp(pdfmx);
+  for (int i = 0; i < nsnaps; i++) t += pid_fp(snaps[i].pid) + pid_fp(snaps[i].warm);
+  return t;
 }
 
 static uint64_t pid_fp(pid_t p) {  // phys_footprint: what macOS charges the process (a shared copy-on-write page once)
@@ -1868,7 +2057,7 @@ static void on_cmd(char *line) {
   }
   const char *c = v[0].s;
   if (!strcmp(c, "change") || !strcmp(c, "open") || !strcmp(c, "rescan"))
-    t_quiet = now_us(), reaped = 0, quiet_typed = !strcmp(c, "change");
+    t_quiet = now_us(), reaped = 0, quiet_typed = !strcmp(c, "change"), reap_passes = 0, reap_check_at = 0;
   if (!strcmp(c, "change") && n == 5 && v[1].is_str && !v[2].is_str && !v[3].is_str && v[4].is_str) {
     applied++;
     text *t = get_text(v[1].s);
@@ -1892,7 +2081,11 @@ static void on_cmd(char *line) {
     set_text(v[1].s, d, v[2].n, "open");
   } else if (!strcmp(c, "stats")) {
     stats();
+  } else if (!strcmp(c, "cursor") && n == 3 && v[1].is_str && !v[2].is_str) {  // where the next key is likely
+    snprintf(cursor_at.rel, sizeof cursor_at.rel, "%s", v[1].s), cursor_at.k = (long)v[2].i;  // (the reap's focus)
+    scout_want_at = now_us() + 100000;  // (once the cursor rests)
   } else if (!strcmp(c, "goal") && n == 2 && !v[1].is_str) {  // the last page in view: finish there at once
+    goal_seen = (int)v[1].i;
     char p[4200], b[32];
     snprintf(p, sizeof p, "%s/goal", tdir);
     int l = snprintf(b, sizeof b, "%lld\n", v[1].i);
@@ -2073,6 +2266,11 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--dense") && i + 1 < argc) dense = atol(argv[++i]);
     else if (!strcmp(argv[i], "--reap-ms") && i + 1 < argc) reap_ms = atol(argv[++i]);  // (0: never)
     else if (!strcmp(argv[i], "--reap-open-ms") && i + 1 < argc) reap_open_ms = atol(argv[++i]);
+    else if (!strcmp(argv[i], "--snap-far-ms") && i + 1 < argc) snap_far_ms = atol(argv[++i]);
+    else if (!strcmp(argv[i], "--snap-near-ms") && i + 1 < argc) snap_near_ms = atol(argv[++i]);
+    else if (!strcmp(argv[i], "--mem-budget-mb") && i + 1 < argc) mem_budget_mb = atol(argv[++i]);  // (0: none)
+    else if (!strcmp(argv[i], "--mem-extra-mb") && i + 1 < argc) mem_extra_mb = atol(argv[++i]);
+    else if (!strcmp(argv[i], "--no-scout")) scout_on = 0;
     else { fprintf(stderr, "tau-live: unknown option %s\n", argv[i]); return 2; }
   }
   static char *pk_args[4];
@@ -2262,8 +2460,24 @@ int main(int argc, char **argv) {
     if (reap_ms > 0 && !reaped) {  // quiet since the last edit, and the compile settled: give memory back
       // (after an open nothing is near a cursor yet: thin as soon as the compile settles)
       int64_t left = t_quiet + (quiet_typed ? reap_ms : reap_open_ms) * 1000 - now_us();
-      if (left <= 0 && !run_open && !njobs && !noq && ndeferred == 0) reap();
+      if (left <= 0 && !run_open && !njobs && !noq && ndeferred == 0 && scout_from < 0) reap();
       else if (left > 0 && left / 1000 + 1 < timeout) timeout = (int)(left / 1000 + 1);
+    }
+    if (scout_want_at) {
+      int64_t left = scout_want_at - now_us();
+      if (left <= 0) scout_want_at = scout_start() ? 0 : now_us() + 50000;
+      else if (left / 1000 + 1 < timeout) timeout = (int)(left / 1000 + 1);
+    }
+    if (scout_from > 0 && now_us() - scout_since > 4000000) scout_stop();  // (never reached the cursor)
+    if (reap_check_at && reaped) {  // a budgeted reap's check: still over (pages the let-go shared moved)? again
+      int64_t left = reap_check_at - now_us();
+      if (left <= 0) {
+        reap_check_at = 0;
+        uint64_t now_fp = session_fp();
+        if (dbg) fprintf(dbg, "reap check: %llu MB\n", (unsigned long long)(now_fp >> 20)), fflush(dbg);
+        if (now_fp > budget_now + budget_now / 20 && !run_open && !njobs)
+          reap();
+      } else if (left / 1000 + 1 < timeout) timeout = (int)(left / 1000 + 1);
     }
     struct pollfd pf[4] = {{0, POLLIN, 0}, {msg_r, POLLIN, 0}, {reader_out, POLLIN, 0}, {pdfmx_out, POLLIN, 0}};
     if (poll(pf, 4, timeout) < 0 && errno != EINTR) die("poll");  // (negative fds are skipped)

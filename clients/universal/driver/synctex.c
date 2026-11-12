@@ -35,8 +35,16 @@ static int sx_num(const char **p) {
   return (int)(neg ? -v : v);
 }
 
+// The file and the records live in their own mappings, given back whole when freed: malloc keeps freed large blocks
+// dirty in its large cache (pressure relief doesn't return them), ~14 MB after a 300-page document's SyncTeX.
+static void *vm_grow(void *p, size_t old, size_t n) {
+  void *q = mmap(NULL, n, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+  if (q == MAP_FAILED) return NULL;
+  if (p) memcpy(q, p, old < n ? old : n), munmap(p, old);
+  return q;
+}
 static void sx_free(sx_index *x) {
-  free(x->r);
+  if (x->r) munmap(x->r, (size_t)x->cap * sizeof *x->r);
   for (int i = 0; i < x->ninput; i++) free(x->input[i]);
   free(x->input);
   memset(x, 0, sizeof *x);
@@ -69,7 +77,9 @@ static int sx_load(sx_index *x, const char *path) {
   sx_free(x);
   FILE *f = fopen(path, "rb");
   if (!f) return 0;
-  char *b = malloc(st.st_size + 1);
+  size_t bsz = st.st_size + 1;
+  char *b = vm_grow(NULL, 0, bsz);
+  if (!b) { fclose(f); return 0; }
   size_t n = fread(b, 1, st.st_size, f);
   fclose(f);
   b[n] = 0;
@@ -90,7 +100,12 @@ static int sx_load(sx_index *x, const char *path) {
         sx_rec r = {.page = page, .parent = stk_id[depth - 1], .kind = c};
         if (sx_box(l, &r)) {
           r.h += xoff, r.v += yoff;
-          if (x->n == x->cap) x->cap = x->cap ? 2 * x->cap : 4096, x->r = realloc(x->r, x->cap * sizeof *x->r);
+          if (x->n == x->cap) {
+            int nc = x->cap ? 2 * x->cap : 4096;
+            sx_rec *q = vm_grow(x->r, (size_t)x->cap * sizeof *x->r, (size_t)nc * sizeof *x->r);
+            if (!q) { munmap(b, bsz); return 0; }
+            x->r = q, x->cap = nc;
+          }
           x->r[x->n++] = r;
         }
       }
@@ -121,7 +136,7 @@ static int sx_load(sx_index *x, const char *path) {
       yoff = atol(l + 9);
     }
   }
-  free(b);
+  munmap(b, bsz);
   return 1;
 }
 
