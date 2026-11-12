@@ -778,7 +778,7 @@ static void save_state(void) {
 }
 
 /* The engine's root exiting wakes the loop (a byte on this pipe), so at rest it can sleep: nothing else needs a
-   timer while no compile runs (idle wakeups, docs/perf.md). */
+   timer while no compile runs (idle wakeups, clients/mac/Tests/perf/README.md). */
 static int chld_pipe[2] = {-1, -1};
 static void on_chld(int sig) {
   (void)sig;

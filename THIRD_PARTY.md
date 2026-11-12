@@ -1,13 +1,12 @@
 # Third-party material
 
-The OT core's MIT ancestors, then the colour themes shipped in `clients/mac/Sources/TaudotShared/ShippedThemes/`,
-each file naming its source. Rex's themes are not included: the app reads them from Rex's own bundle when Rex is
-installed.
+Code ported from MIT projects (`crates/ot2`), and the colour themes in
+`clients/mac/Sources/TaudotShared/ShippedThemes/` (each file names its source). Rex's themes are not included.
 
 ## ShareJS 0.6 text type and client (in `crates/ot2`)
 
 https://github.com/josephg/ShareJS, tag `v0.6.3`: `src/types/text.coffee`, `src/types/helpers.coffee`,
-`src/client/doc.coffee`. `crates/ot2/src/text.rs` and `client.rs` carry their algorithms over to Rust.
+`src/client/doc.coffee`, ported in `crates/ot2/src/text.rs` and `client.rs`.
 
 ```
 Licensed under the standard MIT license:
@@ -35,8 +34,8 @@ THE SOFTWARE.
 
 ## ot.js `TextOperation` (in `crates/ot2`)
 
-https://github.com/Operational-Transformation/ot.js, `lib/text-operation.js`. `crates/ot2/src/history.rs` carries its
-builder, `compose` and `transform` over to Rust.
+https://github.com/Operational-Transformation/ot.js, `lib/text-operation.js`. Ported in
+`crates/ot2/src/history.rs` (builder, `compose`, `transform`).
 
 ```
 Copyright © 2012-2014 Tim Baumann, http://timbaumann.info

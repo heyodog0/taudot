@@ -458,7 +458,7 @@ public struct EditorError: Error, CustomStringConvertible {
     guard first else { return }
     // The PDF's cursor dot (SyncTeX rows, the page's words, the source's lines: ~3 ms on a 36-page paper) waits until
     // this turn's frame is committed: a timer fires after the run loop's commit, so the glyph doesn't wait for the dot.
-    // Moves in the same turn are coalesced; the last one is sent. (docs/perf.md, the editor's tail)
+    // Moves in the same turn are coalesced; the last one is sent. (clients/mac/Tests/perf/README.md, the editor's tail)
     let t = Timer(timeInterval: 0, repeats: false) { [weak self] _ in
       MainActor.assumeIsolated {
         guard let self, let c = self.pendingCaret else { return }
@@ -486,7 +486,7 @@ public struct EditorError: Error, CustomStringConvertible {
   // MARK: status
 
   /// The status is pushed when it changes (connection, users, track changes, a doc's state or error), not polled:
-  /// a 0.4 s poll was the native editor's whole idle cost (2.5 wakeups/s, docs/perf.md).
+  /// a 0.4 s poll was the native editor's whole idle cost (2.5 wakeups/s, clients/mac/Tests/perf/README.md).
   private func startStatus() {
     statusLive = true
     pushStatus()

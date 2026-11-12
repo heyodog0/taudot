@@ -1,315 +1,152 @@
 # pdfsource: PDF → source, proven by re-typesetting
 
-Status: text paragraphs and single-row displays proven (56.8 % of lines), 2026-11-11; closing summary in section 10, tries on a parked engine and later fixes in section 11. Code: `clients/pdfsource/` (Rust, standalone crate).
-Log: `docs/agents/pdfsource.log.md`. Brief: `docs/agents/pdfsource.md`.
+pdfsource recovers a paper's LaTeX source from its PDF. Each paragraph it recovers is either **proven** or reported
+approximate with a reason. Code: `clients/pdfsource/` (Rust, standalone crate).
 
 ## The claim
 
-A paragraph's source is **proven** when re-typesetting the recovered text with the recovered parameters gives the
-same glyphs (font, code) on the same lines at the same x as the PDF, to pdfTeX's printed precision (0.001 bp;
-in practice the reproduced content stream has the same TJ numbers). No LLM; every claim is checked by
-pdfLaTeX itself.
+A paragraph's source is proven when re-typesetting the recovered text with the recovered parameters gives the same
+glyphs (font, code) on the same lines at the same x as the PDF, to pdfTeX's printed precision (0.001 bp). In
+practice the reproduced content stream has the same TJ numbers. There is no LLM: pdfLaTeX itself checks every
+claim.
 
-    pdfsource prove FILE.pdf [--json]      per-paragraph verdicts, reasons, timings
+## Commands
+
+    pdfsource prove FILE.pdf [--json]      per-paragraph verdicts, reasons, kind, timings per phase (ms)
+    pdfsource tex FILE.pdf                 the recovered LaTeX, each paragraph marked proven or approximate
     pdfsource lines FILE.pdf [PAGE]        lines, columns, paragraphs found
-    pdfsource dump FILE.pdf [PAGE]         glyphs
+    pdfsource dump FILE.pdf [PAGE]         glyphs (debug)
 
-## How (summary; details in the log)
+Build with `cargo build --release` in `clients/pdfsource/`. `kind` is one of main, block, item, foot, small.
 
-1. Read: glyphs with fonts (encodings, built-in Type 1 encodings, ToUnicode), colour operators, pdfTeX's PDF
-   position chain in sp.
-2. Layout: lines → columns (modes of long lines' edges) → paragraphs (indent, short last line), joined across
-   columns and pages.
-3. Fonts: PS name → `pdftex.map` line with a matching encoding → raw TFM → VF candidates covering every used code;
-   ligatures decomposed from the TFM so TeX rebuilds them (and hyphenates as the original did).
-4. Hypothesis: text under private catcodes, font switches, italic corrections, inferred space factors, colour
-   literals; column geometry calibrated to the sp; per-line placement that reproduces the Td chain's residual.
-5. Typeset all paragraphs in one pdfLaTeX run (stock TeX Live 2026), read back, compare; repair and retry:
-   hyphen readings, forbid breaks the original didn't take (ties, no-hyphenation), parameter sets, residual ±sp.
+## Pipeline
 
-## Measurements
+1. **Read.** Glyphs with their fonts (encodings, built-in Type 1 encodings, ToUnicode), colour operators, and
+   pdfTeX's position chain in sp.
+2. **Layout.** Lines → columns (modes of long lines' edges, ties broken by edge position) → paragraphs (indent,
+   short last line), joined across columns and pages. Displays are found separately (below).
+3. **Fonts.** PS name → `pdftex.map` line with a matching encoding → raw TFM → VF candidates covering every used
+   code. Ligatures are decomposed from the TFM so TeX rebuilds them and hyphenates as the original did. TFM kern
+   programs are parsed: a kern the PDF doesn't show (`BERT{}:` from a macro) is typed as `{}` between the letters.
+4. **Guess.** Text under private catcodes, font switches, italic corrections, inferred space factors, rigid gaps
+   (`\quad`, `\enspace`, `\,`), colour literals. Column geometry is calibrated to the sp; per-line placement
+   reproduces the Td chain's residual.
+5. **Prove.** All paragraphs are typeset in batches with stock pdfLaTeX (TeX Live 2026), read back and compared.
+   Failures are repaired and retried: hyphen readings, forbidding breaks the original didn't take (ties,
+   no-hyphenation, `\sloppy` first in bibliographies), parameter sets, the one-TJ-unit residual search (also for
+   11–12 pt fonts, where a unit is 0.0109 bp), then a per-paragraph hsize/left search (16 sp steps over ±640 sp,
+   then 1 sp) and the residuals again. A spacing guess that gets less far than the previous one is taken back.
+   Some paragraphs are proven under a second LaTeX setup (without `bm`, which moves scripts); the report and the
+   LaTeX output say which.
+6. **Recheck.** Every paragraph proven on the parked engine is typeset again by a plain pdfLaTeX process at the end
+   and must match, or it is reported unproven.
 
-Corpus: `$TAUDOT_REF/corpus/` (arXiv papers with sources), typeset by us with stock pdfLaTeX (TeX Live 2026, `tests/corpus.py`):
-33 papers + 2 synthetic build (others: no main file, XeLaTeX/fontspec, or broken). The converter never sees the
-source. Machine shared with other agents (load 4–9).
+The proof is strict: a paragraph with glyphs inside its region that aren't in its lines can't be proven, and a
+single line can't be proven alone.
 
-### 1. First measurement (2026-11-07, commit with Td residuals and colour literals; before tie repairs)
+### Parked-engine tries
 
-34 PDFs, 607 pages, 53 244 text lines, of which 19 673 in body paragraphs found (6 469 paragraphs).
+Each LaTeX setup gets one parked engine (`src/park.rs`, libtau from `clients/universal`, stock pdfLaTeX). The main
+file is the preamble, `\@@input pbody`, `\PSend`. libtau forks once as TeX reads the input line (`TAU_MARK`), and
+each batch resumes that snapshot in a fresh child, up to 4 at once (`PDFSOURCE_JOBS`). A try costs its own page,
+not a pdfLaTeX start and format load. `PDFSOURCE_PARK=0` runs stock processes instead. Most of the remaining time
+is pdfTeX typesetting the batches (about 11 ms per paragraph).
 
-| | proven | of | % |
-|---|---|---|---|
-| paragraphs | 1 300 | 6 469 | 20.1 |
-| lines | 3 582 | 19 673 | 18.2 |
-| words | 33 333 | 204 722 | 16.3 |
+## What is handled
 
-Why the rest fail (paragraphs):
-
-| reason | n | what |
-|---|---|---|
-| font not found | 1 924 | a font the map lookup misses (CM-Super/LM T1 fonts, others): next fix |
-| math | 1 609 | math fonts or glyphs off the baseline in the paragraph (stage 4; not attempted) |
-| positions | 1 546 | same lines, a glyph off by ≥ 0.0015 bp (mostly one TJ unit: residual/geometry; also run-in headings, bibliography entries taken as paragraphs, space fonts) |
-| breaks | 89 | different line breaks (ties, `\hyphenation` exceptions: fixed after this run) |
-| accent | 1 | accents (two glyphs) |
-
-Time: 86 ms per paragraph, 0.92 s per page (most of it the calibration scans: ~150 candidates × paragraphs per
-scan, as pages of one pdfLaTeX run; then a few repair rounds). Per paper 7–32 s.
-
-Best papers: 1506.02640 71 %, 1512.03385 51 % (60 % after the tie repairs; 51 of its 55 non-math paragraphs).
-
-### 2. Stage 2 (2026-11-08): inline math, microtype, footnote marks, headings, hanging indents
-
-32 PDFs (1412.6980 and 1707.06347 excluded: their main file only includes a prebuilt PDF), 580 pages,
-20 818 body lines found in 5 161 paragraphs (layout now separates abstracts and narrow blocks).
-
-| | proven | of | % | stage 1 |
-|---|---|---|---|---|
-| paragraphs | 2 122 | 5 161 | 41.1 | 20.1 |
-| paragraphs of 2+ lines | 1 329 | 3 100 | 42.9 | |
-| lines | 9 180 | 20 818 | 44.1 | 18.2 |
-| words | 95 485 | 214 618 | 44.5 | 16.3 |
-
-Why the rest fail: positions 2 678 (mostly lists/bullets, author blocks, captions and tables caught as
-paragraphs, run-in heads, space fonts at font changes, `\boldsymbol` vs `\bm`; some one-unit kerns), math 217
-(cmex: big operators and delimiters, fractions), accents 81 (raised accents on capitals), breaks 29, other 34.
-Per paper: 1512.03385 96.5 %, 1506.02640 83.9 %, 1804.02767 83.8 %, 1611.07004 78 %, 1409.1556 69.7 %;
-lowest 1910.10683 15.4 % (lists and itemized text), math_0211159 25.6 % (displays, theorem-style text).
-Time: 0.84 s per page (calibration ~40 % cheaper than stage 1), 7–74 s per paper.
-
-Output: `pdfsource tex FILE.pdf` writes the recovered LaTeX (fonts defined, each paragraph marked proven or
-approximate with its reason); the 1512.03385 output compiles without errors.
-
-### 3. Stage 3 (2026-11-08): lists, indented blocks, a stricter proof
-
-| | proven | of | % | stage 2 |
-|---|---|---|---|---|
-| paragraphs | 2 076 | 5 743 | 36.1 | 41.1 |
-| paragraphs of 2+ lines | 1 388 | 3 371 | 41.2 | 42.9 |
-| lines | 9 281 | 21 767 | 42.6 | 44.1 |
-| words | 97 544 | 225 601 | 43.2 | 44.5 |
-
-The percentages dip although more lines are proven (9 281 vs 9 180): the proof got stricter (a paragraph with
-glyphs inside its region that aren't in its lines can't be proven any more: 525 rejected, among them split-off math
-accents that both sides used to lack, and table rows or author blocks caught as one-line paragraphs), and list
-items now count as whole paragraphs instead of loose trivially-proven fragments. Reasons: positions 2 829, stray
-glyphs 525, math 179, glyphs 85, breaks 31, fonts 14. 1.07 s per page.
-
-Some paragraphs are proven under a second LaTeX setup (without `bm`, which moves scripts): the report and the
-emitted LaTeX say which.
-
-### 4. Citations and 11–12 pt units (2026-11-08)
-
-| | proven | of | % |
-|---|---|---|---|
-| paragraphs | 2 266 | 5 743 | 39.5 |
-| paragraphs of 2+ lines | 1 553 | 3 371 | 46.1 |
-| lines | 10 701 | 21 767 | 49.2 |
-| words | 109 835 | 225 601 | 48.7 |
-
-Two fixes: spaces after `,`/`;` inside citation brackets are control spaces (natbib, `\cite`), and the
-one-TJ-unit residual search now also fires for 11–12 pt fonts (a unit is 0.0109 bp there; the threshold was
-0.0105). 1810.04805 went from 40 to 70 proven paragraphs, 2302.13971 from 144 to 172. Also `\frenchspacing` as a
-hypothesis (bibliographies). 1.19 s per page.
-
-### 5. Body text after rigid gaps and item fixes (2026-11-08)
-
-| body text | proven | of | % |
-|---|---|---|---|
-| paragraphs | 2 379 | 5 732 | 41.5 |
-| paragraphs of 2+ lines | 1 671 | 3 371 | 49.6 |
-| lines | 11 470 | 21 765 | 52.7 |
-| words | 118 320 | 225 618 | 52.4 |
-
-Rigid gaps anywhere (`\quad` after run-in heads, `\enspace`, `\,` in numbers), `\leftprotrusion` on items only
-when observed. 1.22 s per page. Next measurement adds the other text sizes (captions, references, footnotes).
-
-### 6. All text sizes (2026-11-08): captions, references, footnotes
-
-| all sizes | proven | of | % |
-|---|---|---|---|
-| paragraphs | 2 878 | 8 845 | 32.5 |
-| paragraphs of 2+ lines | 1 701 | 3 523 | 48.3 |
-| lines | 12 047 | 25 330 | 47.6 |
-| words | 121 514 | 253 375 | 48.0 |
-
-The text analysed grows from 21 765 to 25 330 of the corpus's 47 635 text lines; proven lines +577, words
-+3 194. Most new one-line "paragraphs" are table cells and figure labels in small type (they fail, as they
-should). 1.56 s per page.
-
-### 7. Broken kerns, paragraph geometry, bibliographies (2026-11-09)
-
-| all sizes | proven | of | % |
-|---|---|---|---|
-| paragraphs | 2 839 | 7 437 | 38.2 |
-| paragraphs of 2+ lines | 1 932 | 4 118 | 46.9 |
-| lines | 13 132 | 25 347 | 51.8 |
-| words | 132 881 | 253 380 | 52.4 |
-
-The largest unproven block was multi-line paragraphs off by one TJ unit (551 paragraphs, 3 405 lines), mostly
-on the first line. Fixes:
-
-- **Kerns the source broke.** A TFM kern that the PDF doesn't show (`BERT{}:` from a macro) is typed as `{}`
-  between the letters (TFM kern programs are now parsed).
-- **Per-paragraph geometry.** A paragraph still one unit off after the residual search gets its own hsize/left
-  search (hsize alone and the ridge, 16 sp steps over ±640 sp, then 1 sp), then the residuals are searched again.
-  Indented blocks get their geometry derived, not calibrated, and are off by a few hundred sp.
-- **Bibliographies.** The smaller-size pass now groups hanging-indent entries (it split each entry into lines).
-  A hanging line's shift is put back when shipping (`\lastbox` drops it: no hanging paragraph could be proven
-  before). `\newblock` glue (`\hskip .11em plus .33em`, after a factor-1000 space since bibliographies set
-  `\sfcode`\.=1000`) is inferred in bibliography paragraphs, and a line set mostly in italics takes its glue
-  ratio from the italic spaces.
-
-Paragraph counts fall (8 871 → 7 437) because bibliography lines are grouped into entries. A single line can no
-longer be "proven" alone, so a few papers lose lines. 1.76 s per page. `kind` (main, block, item, foot, small)
-is now reported per paragraph.
-
-### 8. Section headings, deterministic layout (2026-11-10)
-
-| all sizes | proven | of | % |
-|---|---|---|---|
-| paragraphs | 2 912 | 7 411 | 39.3 |
-| paragraphs of 2+ lines | 1 934 | 4 118 | 47.0 |
-| lines | 13 225 | 25 330 | 52.2 |
-| words | 133 314 | 253 375 | 52.6 |
-
-A numbered heading ("3.1 Pre-training") has a `\quad` after the number, in the heading's font (not the body's),
-and that quad was taken for an ordinary space when solving the line's glue ratio; both fixed. Column detection
-broke ties by hash order, so one paper's layout changed between runs (2103.00020: 799 or 773 paragraphs); ties
-now go by edge position. 2.0 s per page (machine under load).
-
-### 9. Display math, bibliography break order (2026-11-10)
-
-| all sizes, text | proven | of | % |
-|---|---|---|---|
-| paragraphs | 2 936 | 7 437 | 39.5 |
-| paragraphs of 2+ lines | 1 942 | 4 118 | 47.2 |
-| lines | 13 280 | 25 347 | 52.4 |
-| words | 133 915 | 253 380 | 52.9 |
-| **displays** | **42** | **252** | **16.7** |
-
-Displays are reported on their own (text totals leave them out). A display is the body-size lines with math
-between two paragraphs, inside a column and off its edges, grown from one line by vertical proximity, with an
-equation number "(n)" at the right edge and the rules inside it. Its source is rebuilt from the glyphs in PDF order:
-fractions, `\sqrt`, `\overline`, big operators with limits, `\left`/`\right` delimiters, `\quad` gaps, operator
-names (`\log`, `\max`: this also helps inline math). It is typeset as `$$ … \eqno\hbox{(n)}$$`, put where TeX
-would (`\lastbox` loses the display's shift, so it is recomputed from TeX's centring rule), and proven on every
-glyph, each line's baseline offset and each rule. Why the other 210 fail: positions 87 (mostly spacing the source
-wrote by hand), text inside math 32 (`\text`, `\mbox`), glyphs off the main baseline 23 (multi-row displays:
-`align`, `eqnarray`), stray glyphs 18, breaks 17, extensible delimiters 14.
-
-Break repairs in bibliography entries (hanging or `[n]`-labelled) now try `\sloppy` before forbidding breaks.
-Text lines +55, words +601 over section 8; no paper loses a proven paragraph. 2.0 s per page.
-
-### 10. Where it stands (2026-11-11, commit 28d4793; closing summary)
-
-**Covered and proven when it matches:** body paragraphs in one or two columns, joined across columns and pages;
-captions, footnotes, references at every text size; inline math (fonts, sub/superscripts, accents, operator
-names); microtype expansion; footnote marks and citations; section headings with their number quad; lists,
-hanging indents and indented blocks; bibliographies (hanging or `[n]`); colour literals; ligatures and
-hyphenation rebuilt by TeX; single-row displays with fractions, roots, over/underlines, big operators with
-limits, `\left`/`\right` and `\eqno` numbers.
-
-| all sizes, 32 papers, 580 pages | proven | of | % |
-|---|---|---|---|
-| paragraphs | 2 936 | 7 437 | 39.5 |
-| paragraphs of 2+ lines | 1 942 | 4 118 | 47.2 |
-| lines | 13 280 | 25 347 | 52.4 |
-| words | 133 915 | 253 380 | 52.9 |
-| displays | 42 | 252 | 16.7 |
-
-Time: 154 ms per paragraph, 2.0 s per page (one pdfLaTeX run per document plus repairs; shared machine).
-
-Why the rest fail (first reason per paragraph, text and displays): positions 3 500, stray glyphs 650, math 274,
-glyphs 178, breaks 65, font not found 40, accent or overlap 4. "Positions" is the big one: glyphs right, x off,
-mostly from parameters we don't recover yet (`\parfillskip`/`\rightskip` variants, `\emergencystretch`,
-hand-written kerns and `\hspace`, `\looseness`, float-adjacent geometry) and from paragraphs whose line set is
-wrong because a figure, table or float sits in the column.
-
-**Left, roughly in order of payoff:**
-1. Paragraph parameters beyond the column: search `\emergencystretch`, `\looseness`, `\rightskip` per paragraph.
-2. Multi-row displays (`align`, `eqnarray`, `gather`): one baseline per row, alignment points at "=", a number
-   per row.
-3. `\text`/`\mbox` inside math, and extensible delimiters (`\left` built from pieces).
-4. Stray glyphs: page furniture, line numbers and float text that layout lets into paragraphs.
-5. Tables (in the brief, not started), then whole-document source and its pages-identical measure.
-6. Fonts outside `pdftex.map` (Type 3, renamed subsets): 40 paragraphs.
-7. Unexplained: equation numbers in 2006.11239 end 0.67 bp past the column edge; detection tolerates it.
-
-### 11. Tries on a parked engine; bibliographies, headings, accents (2026-11-11)
-
-**Speed.** Where the 154 ms per paragraph went (1512.03385, per phase, now reported in `prove --json` as `ms`):
-pdfLaTeX start, format load and preamble 44 % (every batch was a fresh process, ~0.2 s), failed TeX Live store
-fetches 24 % (files in `ls-R` the store couldn't serve, one fetch process per lookup), quadratic text generation and
-page-tree walks 23 %, typesetting 11 %. Now:
-
-- **One parked engine per LaTeX setup** (`src/park.rs`, libtau from `clients/universal`, stock pdfLaTeX): the main
-  file is the preamble, `\@@input pbody`, `\PSend`; libtau forks once as TeX reads the input line (`TAU_MARK`),
-  and each batch resumes that snapshot in a fresh child, up to 4 at once (`PDFSOURCE_JOBS`). A try costs its own
-  page. `PDFSOURCE_PARK=0` runs stock processes as before.
-- **Still a proof by stock pdfTeX:** every paragraph proven on the parked engine is typeset again by a plain
-  pdfLaTeX process at the end and must match (else it is reported unproven). Corpus: 3 183/3 183 agree. Verdicts
-  parked vs stock on 1512.03385: identical paragraph by paragraph.
-- Store misses remembered (a day), paragraph text cached by the hypothesis fields it depends on, page tree read
-  once, our own content-stream tokenizer (lopdf's parser as fallback; equal on every corpus stream).
-
-Same 32 papers, same machine and load: **118 → 16 ms per paragraph** (1.5 → 0.2 s per page; the 154 ms of
-section 10 was under heavier load). Most of what is left is pdfTeX typesetting the batches (11 ms per paragraph).
-
-**Proof rate.**
-
-| all sizes, 32 papers, 580 pages | proven | of | % | section 10 |
-|---|---|---|---|---|
-| paragraphs | 3 187 | 6 845 | 46.6 | 39.5 |
-| paragraphs of 2+ lines | 2 272 | 4 235 | 53.6 | 47.2 |
-| lines | 14 468 | 25 461 | 56.8 | 52.4 |
-| words | 146 509 | 255 521 | 57.3 | 52.9 |
-| displays | 42 | 245 | 17.1 | 16.7 |
-
-19 ms per paragraph; stock recheck 3 229/3 229. Why the rest fail: positions 3 032, stray glyphs 503, math 119,
-glyphs 98, breaks 58, font not found 41, accent or overlap 10. Paragraph counts fall (7 437 → 6 845) because pieces that layout used to cut apart are whole paragraphs
-now (bibliography entries, lines split at an accent); a few such pieces had been "proven" alone.
-
-- **`[n]` bibliography labels** sit in a box as wide as the hanging indent (`\hbox to<hang>{[n]\hss}`): the text
-  after the label starts at the indent, not after an interword space (1512.03385: 101 → 123 paragraphs).
-- **Hanging entries at any indent** (natbib's `\bibhang`, not only `\parindent`) are joined into one paragraph; the
-  indent is measured to ~30 sp, so a hanging line that is a little off gets a per-paragraph indent search (±64 sp).
-- **A paragraph's last line** is set at its natural width: its glue ratio is 0 even with no ordinary space to solve
-  it from (space factors and `\newblock` gaps there were guessed from nothing).
-- **`\newblock` with a negative shrink** (some styles) is tried before French spacing; a spacing guess that gets
-  less far than before is taken back (French spacing used to stay on and hide the real first failure).
-- **Numbered headings:** LaTeX sets the number and its `\quad`/`\enspace` in a box that starts with glue
-  (`\@hangfrom{\hskip<indent>\@svsec}`), so microtype doesn't protrude the number; reproduced that way.
-- **Accents:** a base glyph that moves back under its accent stays in the line (lines were cut there, and the rest
-  showed up as stray glyphs: 650 → 503); a text accent raised a little over its base (`\'a` in Times) is no
-  longer a superscript.
-- **Math:** `\%` (cmr `%`), and a cmr comma, period or hyphen next to math is text (in math those come from cmmi
-  and cmsy). Text-font glyphs inside a formula (`BERT$_{\textsc{base}}$`, `\text`) become `\mbox{...\/}` (the text
-  commands end with an italic correction). Right after a formula, a gap narrower than the tightest interword space
-  (space − shrink) is no space: TeX ends a formula with its last letter's italic correction (`$T$.`); typing a space
-  there changed the line's expansion under microtype.
+- **Paragraphs** in one or two columns, joined across columns and pages, at every text size: body, captions,
+  footnotes, references. Lists, hanging indents and indented blocks (their geometry derived, not calibrated).
+  Microtype expansion and protrusion (`\leftprotrusion` on items only when observed).
+- **Inline math:** fonts, sub/superscripts, accents, operator names (`\log`, `\max`). `\%` is cmr `%`; a cmr comma,
+  period or hyphen next to math is text. Right after a formula, a gap narrower than the tightest interword space
+  (space − shrink) is no space: TeX ends a formula with its last letter's italic correction (`$T$.`).
+- **Text in math:** text-font glyphs inside a formula (`BERT$_{\textsc{base}}$`, `\text`) become `\mbox{...\/}`,
+  since the text commands end with an italic correction.
+- **Footnote marks and citations.** Spaces after `,`/`;` inside citation brackets are control spaces (natbib,
+  `\cite`).
+- **Headings.** LaTeX sets a heading's number and its `\quad`/`\enspace` in the heading's font, in a box that
+  starts with glue (`\@hangfrom{\hskip<indent>\@svsec}`), so microtype doesn't protrude the number. Reproduced that
+  way, and the quad is not taken for a space when solving the line's glue ratio.
+- **Accents.** A base glyph that moves back under its accent stays in the line. A text accent raised a little over
+  its base (`\'a` in Times) is not a superscript.
 - **Small caps** through a scaled virtual font (`ptmrc7t`: lowercase drawn from the base font at 0.8, letterspaced
-  by moves in each packet, which the VF reader skipped): offered as a candidate for the smaller size and tried when
-  a paragraph's positions fail at such a glyph.
-- **Bibliographies as lists:** natbib sets each entry as a list item (every line at `\bibhang` by `\parshape`, line 0
-  opening with an empty label box of width −`\bibhang`, then `\penalty0`); tried for a failing hanging paragraph,
-  kept when it gets further. Hanging entries: 1 309 paragraphs (4 199 lines), 389 proven before this.
+  by moves in each VF packet). Offered as a candidate for the smaller size and tried when a paragraph's positions
+  fail at such a glyph.
+- **Last lines** are set at natural width (glue ratio 0), even with no ordinary space to solve it from.
+- **Bibliographies**, hanging or `[n]`-labelled:
+  - Hanging entries at any indent (natbib's `\bibhang`, not only `\parindent`) are joined into one paragraph. The
+    indent is measured to ~30 sp; a line slightly off gets a per-paragraph indent search (±64 sp). A hanging line's
+    shift is put back when shipping (`\lastbox` drops it).
+  - `[n]` labels sit in a box as wide as the hanging indent (`\hbox to<hang>{[n]\hss}`), so the text starts at the
+    indent.
+  - `\newblock` glue (`\hskip .11em plus .33em`, after a factor-1000 space) is inferred, a variant with negative
+    shrink is tried before `\frenchspacing`, and a line set mostly in italics takes its glue ratio from the italic
+    spaces.
+  - **As lists:** natbib can set each entry as a list item (every line at `\bibhang` by `\parshape`, line 0 opening
+    with an empty label box of width −`\bibhang`, then `\penalty0`). Tried for a failing hanging paragraph, kept
+    when it gets further.
+- **Displays**, single-row: body-size lines with math between two paragraphs, inside a column and off its edges,
+  grown from one line by vertical proximity, with an equation number "(n)" at the right edge. The source is rebuilt
+  from the glyphs in PDF order: fractions, `\sqrt`, `\overline`, big operators with limits, `\left`/`\right`,
+  `\quad` gaps, operator names. It is typeset as `$$ … \eqno\hbox{(n)}$$`, its shift recomputed from TeX's centring
+  rule, and proven on every glyph, each line's baseline offset and each rule. Displays are counted apart from text.
 
-**Left in positions** (3 039): microtype expansion off on a line (~570). In 1910.10683 the paper's own text, typeset in
-our harness, gives our expansion, not the original's: the setup differs there (the paper asks for `lmr`, the build's
-TeX Live lacks `T1lmr.fd`, LaTeX substitutes `T1/cmr`, and microtype then treats the body font differently): an
-artifact of the corpus build. Elsewhere (2006.11239) lines with math expand differently: some width in the line,
-likely in the math, differs; the comparison stops at the scale and doesn't say where. Also one-TJ-unit misses that the residual, geometry and indent searches don't fix (~330),
-bibliography entries in natbib's list form under microtype (the empty label box at the line start stops
-protrusion; `\hangindent` doesn't reproduce that), `\text`/`\mbox` inside math, single-line table cells and
-headings that layout takes for paragraphs. Verdicts move by a few paragraphs between runs of one build (hash order
-in the prover); not fixed yet.
+## Tests
 
-### Baselines (prior art, not run here)
+The corpus is arXiv papers with sources under `$TAUDOT_REF/corpus/`, typeset by us with stock pdfLaTeX; the
+converter never sees the source. Sources and PDFs stay outside the repo.
 
-- **go-pdfkit/latex** (BSD-3, Go, 2026): heuristic PDF → LaTeX for TeX PDFs, 275 arXiv papers: 99.6 % compile,
-  word F1 median 0.67, math token F1 0.61, page-one ink F1 0.40; no proof by reproduction. Its list of traps
-  (columns before lines, pdfTeX fills fraction rules while xdvipdfmx strokes them, `\footnoterule` looks like a
-  fraction bar, theorem italics vs `\emph`, accents as two glyphs, text-matrix scaling) matches what we meet.
+    uv run tests/corpus.py build [paper...]     ground-truth PDFs → $PDFSOURCE_CACHE/build/
+    uv run tests/measure.py [paper...]          prove --json on each, results and a summary
+    uv run tests/regress.py [--bin PATH]        a few papers; exit 1 if any proves fewer paragraphs
+    uv run tests/diffbuilds.py OLD NEW FILE.pdf paragraphs one build proves and the other doesn't
+
+Run from `clients/pdfsource/`. 33 papers plus 2 synthetic ones build; 1412.6980 and 1707.06347 are excluded (their
+main file only includes a prebuilt PDF), leaving 32 papers, 580 pages.
+
+## Results
+
+2026-11-11, all text sizes, 32 papers, 580 pages:
+
+| | proven | of | % |
+|---|---|---|---|
+| paragraphs | 3 187 | 6 845 | 46.6 |
+| paragraphs of 2+ lines | 2 272 | 4 235 | 53.6 |
+| lines | 14 468 | 25 461 | 56.8 |
+| words | 146 509 | 255 521 | 57.3 |
+| displays | 42 | 245 | 17.1 |
+
+19 ms per paragraph on a shared machine. Stock recheck: 3 229/3 229 agree. On 1512.03385, verdicts on the parked
+engine and on stock processes are identical paragraph by paragraph.
+
+Why the rest fail (first reason per paragraph): positions 3 032, stray glyphs 503, math 119, glyphs 98, breaks 58,
+font not found 41, accent or overlap 10.
+
+"Positions" means the glyphs are right but an x is off. Known causes:
+
+- Microtype expansion off on a line (~570). In 1910.10683 a corpus-build artifact (the build lacks `T1lmr.fd`, so
+  LaTeX substitutes `T1/cmr`). In 2006.11239, lines with math: some width, likely in the math, differs.
+- One-TJ-unit misses that the residual, geometry and indent searches don't fix (~330).
+- Bibliography entries in natbib's list form under microtype: the empty label box at the line start stops
+  protrusion, which `\hangindent` doesn't reproduce.
+- Parameters not recovered yet: `\parfillskip`/`\rightskip` variants, `\emergencystretch`, hand-written kerns and
+  `\hspace`, `\looseness`, float-adjacent geometry.
+- Single-line table cells and headings that layout takes for paragraphs.
+
+## Open
+
+1. Paragraph parameters beyond the column: search `\emergencystretch`, `\looseness`, `\rightskip` per paragraph.
+2. Multi-row displays (`align`, `eqnarray`, `gather`): one baseline per row, alignment points at "=", a number per
+   row.
+3. `\text`/`\mbox` inside displays, and extensible delimiters (`\left` built from pieces).
+4. Stray glyphs: page furniture, line numbers and float text that layout lets into paragraphs.
+5. Tables (not started), then whole-document source and a pages-identical measure.
+6. Fonts outside `pdftex.map` (Type 3, renamed subsets): 41 paragraphs.
+7. Verdicts move by a few paragraphs between runs of one build (hash order in the prover).
+8. Equation numbers in 2006.11239 end 0.67 bp past the column edge; detection tolerates it, the cause is unknown.
+
+## Prior art (not run here)
+
+- **go-pdfkit/latex** (BSD-3, Go, 2026): heuristic PDF → LaTeX for TeX PDFs. On 275 arXiv papers: 99.6 % compile,
+  word F1 median 0.67, math token F1 0.61, page-one ink F1 0.40; no proof by reproduction.
 - ML: Nougat, MinerU, Mathpix, TexOCR (arXiv 2604.22880): image → markup, approximate by construction.
-- Our difference: each element is either proven (identical re-typeset) or reported approximate with a reason.

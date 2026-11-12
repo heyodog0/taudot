@@ -1,31 +1,43 @@
-# Taudot
+# Docs
 
-A native, local-first LaTeX editing setup that stays fully compatible with Overleaf. You edit in Neovim, in Rex panes or
-in a later native app. Collaborators keep using overleaf.com in the browser. Your edits reach them live, under your own
-name in Overleaf's history, the same way a browser tab's edits would.
+Start with the root [README](../README.md) and [developing.md](developing.md). Status: alpha.
 
-Status: prototype. Neovim edits reach a local Overleaf CE through the engine; round 2 agents are working on safe concurrent editing and the PDF preview. The product is Taudot; it was called texsync until 2026-11-04.
-
-## Read these first
+## Design
 
 | File | What it holds |
 |---|---|
-| [docs/principles.md](principles.md) | The rules the design follows, and why |
-| [docs/protocol.md](protocol.md) | Overleaf's real-time protocol, checked against the Overleaf CE source |
-| [docs/prior-art.md](prior-art.md) | Existing clients, what to keep from them, and their bugs |
-| [docs/architecture.md](architecture.md) | Engine, clients, backends, Rex and the preview |
-| [docs/plan.md](plan.md) | Build order, with the first test to write |
-| [docs/api.md](api.md) | The engine's JSON-RPC API that clients use |
-| [docs/client-design.md](client-design.md) | How the Neovim client and the Rex panes should look and feel |
-| [docs/exact-typesetting.md](exact-typesetting.md) | Plan: a live pdfTeX so the PDF is identical to Overleaf's (not started) |
-| [docs/developing.md](developing.md) | What builds and tests need beyond `./install.sh` |
+| [principles.md](principles.md) | The rules the design follows, and why |
+| [architecture.md](architecture.md) | Engine, clients, backends, Rex and the preview |
+| [mac-app.md](mac-app.md) | How the Mac app is built |
+| [client-design.md](client-design.md) | How the Neovim client and the Rex panes look and feel |
+| [state-machines.md](state-machines.md) | Component states and their transitions |
 
-## Sources studied (2026-11-01)
+## Overleaf
 
-- Overleaf CE, `github.com/overleaf/overleaf` at commit `e039ad2` (2026-08-28). Paths in `docs/protocol.md` are relative
-  to that repo.
-- `github.com/mei28/nvim-overleaf` (last commit 2026-04-06), `github.com/iamhyc/Overleaf-Workshop` (2026-10-03).
-- Glideshow, `~/code/lab/glideshow` and `~/code/lab/glideshow-dev`, the owner's own project, used as the model for repo
-  layout and workflow.
-- Neovim's architecture, as the model for the engine and its clients.
-- Rex beta, `rex` CLI build `dd9a201` (2026-10-27), for floating panes and inline images.
+| File | What it holds |
+|---|---|
+| [protocol.md](protocol.md) | Overleaf's real-time protocol, checked against the Overleaf CE source |
+| [history.md](history.md) | Overleaf's version history and what Taudot uses |
+| [api.md](api.md) | The engine's JSON-RPC API that clients use |
+
+## Typesetting
+
+| File | What it holds |
+|---|---|
+| [universal.md](universal.md) | Live, exact typesetting on unmodified pdfTeX, XeTeX and LuaTeX |
+| [live-protocol.md](live-protocol.md) | The live engine's interactive protocol |
+| [bench.md](bench.md) | Benchmarks against other live LaTeX systems and `latexmk` |
+| [pdfsource.md](pdfsource.md) | PDF → source, proven by re-typesetting |
+| [texstore.md](texstore.md) | The TeX Live store, files by hash |
+| [prior-art.md](prior-art.md) | Other Overleaf clients, and live and incremental typesetting |
+| [research/libtau-and-speed.md](research/libtau-and-speed.md) | Notes on libghostty, Typst's speed and incremental TeX |
+
+## Shipping
+
+| File | What it holds |
+|---|---|
+| [release.md](release.md) | Building a self-contained Taudot.app |
+| [developing.md](developing.md) | What builds and tests need beyond `./install.sh` |
+
+The Overleaf source studied is Overleaf CE `github.com/overleaf/overleaf` at commit `e039ad2` (2026-08-28); paths in
+`protocol.md` are relative to it.

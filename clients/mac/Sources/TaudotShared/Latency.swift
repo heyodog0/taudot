@@ -239,7 +239,7 @@ public final class Latency: @unchecked Sendable {
   }
 
   /// The window server composites what was committed by the next refresh: the first display-link tick after a commit
-  /// has a target timestamp that is that refresh. (Checked against an outside capture: docs/perf.md.)
+  /// has a target timestamp that is that refresh. (Checked against an outside capture: clients/mac/Tests/perf/README.md.)
   @MainActor private func startLink() {
     if link == nil {
       guard let screen = NSScreen.main else { return }
