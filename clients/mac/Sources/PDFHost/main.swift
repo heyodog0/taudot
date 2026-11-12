@@ -6,7 +6,7 @@
 // --bench: once the pages are sharp, scroll through the document (or pinch in and out) under a display link and
 // print frame times as JSON, then quit.
 //
-// Benches and shots never disturb the screen (docs/agents/README.md): no Dock icon, never activated, the window off
+// Benches and shots never disturb the screen (docs/developing.md): no Dock icon, never activated, the window off
 // every screen and behind everything (with --shot, all but a sliver: screencapture needs that). The benches that need the real
 // screen (scroll, pinch and edges run under a display link; edges posts HID scroll events and moves the pointer)
 // only run with TAUDOT_ONSCREEN=1. Without --bench or --shot it's an ordinary window, for looking at.

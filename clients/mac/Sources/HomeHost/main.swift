@@ -8,7 +8,7 @@
 //   TAUDOT_HOME_SHOT_REGION=1 (with TAUDOT_ONSCREEN=1): capture the screen region, so the glass shows what's behind
 //   TAUDOT_HOME_TEST=open:<name>|new:<name>   an end-to-end run, printing what happened, then quit
 // Shots and tests run in the background: no Dock icon, never active, the window off every screen. Controls then
-// draw inactive. TAUDOT_ONSCREEN=1 (opt-in, rare: docs/agents/README.md) puts the window on screen, behind the
+// draw inactive. TAUDOT_ONSCREEN=1 (opt-in, rare: docs/developing.md) puts the window on screen, behind the
 // others, and Tests/home_shots.sh brings it forward for the active look.
 import AppKit
 import TaudotHome

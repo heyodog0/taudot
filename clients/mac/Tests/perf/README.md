@@ -26,7 +26,7 @@ ms, p50 / p95. Launch, interaction and idle: release ba15418, a 36-page paper, m
 
 | file | what |
 |---|---|
-| `run.sh` | The bench: type a paragraph at 8/s, hold a key at 30/s, scroll, jump; both editor modes and PDF paths; p50/p95/p99/max per stage. `--compare REV_A REV_B` alternates two builds and fails if B's key → presented/committed p95/p99 is over 15 % and 2 ms worse. |
+| `run.sh` | The bench: type a paragraph at 8/s, hold a key at 30/s, scroll, jump; both editor modes and PDF paths; p50/p95/p99/max per stage. `--write` adds the summary to this README (between `bench:begin`/`bench:end` markers, made at the end if missing). `--compare REV_A REV_B` alternates two builds and fails if B's key → presented/committed p95/p99 is over 15 % and 2 ms worse. |
 | `keys.sh`, `latency.py` | One scripted run and its probes: stages, outside check, long main-thread turns. |
 | `benchsum.py` | `run.sh`'s tables and the A/B comparison. |
 | `probe.swift` | Launches or attaches to the app, records a window's changed frames, drives it with a script (keys, menus, scrolling). |
@@ -65,6 +65,7 @@ original or `~/.taudot/`. Sockets go under `/tmp` (Unix sockets are limited to 1
 T=clients/mac/Tests/perf
 $T/run.sh                                   # all modes, PDF paths and scripts, 3 runs each
 $T/run.sh --compare REV_A REV_B -s type
+$T/run.sh --write                           # also writes the summary into this README, at the end
 
 S=$(mktemp -d); cp -R "$TAUDOT_PERF_DOC" $S/paper-a; echo '{"project": "perf-copy"}' > $S/paper-a/.taudot.json
 deno run -A clients/mock-engine/main.ts --folder $S/paper-a --socket /tmp/txs-perf.sock &

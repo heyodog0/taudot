@@ -403,7 +403,7 @@ private func edits(_ v: Any?) -> [Edit] {
   #expect(ed.doc?.string == tv.string)
 }
 
-// MARK: engine restarts (docs/agents/editor-reconnect.md)
+// MARK: engine restarts
 
 @Test func opDiffIsExactAndFine() throws {
   var r = Rng(s: 5)
@@ -491,7 +491,7 @@ private func edits(_ v: Any?) -> [Edit] {
 }
 
 
-// MARK: LaTeX errors inline (docs/agents/errors.md)
+// MARK: LaTeX errors inline
 
 @MainActor @Test func texIssuesInline() throws {
   let text = "\\begin{document}\nfoo } bar\n  \\undefinedcs x\nOverfull here\n\\end{document}\n"

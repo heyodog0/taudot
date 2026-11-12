@@ -1,4 +1,4 @@
-// The review panel's Quiet design (docs/agents/margin-redesign.md): the ↑ n above / ↓ n below pills and the
+// The review panel's Quiet design: the ↑ n above / ↓ n below pills and the
 // connector setting.
 import AppKit
 

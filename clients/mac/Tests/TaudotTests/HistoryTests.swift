@@ -1,4 +1,4 @@
-// History (TaudotHistory, docs/agents/history.md): decoding the engine's results, the list's rows, picking the file,
+// History (TaudotHistory, docs/history.md): decoding the engine's results, the list's rows, picking the file,
 // the diff's colours, and the controller driving both views from a fake source. All off screen.
 //
 // Screenshots: TAUDOT_HISTORY_SHOTS=<dir> writes history-<light|dark>.png of the sidebar pane beside the diff, from the

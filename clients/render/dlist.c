@@ -1,5 +1,5 @@
-// ["dlist", id, page, out_path]: a page's vector display list in Taudot's format (dlist.md). Owned by the backend
-// agent (docs/agents/renderer/backend.md).
+// ["dlist", id, page, out_path]: a page's vector display list in Taudot's format (dlist.md).
+//
 // Included by txp-render.c after glyphs.c: txp-headless's statics (ctx, out, page_dl, ...) and the cursor agent's
 // glyph_text / glyph_ink are in scope.
 //

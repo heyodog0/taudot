@@ -7,7 +7,7 @@
 -- tests/ot_spec.lua checks them.
 --
 -- The engine transforms a client's stale edits, but a remote edit can still cross the client's own unconfirmed edits
--- on the socket, so the client transforms incoming edits past those (see docs/agents/nvim.log.md).
+-- on the socket, so the client transforms incoming edits past those.
 
 local M = {}
 

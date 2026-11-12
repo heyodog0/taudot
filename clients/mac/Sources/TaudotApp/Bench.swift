@@ -504,7 +504,7 @@ import TaudotShared
       while let x = hv { chain.append(String(describing: type(of: x))); hv = x.superview }
       lines.append("info hit at \(name): \(chain.prefix(9).joined(separator: " < "))")
       check(view === ed ? chain.first == "EditorView" : chain.contains("ReviewMarginView"), "AppKit sends a scroll at the \(name) to \(view === ed ? "the editor" : "the margin")")
-      // (the real screen and input: only when asked for, TAUDOT_ONSCREEN=1 as well; see docs/agents/README.md)
+      // (the real screen and input: only when asked for, TAUDOT_ONSCREEN=1 as well; see docs/developing.md)
       let env = ProcessInfo.processInfo.environment
       let real = env["TAUDOT_SCROLLREAL"] != nil && env["TAUDOT_ONSCREEN"] == "1"
       if real {

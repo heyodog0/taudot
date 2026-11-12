@@ -49,6 +49,14 @@ Large inputs live outside the repository, in one folder that the scripts call th
 Without the live pdfTeX builds the app still works: `bundle.sh` notes what it skipped, and pdfLaTeX projects use
 TeXpresso for the preview.
 
+## Tests stay off the screen
+
+Tests and benches run while someone works on the same Mac, so app runs never take over the screen: no Dock icon and
+never activated (`NSApp.setActivationPolicy(.prohibited)`), windows placed off every display (`TAUDOT_OFFSCREEN=1`),
+no `activate` or `makeKeyAndOrderFront`. Prefer in-process tests (a view in an off-screen window that is never ordered
+front). Checks that need the real screen or real input (ScreenCaptureKit, HID-level keys and scrolls) are opt-in
+with `TAUDOT_ONSCREEN=1` (`PERF_ONSCREEN=1` for the perf scripts) and run only when that code changed.
+
 ## The TeX Live store
 
 The live pdfTeX fetches TeX Live files on demand from `https://texlive.taudot.app` (public, read-only; see

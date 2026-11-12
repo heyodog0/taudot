@@ -1,4 +1,4 @@
--- The Mac app's find bar, driven by Neovim's own search (docs/agents/find.md). The bar sends Vim patterns; this
+-- The Mac app's find bar, driven by Neovim's own search. The bar sends Vim patterns; this
 -- module puts them in the search register, moves the cursor as incsearch does, and counts with searchcount(), so
 -- n / N, *, :noh, the `/` history and the bar always agree. Only search gets the bar: `:` keeps Neovim's command line.
 --

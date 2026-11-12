@@ -178,7 +178,7 @@ final class HomeNSWindow: NSWindow {
   }
 
   /// Tests and screenshots: the window off every screen and behind everything, never key, so nothing appears on
-  /// the user's screen and no focus moves (docs/agents/README.md, Tests must not disturb the user's screen).
+  /// the user's screen and no focus moves (docs/developing.md, "Tests stay off the screen").
   public func showOffscreen() {
     window.collectionBehavior.remove(.moveToActiveSpace)
     let all = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }

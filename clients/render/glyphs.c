@@ -1,5 +1,5 @@
 // ["glyphs", id, page, out_path]: every glyph of a page, with its box, text, size and the typeset line and word it
-// belongs to, written to out_path as JSON. Owned by the cursor agent (docs/agents/renderer/cursor.md).
+// belongs to, written to out_path as JSON.
 // Included by txp-render.c: txp-headless's statics (ctx, out, page_dl, ...) are in scope.
 //
 // Answer: {"id":ID,"ok":true,"n":N,"us":T}  (N glyphs, T µs including typesetting the page if it wasn't cached)

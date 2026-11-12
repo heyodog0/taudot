@@ -1,5 +1,5 @@
 // swift-tools-version:5.10
-// TaudotCursor: the user's source cursor ↔ a glyph on the typeset page (docs/agents/renderer/cursor.md).
+// TaudotCursor: the user's source cursor ↔ a glyph on the typeset page.
 import PackageDescription
 
 let package = Package(

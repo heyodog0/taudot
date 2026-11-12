@@ -1,7 +1,7 @@
 // Terminal colour schemes (Rex's themes, the shipped ones, imported Ghostty and iTerm2 files) as editor Themes.
 //
 // A terminal scheme has a background, foreground, cursor, selection and 16 ANSI colours. They map onto the tokens as
-// the brief says (docs/agents/editor-rexthemes-vim.md): commands blue, environments magenta, math yellow, comments
+// follows: commands blue, environments magenta, math yellow, comments
 // bright black, brackets cyan, errors red; line numbers, the cursor line and panels are mixed from bg and fg.
 import AppKit
 import Foundation

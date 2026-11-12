@@ -13,7 +13,7 @@ them listed above. Sources:
 - THIRD_PARTY.md (the OT core's ancestors, the themes).
 - --texlive-src SRC: the TeX Live source tree universal's stock programs were built from: clients/universal/LICENSE, and
   the licences of the libraries TeX Live builds into them (TEXLIVE_LIBS), read from SRC.
-Facts about the licences: docs/agents/renderer/licences.md.
+Facts about the licences: docs/release.md.
 """
 
 import argparse

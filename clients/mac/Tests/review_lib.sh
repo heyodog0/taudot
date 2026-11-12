@@ -29,7 +29,7 @@ txs_on_exit() {
   trap 'exit 129' HUP
 }
 
-# The user works on this Mac while tests run (docs/agents/README.md, "Tests must not disturb the user's screen"):
+# The user works on this Mac while tests run (docs/developing.md, "Tests stay off the screen"):
 # app runs go in the background (TAUDOT_OFFSCREEN=1: never activates, its window behind and off to the side), and a
 # script that needs the real screen or real input (ScreenCaptureKit, HID keys or scrolls, the window in front) runs
 # only when asked: TAUDOT_ONSCREEN=1, rarely, batched, noted in the log. Otherwise it says so and exits 0.

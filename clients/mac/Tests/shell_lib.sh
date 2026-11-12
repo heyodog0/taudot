@@ -39,7 +39,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 # The app stays off the user's screen: no Dock icon, never activated, windows right of every screen
-# (docs/agents/README.md). TAUDOT_ONSCREEN=1 (opt-in, rare) puts them on screen, still behind.
+# (docs/developing.md). TAUDOT_ONSCREEN=1 (opt-in, rare) puts them on screen, still behind.
 [ -n "${TAUDOT_ONSCREEN:-}" ] || export TAUDOT_OFFSCREEN=1
 # The app with settings of its own: an unbundled build keeps them in a defaults domain named after its executable
 # (taudot-app), which the rename's migration filled from the installed app's (the user's look, a floating Claude
