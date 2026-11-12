@@ -1,920 +1,412 @@
-# Universal live typesetting: unmodified TeX engines, live
+# Universal live typesetting
 
-Status: prototype (2026-11-07), steps 1–4 of `docs/agents/universal.md` done on pdfTeX, XeTeX and LuaTeX; step 5
-(the paragraph pass) works on all three and is exact where it gives an overlay (69/71), but isn't yet at ≤ 2 ms.
-Code: `clients/universal/`. Log: `docs/agents/universal.log.md`.
-
-The claim being tested: live, exact, fast typesetting needs no engine patches. One layer below the engine (an
-interposer over the C library) and one above it (a few TeX tokens) give what our patched pdfTeX gets from its hooks.
+Live, exact typesetting on unmodified TeX engines: pdfTeX, XeTeX and LuaHBTeX built from TeX Live 2026's release
+source, no patches. One layer sits below the engine (an interposer over the C library) and one above it (a few TeX
+tokens on the command line). Together they give what the patched pdfTeX gets from its hooks: snapshots mid-document,
+rollback on edit, early pages, a paragraph preview. Code: `clients/universal/`.
 
 ## Pieces
 
 | | What | Where |
 |---|---|---|
-| `libtau.dylib` | the interposer (`DYLD_INSERT_LIBRARIES`) | `interpose/tau.c`, `interpose/zcache.c` |
-| `tau-live` | the driver: spawns the engine under libtau, speaks `docs/live-protocol.md` on stdin/stdout | `driver/tau-live.c` |
-| engines | **stock** pdfTeX, XeTeX, LuaHBTeX from TeX Live 2026's release source (tag `release`), no patches | `build-engines.sh` |
-| tests | exactness and timing against stock runs and against patched pdfTeX | `tests/uni.py` |
+| `libtau.dylib` | the interposer, loaded with `DYLD_INSERT_LIBRARIES` | `interpose/tau.c`, `zcache.c`, `store.c` |
+| `tau-live` | the driver: spawns the engine under libtau, speaks `docs/live-protocol.md` on stdin/stdout | `driver/` |
+| `tau-tdl` | the reader: turns a pass's or a page's output into the app's TDL display list | `readers/` |
+| `tau-pdfmx` | xdvipdfmx kept resident, converts XeTeX's changed pages | `pdfmx/` |
+| engines | stock pdfTeX, XeTeX, LuaHBTeX (tag `release`), zlib linked as a dylib | `build-engines.sh` |
+| tests | exactness and timing against stock runs and patched pdfTeX | `tests/uni.py` and helpers |
 
-Licence: MIT for everything in `clients/universal/` (the engines stay separate GPL processes, unmodified).
+Licence: MIT for everything in `clients/universal/`. The engines and tau-pdfmx (it links dvipdfm-x's objects) stay
+separate, unmodified GPL programs.
+
+## Build and run
+
+```console
+$ sh clients/universal/build-engines.sh   # stock engines from TeX Live 2026's source
+$ sh clients/universal/build-formats.sh
+$ sh clients/universal/build.sh           # libtau, tau-live, tau-tdl, tau-pdfmx
+$ tau-live --serve --engine BIN/xelatex --state STATE DIR main.tex OUT
+```
+
+`tau-live` takes the command line and protocol of `pdftex-live --serve`, so the app can use either:
+
+    tau-live [--serve] --engine PATH [options] DIR MAIN OUT
+    tau-live [options] DIR MAIN OUT -- ENGINE ARGS...      (tests)
+
+With `--engine` it runs `ENGINE [-no-pdf for XeTeX] -interaction=batchmode -synctex=-1 MAIN` with the ship hook and
+the paragraph pass on. libtau, tau-tdl and tau-pdfmx are found beside the `tau-live` binary. Options not covered in
+the sections below:
+
+| Option | Default | |
+|---|---|---|
+| `--bibtex`, `--biber`, `--makeindex PATH` | BibTeX beside the engine | latexmk's tools |
+| `--max-runs N` | 5 | reruns per edit |
+| `--state DIR` | none | `.aux/.bbl/.blg/.toc/.out` kept across sessions |
+| `--finish every\|rule` | rule | when finishers fork |
+| `--no-para`, `--no-display-pages`, `--no-first-finish`, `--no-pdfmx`, `--no-presize`, `--no-scout` | | turn a feature off |
 
 ## Below the engine: libtau
 
-- **Project files from memory.** Every file under the project (the driver's APFS clone of it) is read whole on first
-  open and served from memory. `read()` returns **one line at a time**, so each refill of the engine's stdio buffer
-  happens at a line start with the buffer empty: the **read log** (bytes read per file, +1 once the end was seen) is
-  exact, and a fork there is a clean snapshot. Lookups (`stat`, `access`) of project paths are answered from memory;
-  misses are logged as "seen empty", so creating the file later invalidates later snapshots.
-- **Written files stay in memory** (copy-on-write across forks, so no process ever shares an output file) and shadow
-  the disk for later reads. At exit they go to `TAU_OUT/<tag>-<seq>-<pid>/`. Big ones (the PDF) live in a 1 GiB VM
-  reservation, so they grow without copying.
-- **Other files** (fonts, images, TeX Live) get a fresh file description at the same offset in every forked child,
-  so a runner never moves a parked snapshot's offsets.
-- **Snapshots**: at a line read of a project text file, at most every 20 ms (`--snapshot-ms`), and at **every line
-  from the start of the edited line to the edit** (typing is local; a paragraph is often one long line). The parent
-  parks (kqueue: SIGUSR1 = resume, the driver's lifeline pipe closing = exit); the child runs on.
-- **Rollback**: the driver picks the newest snapshot whose read log stops at or before the first changed byte of
-  every changed file, SIGKILLs everything newer, writes the new text into the clone, writes `ctl-<pid>` and sends
-  SIGUSR1. The snapshot forks a runner that reloads the changed files and carries on. Any snapshot can be resumed
-  (no parent/child dependency), so thinning past 256 just kills every other one.
-- **Fork inside `getc`.** The fork happens inside `read()`, under the stream's lock (`getc`/`fgets` hold it); the
-  child's thread has a new id and could never release it. libtau tracks the `FILE` of each fd (`fopen`,
-  `fopen$DARWIN_EXTSN`, `fdopen`, `freopen`), counts how deep the parent holds the lock before forking and gives the
-  child a fresh recursive lock held as deeply. (`struct __sFILEX` starts with `up` then `fl_mutex` in Libc; stable
-  for years, but it is the one private-layout dependency.)
-- **No locale-sensitive calls in `open()`**: LuaTeX's `setlocale` opens files under libc's locale lock, and
-  `snprintf` there deadlocked (macOS aborts on the recursive lock). Path handling is plain `memcpy`.
-- **zcache**: stream compression reused across rollbacks, as patch `0007` does inside pdfTeX. The engines are built
-  against TeX Live's own zlib **as a dylib** (same source, same bytes; `build-engines.sh` relinks them), so libtau can
-  interpose `deflate`: a stream's input is held until `Z_FINISH`, keyed by SHA-256 (with the level and window), and
-  the output comes from `OUT/zcache` or from zlib (then stored). zlib's output doesn't depend on how the input was
-  split across `Z_NO_FLUSH` calls. Engines linked statically still work (the zlib imports are weak).
-- **TeX Live on demand** (warm-up only): with `TAU_TLROOT`/`TAU_FETCH`, a lookup that misses under the tree runs the
-  store client (`tools/texstore/client.py fetch`) once and retries. The patched engines do this in kpathsea; here
-  it costs a process per file, so it is only for first runs and format builds.
+**Project files from memory.** The driver works on an APFS clone of the project; the project directory is never
+written. libtau reads each project file whole on first open and serves it from memory, one line per `read()`. So each
+refill of the engine's stdio buffer happens at a line start with the buffer empty: the read log (bytes read per file,
++1 once the end was seen) is exact, and a fork there is a clean snapshot. `stat` and `access` on project paths are
+answered from memory; misses are logged as "seen empty", so creating the file later invalidates later snapshots.
 
-## Above the engine: a few injected tokens
+**Written files stay in memory**, copy-on-write across forks, and shadow the disk for later reads. They go to
+`TAU_OUT/<tag>-<seq>-<pid>/` at exit. The PDF lives in a 1 GiB VM reservation and grows without copying. Other files
+(fonts, images, TeX Live) get a fresh file description at the same offset in every forked child, so a runner never
+moves a parked snapshot's offsets.
 
-- **Ship hook** (`tau-live --hook`): the command line becomes
-  `\def\taudotsig#1{SIG}\AddToHook{shipout/after}{\taudotsig{ship/\the\ReadonlyShipoutCounter}}\csname @@input\endcsname main.tex`
-  where SIG is `\pdffilesize{/.taudot/#1}` (pdfTeX), `\filesize{...}` (XeTeX) or
-  `\directlua{lfs.attributes("/.taudot/#1")}` (LuaTeX): an expandable file lookup that expands to nothing, uses no
-  stream and writes nothing to the log. libtau sees the lookup of `/.taudot/ship/N` (a few calls per lookup; deduped
-  by N). The job name is still `main` (the first file opened). **The PDF stays byte-identical** to a plain stock
-  run; the `.log`'s first lines differ (the command line echo, and the LaTeX banner moves).
-- **Finishing early**: at a ship (the first one past the edit, then at most every 150 ms, as patched `--serve`)
-  the runner double-forks a finisher. Its next read of a project text file (once per open file, since a verbatim
-  reader may swallow it) gets one line:
-  `\output={\setbox0\box255 \deadcycles=0\relax}\csname @@end\endcsname`
-  then end of file: the page in progress is thrown away and TeX's own `\end` closes the document normally (fonts,
-  page tree, xref). Simply ending the input doesn't work: TeX stops with "no legal \end found", a fatal error, and
-  pdfTeX then deletes the PDF. The finisher writes only the PDF and `_exit`s.
+**Snapshots and rollback.** At a line read of a project text file, libtau may fork; the parent parks in kqueue
+(SIGUSR1 resumes it, the driver's lifeline pipe closing ends it) and the child runs on. On an edit the driver picks
+the newest snapshot whose read log stops at or before the first changed byte of every changed file. It stops
+everything newer (SIGSTOP at once, SIGKILL once the preview is out or after 50 ms), writes the new text into the
+clone, writes `ctl-<pid>` and sends SIGUSR1. The snapshot reads its orders once, then forks a runner that reloads the
+changed files and carries on. Orders carry a stamp (`go N`), so a second wake for the same orders forks nothing. Any
+snapshot can be resumed alone.
 
-## The paragraph pass (step 5)
+**Fork inside `getc`.** The fork happens inside `read()`, under the stream's lock, which the child's thread (a new id)
+could never release. libtau tracks the `FILE` of each fd, counts how deep the parent holds the lock, and gives the
+child a fresh recursive lock held as deeply. This relies on `struct __sFILEX` starting with `up` then `fl_mutex`, the
+one private-layout dependency.
 
-On every edit whose resume point (the chosen snapshot) lies in the edited file at or before the edit, the
-snapshot forks a **pass** before the exact runner (`ctl-para-<pid>`). The pass's view of the file:
+**Unlocked `getc`.** Stock pdfTeX reads font maps, TFMs and every input line through `getc`/`fgetc`, which lock the
+FILE per character. libtau interposes both with `getc_unlocked` (the engines are single-threaded), as patched pdfTeX
+does with pdfTeX 1.40.29's change. A stock run with only this: 303 → 224 ms on a 10-page document, PDF identical.
+`open()` makes no locale-sensitive calls, since LuaTeX's `setlocale` opens files under libc's locale lock.
 
-1. at the resume point (a line start), one inserted line: an `\output` that hands LaTeX's float penalties
-   (< −10000) to LaTeX's own routine, ships the page so far through LaTeX's `\shipout` at a break inside the
-   paragraph, and at the pass's own break takes the last `\prevgraf` lines off with `\lastbox` (keeping each
-   line's glue) and ships just them through the primitive `\shipout`;
-2. the new text up to the end of the edited paragraph (the next blank or structural line: `\begin`, `\section`,
-   `\item`, `\[`, ...);
-3. `\par\edef\taudotpg{\the\prevgraf}\penalty-10000 \taudotsig{stop/\taudotpg}`; XeTeX also ships one page
-   holding a 17 KB `\special`, so its 16 KB DVI buffer reaches the file.
+**zcache.** The engines link TeX Live's own zlib as a dylib (same source, same bytes), so libtau can interpose
+`deflate`. A stream's input is held until `Z_FINISH`, keyed by SHA-256 with level and window, and the output comes
+from `OUT/zcache` or from zlib. zlib's output doesn't depend on how the input was split across `Z_NO_FLUSH` calls.
 
-Other project files read as empty and an `alarm(2)` stops a runaway pass. At the stop signal libtau writes the
-bytes the engine appended to its output since the pass began (`para-<seq>-<pid>.bin`: the lines' content stream,
-or their XDV page) and `_exit`s. The driver emits `{"ev":"para","seq","applied","lines","us","path"}`; an empty
-`path` or file means no overlay. Engine-neutral: the same tokens on all three engines.
+**TeX Live on demand.** With `TEXSTORE_URL` set, libtau fetches a missing TeX Live file itself (`store.c`, written
+from `docs/texstore.md`): index, the owner's `F` row, the package manifest, then the object from the shared cache
+(`TEXSTORE_CACHE/objects/xx/<sha512>`) or the store, SHA-512 checked and written atomically. libcurl and zlib are the
+system's, loaded with `dlopen`.
 
-Measured with `uni.py paragraph`: 20 random edits per engine × paper, each followed by a second key at the same
-spot after the first compile, as in typing. The pass's lines are compared with the same lines of that compile's
-final output, which step 2 checks against stock. The pass ships its lines at the page's own x (side margin, plus
-the column's offset in two-column mode), so pdfTeX rounds horizontal positions the same way as on the real page.
+- Only paths in the tree's `ls-R` files are fetched (209k 64-bit hashes, read at the first miss), plus the boot files,
+  so kpathsea's probes for files TeX Live lacks cost nothing.
+- A listed path the store doesn't give goes into `TREE/.taudot-fetch-misses` and isn't asked for again.
+- Errors: `{"ev":"error","what":"offline",...}` once per file when the store can't be reached, and
+  `{"ev":"error","what":"format",...}` with TeX's own line when the engine can't read its format.
+- A missing `.sty`: the compile takes 1.7 s with a cold cache, 0.8 s warm, 0.6 s with the file present.
 
-**Coverage** (of all edits: an overlay; provisional, because the paragraph crosses a page or column; or none,
-because the paragraph is in a box: a caption, a float, a minipage):
+## Above the engine: injected tokens
 
-| | overlay | provisional | none |
-|---|---|---|---|
-| pdfTeX, paper-a | 15/20 | 2 | 3 |
-| LuaTeX, paper-a | 15/20 | 2 | 3 |
-| XeTeX, paper-a | 12/20 | 4 | 4 |
-| pdfTeX, paper-b (two columns) | 12/20 | 6 | 2 |
-| LuaTeX, paper-b | 9/20 | 9 | 2 |
-| XeTeX, paper-b | 8/20 | 8 | 4 |
+**Ship hook.** The command line becomes
+`\def\taudotsig#1{SIG}\AddToHook{shipout/after}{\taudotsig{ship/\the\ReadonlyShipoutCounter}}\csname @@input\endcsname main.tex`,
+where SIG is `\pdffilesize{/.taudot/#1}` (pdfTeX), `\filesize{...}` (XeTeX) or
+`\directlua{lfs.attributes("/.taudot/#1")}` (LuaTeX): a file lookup that expands to nothing and writes nothing to the
+log. libtau sees the lookup of `/.taudot/ship/N`. The paragraph pass's macros are defined on the same line. The job
+name stays `main` and the PDF is byte-identical to a plain stock run; only the `.log`'s first lines differ.
 
-**Exactness of the overlays**, three checks:
+**Finishing early.** At a ship (the first past the edit, then at most every 150 ms) the runner double-forks a
+finisher. The finisher's next read of each open project file returns
+`\output={\setbox0\box255 \deadcycles=0\relax}\csname @@end\endcsname`, then end of file. The page in progress is
+dropped and TeX's own `\end` closes the document. (Ending the input alone is a fatal "no legal \end found", after
+which pdfTeX deletes the PDF.) The finisher exits as soon as TeX closes its log, skipping the engine's teardown. A
+finisher's output that arrives after its run's final output isn't sent.
 
-1. *Lines* (glyph strings per line, each line's start x, baselines; no kerning tolerance in the strings): 69/71
-   identical. The two misses (pdfTeX, one per paper) both resumed from a snapshot far before the edit
-   (~120–190 ms passes); not yet understood.
-2. *Bytes*: XeTeX: every run byte-equal (glyph ids and positions in integer sp), 20/20. pdfTeX/LuaTeX: all TJ
-   operands byte-equal in 7/14 and 8/15 (paper-a) and 3/11 and 0/9 (paper-b); in the others pdfTeX's 1-unit correction
-   kerns land elsewhere because the vertical origin differs (below).
-3. *Pixels*, independent of the above: the pass's content stream is put on a copy of the exact page and both are
-   drawn with Core Graphics at 288 dpi over the band of the paragraph's lines. Every pixel that differs counts:
+**First-page finish.** A fresh engine forks one finisher at the goal page (else the first) as soon as it ships, so the
+first PDF doesn't wait for the document's end.
 
-| | cases with 0 px differing | worst case | position difference in those cases |
-|---|---|---|---|
-| pdfTeX, paper-a | 12/14 | 7601 px (4357 by > 64) | ≤ 0.001 pt |
-| LuaTeX, paper-a | 13/15 | 7604 px | ≤ 0.001 pt |
-| pdfTeX, paper-b | 9/11 | 7004 px | ≤ 0.001 pt |
-| LuaTeX, paper-b | 4/9 | 6679 px | ≤ 0.008 pt |
-| XeTeX | not drawn: byte-equal XDV (check 2) | | 0 |
+**LuaTeX's node properties.** With luaotfload, freeing a node sets its properties entry to nil, and Lua rehashes the
+nearly empty table again and again (~18% of a stock LuaLaTeX run). tau-live's LuaTeX command line starts with
+`\directlua{local t=node.direct.get_properties_table() for i=1,1048576 do t[i]=false end for i=1,1048576 do t[i]=nil end}`,
+which gives the table an array part, emptied again. Stock run of paper-b 1.42 → 1.15 s, PDF byte-identical;
+snapshots grow ~8 MiB.
 
-Where pixels differ, the only difference in the content streams is in positions **0.001 pt** apart (pdfTeX; LuaTeX
-up to 0.008). These are PDF numbers printed to three decimals relative to the page origin. The pass ships at the
-page's x, but the lines' y on the real page depends on the page's vertical glue, which is set only when the page
-is complete, so the vertical rounding (and with it where pdfTeX puts its 1-unit correction kerns) can differ. Core
-Graphics snaps glyph origins to a subpixel grid, so 0.001 pt (0.004 px) can move a whole line's outlines by a
-grid step: thousands of pixels, all in one line. Each case was looked at (`PIX_DUMP`): same glyphs, same line breaks,
-one line's outlines shifted. A pane that draws the overlay at the page's own line positions from SyncTeX (not the
-pass's) avoids this.
+## Snapshot spacing
 
-- "No overlay": the paragraph is in a box (a caption, a float: internal vertical mode has no page builder) or
-  crosses a page or column (the pass counts its own ships in `\taudotn` and reports `pieces`; more than one means
-  provisional). Two-column papers cross columns often (12 of 20 on paper-b).
-- If anything but lines, glue and penalties follows the lines (a footnote's insert, a mark), `\lastbox` can't take
-  them, so the page so far ships instead (checked with e-TeX's `\lastnodetype`); the reader takes the last lines.
-- **Warm pass** (2026-11-07): every dense snapshot (at the edited line) keeps a pass child already forked, files
-  reopened, parked in kqueue (`W` message); the driver writes `ctl-warm-<pid>` with the paragraph's new text from
-  the resume point (no rereading the file) and signals it; the snapshot parks a new one when it exits. Typing keys
-  (second key at a spot), paper-a/paper-b: all but 3 of 102 used a warm pass. Edit → lines written p50 **3.8 ms**
-  (pdfTeX, XeTeX; was 4.6–6.2), LuaTeX 6.9–10.6 ms; with the hot-page pre-touch below, pdfTeX 2.9 ms. Of that, the pass starts 0.2–1.3 ms after the edit (LuaTeX
-  3–4.5 ms) and TeX takes 2.6–3.6 ms (LuaTeX 3.9–6.1). Still not ≤ 2 ms of TeX time.
-- **The wake, measured** (coordinator's three ideas, one at a time; pdfTeX, paper-a, 20 edits each, typing keys, p50;
-  `tests/wake.awk` over the driver's log):
+| Where | Spacing |
+|---|---|
+| a normal run (open with an `.aux`, reruns) | every 20 ms of engine time (`--snapshot-ms`) |
+| a first run with no `.aux` | every 200 ms (`--first-snapshot-ms`) |
+| near an edit | every line from 300 bytes before the edit (or the edited line's start, if earlier) to the edit (`--dense`) |
+| a run after a key | every 20 ms from 16 KB before the key to 150 ms past it, every 100 ms elsewhere (`--snap-near-ms`, `--snap-far-ms`; far 0 turns it off) |
+| over 256 kept | every other one killed (`--max-snapshots`) |
+| after a reap | thinned to the memory budget (see Memory) |
 
-| | signal → wake | faults wake → lines | pass ready → lines | edit → lines written |
-|---|---|---|---|---|
-| baseline | 0.31–0.37 ms | 914–931 | 2.97–3.15 ms | 3.7–4.0 ms |
-| (a) QoS user-interactive (class 33 confirmed) | 0.33 | 918 | 3.14 | 3.8 |
-| (c) FIFO `read()` instead of SIGUSR1 + kqueue | 0.35 | 920 | 3.06 | 3.9 |
-| (b) pre-touch every resident writable page (5550 pages, ~88 MB a child) | 0.19–0.31 | 70–71 | 1.88–2.14 | 2.6–2.9 |
-| (b) pre-touch the pages the last pass copied (671 pages, ~10.5 MB) | 0.36 | 187 | 2.21 | 2.9 |
-| all three | 0.16 | 70 | 1.98 | 2.7 |
+Dense line snapshots exist because typing is local and a paragraph is often one long line. Snapshots cost ~10% of a
+first run (XeLaTeX 826 ms against 748 without them; LuaLaTeX 1685 against 1517).
 
-  - **Copy-on-write faults were the cost**, not the wake: ~920 faults (≈ 1 µs each, ~1 ms) after the fork. Writing
-    those pages while parked moves them before the key. Default now: the pages the previous pass copied (`mincore`'s
-    `MINCORE_COPIED`, written to `OUT/hot` at each pass's stop), most of the gain for an eighth of the memory.
-  - QoS: `pthread_set_qos_class_self_np` returns EPERM in a forked child that hasn't exec'd (checked in a bare
-    test), so it is set once in the exec'd engine and inherited (`TAU_WARM_QOS=ui`); no measurable gain here.
-  - The earlier 0.4–1.5 ms wakes didn't recur (0.3 ms in these runs); the machine was busier then.
-- **Toward 2 ms of TeX time** (coordinator's list, 2026-11-07; each measured):
-  - *Profile first* (Instruments Time Profiler, system-wide, 200 typing keys; samples kept by the pass's thread id
-    from its `B` message, since pids are reused at this fork rate; `tests/prof.py`). It showed: (i) every pass hit
-    "Extra \else": `\loop`'s unmatched `\ifnum` inside `\output` unbalanced TeX's skipping of the branches not
-    taken, and error printing cost time; (ii) `\unvcopy255` copied the whole page; (iii) the hot-page list
-    (`mincore` over all regions) took ~6 ms of CPU after every pass; (iv) a tail: 10% of passes took 100–176 ms.
-  - Fixes: all the pass's macros (`\taudotout`, `\taudotgrab`, `\taudotpage`, `\taudotflush`, `\taudotx`) are
-    defined once on the command line (checked: output still byte-identical, all 3 engines × 2 papers, `uni.py
-    prelude`), so a pass's own text is two short lines and nothing big is tokenized at flush; the whole-page
-    fallback uses `\unvbox` (no copy); the hot-page list is rewritten at most every 5 s.
-  - The tail (iv) is page 1: every snapshot valid for an edit there is older than the first shipped page, so the
-    pass loads pdfTeX's font map (`fm_read_info`, all of `pdftex.map`) when it ships. The exact runner pays the same.
-    Not fixable from outside without changing the output's object order.
-  - Phase markers (`TAU_PHASES=1`: `\taudotmark{N}` = a lookup of `/.taudot/t/N`, 3–4 µs each, measured in TeX with
-    `\pdfelapsedtime`), pdfTeX, paper-b, typing keys, p50: reading the paragraph 0.58 ms, flush tokens 0.02, **`\par`
-    (line breaking) 1.33**, page builder + `\output` + taking the lines 0.02, `\shipout` 0.15, writing 0.10;
-    LuaTeX: 0.69 / 0.01 / **1.57** / 0.04 / 0.34 / 0.11. On paper-b, TeX's own line breaking of long paragraphs with
-    microtype's font expansion is most of it, the same work the exact run does.
-  - Tried, no gain: the paragraph in one `read()` instead of line by line (2.25–2.33 vs 2.33 ms); QoS and a FIFO
-    wake (above). Not tried: replacing the primitive `\shipout` (now 0.15–0.34 ms) by `\showbox` into the log.
+## The paragraph pass
 
-**TeX time per typing key now** (warm pass ready → lines written, a key every 120 ms, 100 keys, p50 / p90):
+On an edit whose resume snapshot lies in the edited file within 4 KB before the edit, the snapshot forks a pass
+before the exact runner. The pass sees:
 
-| | paper-a | paper-b (two columns, long paragraphs) |
+1. at the resume point, one inserted line: an `\output` that hands LaTeX's float penalties to LaTeX's own routine,
+   ships the page so far through LaTeX's `\shipout` at a break inside the paragraph, and at the pass's own break takes
+   the last `\prevgraf` lines off with `\lastbox` and ships just them through the primitive `\shipout`;
+2. the new text up to the end of the edited paragraph (the next blank or structural line);
+3. `\par\edef\taudotpg{\the\prevgraf}\penalty-10000 \taudotsig{stop/\taudotpg}`. XeTeX also ships a 17 KB `\special`
+   so its 16 KB DVI buffer reaches the file.
+
+Other project files read as empty, and `alarm(2)` stops a runaway pass. At the stop signal libtau writes what the
+engine appended since the pass began (`para-<seq>-<pid>.bin`: the lines' content stream, or their XDV page) and
+exits. The same tokens work on all three engines.
+
+**Geometry.** `\taudotgrab` puts the first line's height, baseline and the lines' span in the stop signal
+(`-gBASExSPANxHT`, sp). The driver reads the old lines' first baseline and left edge from SyncTeX and passes them as
+`\taudotyb` and `\taudotxb`, so the pass ships its lines exactly there and the engine rounds positions as on the real
+page. This covers list items, whose indent is a shift of each line box that `\lastbox` drops. Old lines without one
+shared left edge (a hanging indent) get no preview.
+
+**The warm pass.** The line snapshot at the edit keeps one pass child forked, files reopened, parked in kqueue. The
+driver writes `ctl-warm-<pid>` with the paragraph's new text and signals it; the snapshot parks a new one when it
+exits. tau-live keeps a single warm child and lets the others go. While parked, the warm child writes the pages the
+previous pass copied (from `mincore`, kept in `OUT/hot`), so the copy-on-write faults come before the key: faults
+after the wake 920 → 187, edit → lines 3.7–4.0 → 2.9 ms on pdfTeX. On pdfTeX it also looks up every loaded font's map
+entry, so a first-page pass doesn't read `pdftex.map` at its ship. Exact runners don't, so their output can't change.
+
+**Locating the old lines.** SyncTeX records every line box of a paragraph with the source line its `\par` was read
+on. The driver maps that line back to each recent output's text and looks in its SyncTeX (`driver/synctex.c`: 2.7 MB
+in ~3 ms) for hbox records directly inside one vbox, which give the old lines, their page, x and width.
+
+**The `para` event** is the one in `docs/live-protocol.md`. Its states:
+
+| state | when |
+|---|---|
+| `exact` | line count, first line's height and span agree with the old lines (64 sp) |
+| `provisional` | they don't (`why`: `lines`, `heights`) |
+| `none` | `insert` (something follows the lines, or the paragraph is in a box), `split` (crosses a page or column), `segment`, `noanchor` (an edit in a comment), `shape`, `glyph`/`resource`, `end`, `reader` |
+
+`erase` holds the old and new lines' boxes (3 pt either side for protruded punctuation), each padded by half the gap
+between the first two lines.
+
+### Readers
+
+`tau-tdl serve` runs inside tau-live, one request per line on stdin; the `para` event goes out with its answer.
+
+- **XeTeX** (`xdv`): the pass's XDV page is appended to the last exact XDV (which defines the fonts) and run through
+  TeXpresso's DVI interpreter into the renderer's TDL device (`clients/render/{glyphs,dlist}.c`, unmodified).
+  tau-live sends `warm DOC.xdv` with the first XDV output so fonts load before the first key.
+- **pdfTeX, LuaTeX** (`pdf`): no PDF interpreter. The overlay is a one-page PDF, an APFS clone of the last exact PDF
+  plus an incremental update whose page draws only the pass's content stream. The TDL is one `FIGURE` op drawing it.
+  `pdfmini.c` reads xref tables, xref streams and object streams, and keeps each exact PDF's cross-references and
+  per-page resources; tau-live sends `warmpdf PDF` while the reader is idle. Reader time 0.7 ms.
+- The reader refuses an overlay unless every (font, code) the pass draws is drawn somewhere in the exact PDF under
+  that name and every resource exists. pdfTeX names a font resource after the first font of its name the run uses,
+  so a pass before the first page can name another subset. On pdfLaTeX, title-page documents get no first-page
+  preview for this reason. Characters the subsets lack are refused too.
+
+## Display pages
+
+After a key, the run's first shipped page that differs from the last finished PDF goes out at once as a `pdf` event
+with `display: true`, before the finisher's PDF. libtau writes the engine's output for that page
+(`TAU_PAGE_PREVIEW`); `tau-tdl page` makes the last finished PDF with that page replaced (an incremental update).
+pdfTeX and LuaTeX only.
+
+- `page` answers `same` for a page whose content stream is unchanged, and tau-live tries the next shipped page (up to
+  64). Shipped pages queue in order, so no changed page is skipped.
+- A page goes out only if every (font, code) it draws is in the finished PDF's subsets, every resource exists, and it
+  has no inline image. Otherwise the user waits for the finisher.
+- Each page's (font, code)s are cached by a hash of its content stream: `page` takes 0.5–1 ms at 300 pages.
+- Display-page requests wait while the edit's paragraph pass runs (at most 50 ms), keeping the reader off its cores.
+
+## XeTeX's pages: tau-pdfmx
+
+A fresh `xdvipdfmx -s FIRST-LAST` spends ~80% of a one-page conversion building kpathsea's `ls-R` hash. `tau-pdfmx
+serve` reads `texmf.cnf` and every `ls-R` once, then forks a child per request (`DIR<TAB>ARG...`, answered `done CODE
+US`) that runs xdvipdfmx's own `main`; the next child is forked while the client reads the PDF. Every request starts
+from the same state, so the output is a fresh `xdvipdfmx`'s byte for byte (font subset tags hash the output's name).
+It also reads and writes without stream locks and skips kpathsea's case-insensitive retry on case-insensitive volumes.
+
+tau-live converts only changed pages. A page is converted again when its XDV bytes differ, page 1 or the units differ
+(xdvipdfmx reads page 1's specials for every page), or a font number is defined differently (XeTeX numbers fonts as
+it defines them). The `pdf` event carries `pdf_path`, `pdf_first`, `pdf_last` (0-based, inclusive; `pdf_last <
+pdf_first` means none changed) and `pdfmx_us`, or `pdf_error`. Later events wait behind it; `para` events don't.
+
+| paper-b, XeLaTeX | xdvipdfmx per event | tau-pdfmx in tau-live |
 |---|---|---|
-| pdfTeX | **1.28** / 1.77 ms | 2.91 / 4.92 ms |
-| XeTeX | **1.43** / 1.77 ms | 2.06 / 3.65 ms |
-| LuaTeX | 2.02 / 2.53 ms | 8.14 / 9.70 ms |
+| one page → PDF | p50 41, p90 45 ms | p50 5.2, p90 5.9 ms |
+| pages from the edit to the end | p50 99, p90 196 ms | only changed pages (p50 0 per final) |
+| typing: edit → PDF of the edited page | ≥ 65 ms | p50 24.5, p90 26.1 ms |
 
-Edit → lines written p50: 1.6, 1.8, 2.4 ms (paper-a), 3.3, 2.4, 9.3 ms (paper-b).
+## latexmk's rule, state, commands
 
-**LuaTeX on paper-b (8.14 ms) explained** (2026-11-07): the keys are bimodal, 2.5–3.2 ms and 7.4–8.6 ms. All slow keys
-are one 29-line paragraph that crosses a column (`pieces` = 2: provisional, no overlay). Inside its `\par` the page
-builder runs the pass's output routine, which ships the first column through LaTeX's `\shipout` (with its hooks);
-`\par` measures 5.4 ms in the pass against 2.5 ms in a stock run for the same paragraph (timed with
-`os.gettimeofday` around `\par`), the difference being that ship. Ruled out: copy-on-write (pre-touching
-everything: faults 577 → 119, `\par` unchanged) and Lua's collector (stopped in the pass: unchanged). The table's
-p50 just had more such keys (5 spots). Passes that give an overlay (one piece) on LuaTeX/paper-b: **2.7–2.9 ms**.
-Possible later: a provisional pass could stop at the first break inside its paragraph instead of shipping it. The 2 ms target holds on paper-a for
-pdfTeX and XeTeX; on paper-b, line breaking alone is 1.3–1.6 ms. The stretch (1 ms) would need less line-breaking
-work than TeX does, so not without changing what is computed.
-- The pane side (drawing these lines over the page) is not done: the reader here is a Python test
-  (`tests/para.py`); a C reader into TDL is next.
+After each run the files it wrote (except the document, logs and SyncTeX) go into the clone when they differ.
+BibTeX runs when the `.aux` files' bib lines or a `.bib` changed, and only if the `.bib` files exist (latexmk's
+`-bibtex-cond`; arXiv sources ship only their `.bbl`). biber runs instead when there is a `.bcf`; makeindex when the
+`.idx` changed. If the run read a changed file, the engine resumes from the newest snapshot before the first changed
+byte (`run` event, `why` `aux` or `bibtex`), up to `--max-runs`; else `done`.
 
-## tau-live as a drop-in for the app's live driver (2026-11-07)
+`--state`: missing `.aux/.bbl/.blg/.toc/.out` come from STATE at start and go back when a compile settles, with
+`STATE/rule` (the `.bib` files' hash). A reopened project settles in one run without BibTeX.
 
-Same command line and protocol as `pdftex-live --serve` (`docs/live-protocol.md`):
+Commands beyond edits: `goal` (finish at once when that page ships), `finish` (a PDF of the pages so far), `rescan`
+(files changed in DIR that no editor holds), `cursor`, `stats` (each process's role, pid and phys_footprint), `reap`.
+Events: `hello`, `fetch`, `run`, `pdf` (with `synctex`, `log`, `finish_us`, `from_page`), `bibtex`, `done`, `para`,
+`error`.
 
-    tau-live --serve --engine PATH [--bibtex PATH] [--biber PATH] [--makeindex PATH] [--max-runs N]
-             [--state STATE] [--snapshot-ms N] DIR MAIN OUT
+## Parked engine
 
-With `--engine`, tau-live runs `ENGINE [-no-pdf for XeTeX] -interaction=batchmode -synctex=-1 MAIN` with the hook
-and the paragraph pass on; the older `DIR MAIN OUT -- ENGINE ARGS...` form stays for tests.
+`tau-live --park SOCKET --serve --engine PATH` starts an engine with the session's command line, except that it reads
+the main file's name with `\openin` from `/.taudot/main.tex` (an `\openin` doesn't fix the job name). libtau parks at
+that lookup, with the format loaded, and listens on SOCKET. A session started with `--parked SOCKET` sends its
+environment, working directory, pipes and log, and gets a forked child as its engine; a session whose engine, command
+line or relevant environment differs spawns as usual. The parked engine is renewed every 5 minutes (`TAU_PARK_RENEW`)
+because `\time` and `\today` are set at engine start. A session's processes exit when its lifeline closes.
 
-- **latexmk's rule** (written from `clients/pdftex/README.md`'s description, not from `serve.c`): after each run
-  the files it wrote (except the document, logs, SyncTeX) go into the clone when they differ; BibTeX runs when the bib
-  lines of the main `.aux` and the `.aux` files it `\@input`s changed, or a `.bib` changed (biber when there is a
-  `.bcf`, with `--biber`); makeindex when the `.idx` changed (`--makeindex`). Then, if any changed file was read by
-  the run (its read log), the engine resumes from the newest snapshot before the first changed byte (`run` event,
-  same `seq`, `run` + 1, `why` `aux` or `bibtex`), up to `--max-runs` (5); else `done`. BibTeX beside the engine is
-  used by default.
-- Fixed on the way: a rerun may resume an old snapshot whose memory still has text from before later edits; every
-  resume now reloads the source files from the clone (safe: what any kept snapshot read is unchanged).
-- `--state`: missing `.aux/.bbl/.blg/.toc/.out` come from STATE at start and go back when a compile settles and at
-  exit, with `STATE/rule` (the `.bib` files' hash): a reopened project settles in one run without BibTeX.
-- `goal` (finish at once when that page ships), `finish` (SIGUSR2: a PDF of the pages so far at the runner's next
-  line read), `rescan` (files changed in DIR that no editor holds: copied into the clone, BibTeX & co., a rerun if
-  needed). Events: `hello` (with `image`), `fetch` (when libtau fetches a TeX Live file), `run`, `pdf` (with
-  `synctex`, `log`, `finish_us`; SyncTeX of early PDFs too), `bibtex`, `done` (`runs`, `code` = the engine's exit
-  status, `log`, `blg`), `para` (paragraph pass: `lines`, `pieces`, `path`; empty `path` means no overlay).
-- Checked: from projects without `.aux`/`.bbl`, the settled output equals stock runs with BibTeX on all three engines,
-  paper-a and paper-b (`uni.py rule`: open → bibtex → reruns → done); 64/64 random edits identical to stock with the
-  rule (`uni.py edits`, the reference now gets the same rule); typing finals identical; `uni.py serve`: four runs
-  and BibTeX on the first compile, `goal` + `finish`, `rescan` after a `.bib` change runs BibTeX, a second session
-  with `--state` settles in one run.
-- The paragraph pass now gives an overlay only when its own break shipped the lines (a page break on the way to a
-  paragraph inside a box had counted as a piece), and is skipped when its snapshot is > 4 KB before the edit or
-  before the first shipped page. Lines check: **55/55** overlays identical (3 engines × 2 papers).
+## Memory
 
-## Readers into TDL (2026-11-07)
+A parked snapshot (300 pages) holds ~7.3 MB of its own: TeX's node memory 2.6 MB, other arrays 1.1, small
+allocations 1.6, per-process pages ~1.5. It is the same at 20 and 50 ms apart, because between any two snapshots the
+run rewrites the same hot pages. So memory depends on how many snapshots are kept, not on their spacing. The base is
+the engine's image (the first snapshot, 38 MB on pdfLaTeX), the snapshot holding the first page's fonts (21 MB), the
+driver and the reader. The driver keeps SyncTeX data in its own mappings and unmaps them whole (4.2 MB resident).
 
-`tau-tdl` (`clients/universal/readers/`, C) turns a pass's output into a list the app's TDL drawer already draws
-(`clients/render/dlist.md`):
+**Reaping.** When no edit has come for `--reap-ms` (2500) and the run has settled, or as soon as an open settles
+(`--reap-open-ms`, 0), tau-live reaps. It keeps the first snapshot, the next key's resume point with its warm child,
+the cursor's, and others spaced by engine time along the run. It kills the rest of the snapshots and stopped runners,
+drops all but the newest output's SyncTeX, and returns free malloc memory in tau-live and tau-tdl. The base spacing is
+`--reap-snapshot-ms` (50), not 20: a resumed run takes copy-on-write faults and covers less than half the text per ms.
+A killed snapshot's kept descendants are reparented but stay in the session's process group, so measure by process
+group.
 
-- **XeTeX**: `tau-tdl xdv DOC.xdv PASS.bin OUT.tdl`. The pass's XDV page (the last complete bop..eop it appended,
-  found with the interpreter's own instruction sizes) is appended to the last exact XDV (whose pages define the
-  fonts) and run through TeXpresso's DVI interpreter on the renderer's runtime, recorded by the renderer's TDL
-  device: `clients/render/{glyphs,dlist}.c` are compiled in whole, unmodified, with the few statics they expect;
-  TeX Live files through kpathsea. Checked on a pass: the 7 lines as TEXT runs with the paragraph's glyphs. 73 ms
-  the first time (every font the document defines is loaded); a resident process would pay it once.
-- **pdfTeX, LuaTeX**: `tau-tdl pdf EXACT.pdf PAGE PASS.bin OUT.pdf OUT.tdl`. No PDF interpreter is needed (the
-  runtime has none since nomupdf): OUT.pdf is an APFS clone of the last exact PDF plus an **incremental update** in
-  which page PAGE draws only the pass's content stream (moved by `dy`: the offset of one of its lines that is
-  unchanged on the exact page), with every page's fonts in its resources; OUT.tdl is one `FIGURE` op drawing that
-  page, which the drawer renders with Core Graphics like any included PDF. `readers/pdfmini.c` reads classic xref
-  tables, xref streams and object streams (pdfTeX's and LuaTeX's output).
-- Checked by drawing the overlay page as the app would (Core Graphics, 288 dpi) against the exact page over the
-  paragraph's band: **0 px differing in 27 of 28** placed overlays (pdfTeX paper-a 8/8, paper-b 7/7; LuaTeX paper-a 8/8,
-  paper-b 4/5; the fifth: 2972 px, the ≤ 0.008 pt vertical rounding above). 6–11 ms, mostly walking every page for
-  font resources (now kept per output: below).
-- Left to the app: hiding the old paragraph under the overlay (its rect from SyncTeX or the previous list), and
-  placement when no line of the pass is on the exact page (`dy` null: the edit is in every line).
+**The budget.** `--mem-budget-mb`, or by default the base as the first reap finds it plus `--mem-extra-mb` (64): about
+150 MB on pdfLaTeX at any length. Snapshots are spaced `--reap-snapshot-ms` + slope × the engine-time distance to the
+nearest focus (the last 8 edits, the cursor, the pages in view from `goal`), with the smallest slope that fits. The
+reap measures again 400 ms later, since a kept snapshot takes over pages it shared with the ones let go.
 
-## The `para` event as the patched one, TeX Live on demand, errors (2026-11-08)
+**The scout.** The app sends `["cursor", path, line, column]` when the cursor rests for 300 ms. If a key there would
+resume more than 2 KB before it, tau-live wakes that snapshot with no edit. The run typesets quietly to the cursor,
+writes nothing, leaves line snapshots and a warm pass there, and exits. Any edit stops it; what it left stays valid.
+A scout costs 17–61 ms of engine time on 300 pages and 2103.00020.
 
-**`para`** is now the event of `docs/live-protocol.md` (`go`, `applied`, `file`, `state` + `why`, `pdf`, `page`,
-`path` = the TDL, `overlay` + `origin`, `erase`, `lines`, `old_lines`, times). The app's `ParaOverlay` reads it
-unchanged; all the locating is in C:
+## Results
 
-- *The pass's geometry.* `\taudotgrab` already takes the paragraph's lines off with `\lastbox`; it now also records
-  the first line's height and the skip above it, and puts in the stop signal `-gBASExSPANxHT` (sp): the first
-  baseline below the shipped page's top (less 1in), the span from the first line's top to the last one's bottom,
-  the first line's height. libtau passes it on in `Q ... geo 1 B S H`.
-- *The old lines.* SyncTeX records every line box of a paragraph with the source line its `\par` was read on (the
-  blank or structural line after it), on all three engines. The driver knows that line in the edited text
-  (`para_end`), maps it back to the text of each recent output (each `change` keeps its newline count), and looks
-  in that output's SyncTeX (`driver/synctex.c`, read when the output is announced: 2.7 MB, ~3 ms) for hbox records
-  with that line directly inside one vbox. One run of them: the old lines, their page, x and width. In two vboxes:
-  `none`/`split`; something else between them: `none`/`segment`; none at all: `none`/`noanchor` (an edit in a
-  comment). Needs `-synctex=-1`, which the app's command line has.
-- *State.* `exact` when the line counts, the first line's height and the span agree with the old lines (64 sp);
-  else `provisional` (`lines`, `heights`). `none`: `insert` (the lines weren't the last thing on the page: a
-  footnote, a mark; or the paragraph is in a box), `split` (the new lines cross a page or column), `end`,
-  `reader`.
-- *Placement.* The pass's page moves down by the old first baseline less its own: tau-tdl gets that as `DY`
-  instead of matching lines (the matching remains for the CLI without `DY`).
-- *erase*: the old lines' box and the new lines' box (x from the column, 3 pt either side for protruded
-  punctuation), each padded by half the gap between the paragraph's first two lines.
-- *The reader runs inside tau-live*: `tau-tdl serve`, started with the driver, one request per line on its stdin;
-  the event goes out with its answer. Its interpreter keeps the fonts loaded between passes (XDV). `overlay` is
-  now a one-page PDF: the incremental update also writes a page tree with only that page and a new catalog.
-  `pdfmini.c` keeps decoded object streams (the page walk read the same few over and over): 6 → 2.3 ms.
+TeX Live 2026, M-series Mac. Documents: paper-a (32 pages, one column, line numbers), paper-b (arXiv 2103.00020, 48
+pages, two columns), arXiv 1512.03385 and 1706.03762, and synthetic documents of 10, 100 and 300 pages (synth-N).
+"Stock" is TeX Live's own static build. Machine load varied between runs; numbers within a table were taken together.
 
-Checked with `uni.py paragraph` (20 edits per engine × paper; the event drawn as the app draws it: the overlay's
-page at `origin` against the exact page, over the new lines' erase rect, every pixel counted):
+### Byte identity
 
-| | exact events | placed with 0 px differing | provisional / none | edit → event p50 |
-|---|---|---|---|---|
-| pdfTeX, paper-a | 8 | 8/8 | 0 / 10 | 4.9 ms |
-| pdfTeX, paper-b | 11 | 11/11 | 0 / 7 | 5.7 ms |
-| LuaTeX, paper-a | 8 | 8/8 | 0 / 10 | 9.0 ms |
-| LuaTeX, paper-b | 4 | 4/4 | 0 / 14 | 10.6 ms |
-| XeTeX, paper-a | 7 | 7/7 on the exact baselines (≤ 0.0005 pt) | 0 / 12 | 4.5 ms |
-| XeTeX, paper-b | 5 | 5/5 on the exact baselines (≤ 0.0005 pt) | 1 / 12 | 3.6 ms |
-
-XeTeX has no overlay PDF (the app's page is `xdvipdfmx`'s; the list is the fallback drawing), so its check is the
-list's glyph baselines against the exact XDV page's (1in + v, as `xdvipdfmx` places them; checked against
-`xdvipdfmx`'s output too). The pixel misses of the line-matched placement (above: up to 0.008 pt) are gone: the
-offset now comes from SyncTeX's integer sp, not from printed PDF numbers. Two XeTeX details on the way:
-
-- XeTeX's SyncTeX puts 1in in its preamble (`X Offset`, `Y Offset`) and leaves it out of the records (pdfTeX and
-  LuaTeX write 0 there); the reader adds them.
-- A pass forked before XeTeX had flushed anything writes a whole DVI (from its preamble, with its own font
-  numbers); tau-tdl then renders the pass's own bytes, and otherwise appends everything the pass wrote (its font
-  definitions since the snapshot) to the exact output, not just its last page.
-- The first XDV event of a session cost ~45 ms (the reader loaded the fonts); now warmed (below).
-
-**TeX Live on demand.** A lookup that misses under the tree used to run `TAU_FETCH` (uv + Python, ~100 ms) for
-every miss: kpathsea's probes of other directories and names TeX Live doesn't have included, every session.
-paper-b's first compile on a complete tree: 162 fetches (XeLaTeX) and 112 (LuaLaTeX) for nothing. Now:
-
-- Only paths that the tree's `ls-R` files list are fetched (the image's whole file list; read at the first miss,
-  209k entries as 64-bit hashes, inherited by snapshots), plus the boot files (`ls-R`, `texmf.cnf`). paper-b on a
-  complete tree: **0 fetches**, XeLaTeX 1.70 → 0.61 s, LuaLaTeX 2.00 → 1.59 s with a stand-in `TAU_FETCH` that
-  only logs (real `tl-fetch` costs ~100 ms more per call).
-- A listed path the store doesn't give (not the network's fault) goes into `TREE/.taudot-fetch-misses` and isn't
-  asked for again in later sessions.
-- **Native client** (`interpose/store.c`, MIT, written from `docs/texstore.md`): with `TEXSTORE_URL` set (and no
-  `TAU_FETCH`), libtau fetches itself. The index (pinned `TEXSTORE_INDEX`, else `images/NAME/rREV`, kept), the
-  owner's `F` row by binary search, the package manifest, the object from the cache by hash or from the store,
-  gunzipped, SHA-512 checked, written atomically. The cache is the reference client's
-  (`TEXSTORE_CACHE/objects/xx/<sha512>`), so both share it. libcurl and zlib are the system's, loaded with
-  `dlopen` at the first fetch; a fresh curl handle per fetch (a snapshot never shares its parent's connection).
-  No svn fallback and no prefetch of a package's other files yet. Checked on a clone of the tree with a needed
-  `.sty` removed: fetched, checked, placed, the compile completes (cold cache 1.7 s, warm 0.8 s, vs 0.6 s).
-- **Errors**: `{"ev":"error","what":"offline","message":"can't fetch PATH: no network","file":PATH}` once per
-  file when the store can't be reached (libtau's `g offline` message; such misses aren't remembered), and
-  `{"ev":"error","what":"format",...}` with TeX's own line when a run made nothing and the engine said it couldn't
-  find or read its format.
-
-## XeTeX's pages as PDF: tau-pdfmx (2026-11-09)
-
-XeTeX's exact output is XDV; the app showed it by running `xdvipdfmx -s FIRST-LAST` per `pdf` event: 40–50 ms for
-one page of paper-b, 100–200 ms for the pages from an edit to the end. Time Profiler over 40 one-page runs: **~80% is
-kpathsea building its `ls-R` hash** (`db_build`) at start; the page itself (fonts, subsetting, figures) is ~4 ms.
-
-- **`tau-pdfmx`** (`pdfmx/`): xdvipdfmx kept resident. It links the stock build's dvipdfm-x objects unmodified
-  (`dvipdfmx.c` compiled again with `main` renamed), so as a program it is GPL, separate like the engines; the file
-  itself is MIT. `tau-pdfmx serve` reads texmf.cnf and every `ls-R` once, initializes the search paths of the formats
-  xdvipdfmx uses, then forks a child per request (`DIR<TAB>ARG...`, answer `done CODE US`) that runs xdvipdfmx's own
-  `main`; the next child is forked and parked while the client reads the PDF. Every request starts from the same
-  state, so the output is a fresh `xdvipdfmx`'s, byte for byte (the font subset tags hash the output's name: compare
-  under the same name). Two cuts that change no output:
-  - `fgetc`/`getc`/`fputc`/`putc` linked ahead of libc's without the stream lock (xdvipdfmx reads byte by byte;
-    the lock was ~20% of a page; a conversion is single-threaded).
-  - kpathsea's case-insensitive retry of every miss (it lists the directory: xdvipdfmx probes `.dfont`, CMaps, glyph
-    lists) is turned off when the working directory, `/` and every `ls-R` tree are on case-insensitive volumes: there
-    an exact miss is also a case-folded miss.
-- **tau-live converts** (XeTeX, `tau-pdfmx` beside it; `--no-pdfmx` turns it off): a `pdf` event of an XDV goes out once
-  its pages are converted, with `pdf_path`, `pdf_first`, `pdf_last` (0-based, inclusive: the pages in `pdf_path`;
-  every other page below `pages` is as the client already has it; `pdf_last < pdf_first`: none changed, no
-  `pdf_path`) and `pdfmx_us`; `pdf_error` if the conversion failed (convert the XDV yourself). Events after it wait
-  behind it, so the order is kept; `para` events don't wait.
-- **Only changed pages.** tau-live keeps, per page the client has, a hash of the page's XDV bytes (bop up to the next
-  bop, without bop's back pointer), and the font definitions of what it delivered. A page is converted again when its
-  bytes differ, or page 1 or the units differ (xdvipdfmx reads page 1's specials, e.g. the paper size, for every
-  page), or a font number is defined differently (xdvipdfmx takes fonts from the postamble by number; XeTeX numbers
-  them as it defines them, so a new font early shifts every later number). An early output lists only the fonts
-  defined so far: definitions are compared per number, and the client keeps the pages after an early output.
-
-Checked (`uni.py xpdf`, paper-b, XeLaTeX: 40 typing keys at two spots, then six chunks at random spots bringing new
-fonts and moving page breaks): **every converted PDF byte-identical** to stock `xdvipdfmx` with the same arguments
-(50/50), and after every edit **every page the client would show** (applying the events as above) **draws
-identically** (Core Graphics, 288 dpi, all pixels) to a whole-document `xdvipdfmx` of the final XDV (41/41 × 8).
-`tests/pdfmx.py`: random page ranges, server vs a fresh `xdvipdfmx`, 30/30 identical on paper-b, 20/20 on a fontspec
-document with PDF and PNG figures.
-
-| paper-b, XeLaTeX | before (xdvipdfmx per event) | now |
+| Check | Test | Result |
 |---|---|---|
-| one page → PDF | p50 41, p90 45 ms | **p50 5.2, p90 5.9 ms** (in tau-live) |
-| pages from the edit to the end | p50 99, p90 196 ms | not converted unless changed (p50 0 pages per final) |
-| typing: edit → PDF of the edited page | ≥ 65 ms (18 + 45, behind the previous key's tail) | **p50 24.5, p90 26.1 ms** |
+| a run under libtau = a stock run | | PDF, `.aux`, `.out`, `.log` identical, paper-a and paper-b, 3 engines\*; no measurable overhead (1615 vs 1661 ms) |
+| final output after random edits = stock run of the edited copy | `uni.py edits` | pdfTeX 20/20 per paper, XeTeX and LuaTeX 12/12, 64/64 with the rule |
+| settled output with latexmk's rule = stock + BibTeX | `uni.py rule`, `bblonly` | identical, 3 engines |
+| early outputs = the full run's pages | `uni.py finish` | 32/32 paper-a, 48/48 and 51/51 paper-b; 10/10 × 3 engines |
+| command-line macros don't change output | `uni.py prelude` | 3 engines × 2 papers |
+| parked, reaped and scouted sessions = stock | `uni.py parked`, `reap`, `cursor` | every settled output; no process left after the session |
+| tau-pdfmx = fresh `xdvipdfmx` | `uni.py xpdf`, `tests/pdfmx.py` | 50/50 PDFs; pages drawn identically 41/41 × 8; 30/30 and 20/20 random ranges |
+| display pages = finished page at 288 dpi | `uni.py display` | 0 px: 44/44 LuaLaTeX, 42/42 pdfLaTeX (paper-b), 40/40 on 1512.03385, 29/40 shown on synth-300 |
 
-Still per conversion (profile of the server's children): font subsetting and ToUnicode at close (~30%), PDF figures
-re-parsed (~15%), deflate at `-z 1` (~10%), kpathsea lookups (~20%; `dpx_foolsearch` resets the program name and
-re-initializes formats each time).
+\* LuaTeX's `/ID` is an MD5 that includes the output's absolute path, so live runs are compared with `/ID` masked.
+Matching Overleaf byte for byte would need the clone at CLSI's path (`/compile/...`); unverified.
 
-## Speed after tau-pdfmx (2026-11-09)
+### Paragraph preview exactness
 
-Measured on paper-b, per placed `para` event (TeX time from the pass's start / the reader / edit → event, ms):
+Exact previews drawn as the app draws them, every pixel at 288 dpi. XeTeX has no overlay PDF, so its check is the
+list's glyph baselines against the exact XDV's.
 
-- **The reader's first XDV request** loaded every font of the document: 49–61 ms. tau-live now sends tau-tdl
-  `warm DOC.xdv` (the document's own last page, drawn and dropped) with the session's first XDV output. First placed
-  event: reader **1.1–1.7 ms**, edit → event 4.6–5.8 ms (was 53–68). `uni.py paragraph xelatex`: 5/5 exact events on
-  the exact baselines, as before.
-- **The reader's PDF mode** read the exact PDF and walked every page's fonts on each pass: 3–11 ms, spikes of
-  18–43 ms. It now keeps the exact PDF (bytes, cross-references, the pages' fonts and XObjects) per output, and tau-live
-  sends `warmpdf PDF` with each new output while the reader is idle. Reader **0.7 ms** on pdfTeX and LuaTeX; edit →
-  event p50 pdfTeX 4.2–5.8 ms (was 8.8–10.6), LuaTeX 7–10 ms (was 14–34) in the same runs. `uni.py paragraph`:
-  11/11 (pdfTeX) and 4/4 (LuaTeX) placed with 0 px differing.
-- **Where a pdfTeX event's time goes** (driver log, `para timing`): edit → pass signalled 0.2 ms, wake 0.2, pass setup
-  ~0.7, TeX ~2.9, stop → reader request 0.06–0.1, reader 0.7.
-- **LuaTeX's TeX time** (≈1.4× pdfTeX in every phase: reading 1.5 vs 1.2 ms, line breaking 2.9 vs 2.0, ship 1.0 vs
-  0.6): Time Profiler over 28 passes: Lua callbacks are 28% of the pass's TeX work, nearly all luaotfload's
-  `node_processor` on `pre_linebreak_filter` (font shaping; the document registers it, `hpack_filter` and
-  `post_linebreak_filter`); freeing nodes (`flush_node`, with node properties) ~15%. The exact run does the same work,
-  so it stays.
-- **LuaTeX's node properties** (any LuaLaTeX run: luaotfload turns them on): freeing a node sets its entry of the
-  properties table to nil; for an absent key Lua inserts the key and, the table being nearly empty, rehashes it again
-  and again (`flush_node` → `lua_rawseti` → `luaH_setint` → `rehash`: **~18% of a stock LuaLaTeX run** of paper-b).
-  LuaTeX's source notes the fix ("maybe we should allocate a proper index 0..var_mem_max"). Without touching the
-  engine: tau-live's LuaTeX command line starts with
-  `\directlua{local t=node.direct.get_properties_table() for i=1,1048576 do t[i]=false end for i=1,1048576 do t[i]=nil end}`:
-  an array part over the node indices, emptied again, so every reader sees the same empty table and the writes are
-  stores. paper-b's node indices reach ~125k (`var_mem_max` 478k). Stock LuaLaTeX run: **1.42 → 1.15 s**, PDF
-  byte-identical (paper-b, and a fontspec document with OpenType features); through tau-live: `uni.py edits`
-  12/12 identical to stock, `prelude` identical, paragraph 4/4 placed with 0 px. Passes: no change beyond noise.
-  Snapshots grow ~8 MiB (84 MiB max). `--no-presize` turns it off.
-- **First compile** (open with no `.aux`/`.bbl`, no `--state`, complete tree; open → `done`):
-
-| paper-b | runs | stock (the same runs + BibTeX) | tau-live before | tau-live now |
-|---|---|---|---|---|
-| pdfLaTeX | 2 | | 1.73 s | 1.73 s |
-| XeLaTeX | 3 | 1.87 s | 1.72 s | 1.72 s |
-| LuaLaTeX | 3 | 4.37 s | 4.1–4.6 s | **3.3 s** |
-
-  The reruns are latexmk's (the first run writes the `.out` hyperref reads at `\begin{document}`, BibTeX's `.bbl`,
-  then the `\bibcite`s); tau-live resumes where it can. Snapshots cost ~10% of a first run (no snapshots: Xe 748 vs
-  826 ms, Lua 1517 vs 1685 ms); sparser ones would slow later jumps, so kept at 20 ms. Format loading is 0.07 s
-  (pdfTeX), 0.09 (XeTeX), 0.24 (LuaTeX) of a run. A reopened project settles in one run (`--state`).
-- **Bug: long command lines.** tau-live's JSON reader never ended the strings it decoded with a NUL; each string's
-  buffer is as long as the rest of the line, so on a long line (the app's `open` of a whole file) it could be reused
-  memory and the command read as e.g. `open24`: `unknown command`, the `applied` count one behind for the session.
-  Fixed; `uni.py bigopen` sends a 270 KB `open`, a 100 KB `change` and a non-ASCII `open`, with and without the pass:
-  each applied, output identical to stock (pdfTeX, XeTeX).
-
-## First compile, long documents, fixes (2026-11-09, later)
-
-- **BibTeX only when the `.bib` files exist** (latexmk's `-bibtex-cond`). arXiv sources ship only their `.bbl`; tau-live
-  ran BibTeX on `\bibdata` alone and replaced the `.bbl` with an empty one. `uni.py bblonly`: no BibTeX, `.bbl` kept,
-  0 undefined citations, output identical to stock (2103.00020 on all three engines, 1512.03385); the previous
-  binary fails it. The tests' own stock reference had the same flaw, so `rule` had passed.
-- **Long command lines**: the JSON reader didn't end decoded strings with a NUL; on a long line (an `open` of a whole
-  file) a command could read as `open24`. `uni.py bigopen`.
-- **The paragraph pass no longer grows with the document** (bench: pdfLaTeX 2.5 → 12.9 ms, LuaLaTeX 4.6 → 23 ms from
-  10 to 300 pages). Causes and fixes:
-  - at each key tau-live SIGKILLed the old runner, its finishers and every snapshot past the resume point; tearing
-    down dozens of large processes ran while the warm pass woke (1.4 ms at 300 pages) and the reader wrote the overlay
-    (6 ms). They are now stopped (SIGSTOP) at the edit and killed once the preview is out (or after 50 ms);
-  - the driver compared the whole text, wrote the whole file to the clone and counted lines from the top before
-    signalling: the edit now applies in place at its position, the clone is written after the signal (before it
-    when the pass will reread the file), and the line is counted from the last known point;
-  - the pass copied the whole file up to the paragraph into a new buffer; it now builds its text in place;
-  - the reader's content scanner looped forever on a lone `-`, `+` or `.` (1512.03385: 10/30 → 28/30 events); it
-    matched lines against the exact page even when given the offset; the overlay's resources repeated every page's
-    fonts.
-  synth-300 (bench spots, p50): LuaLaTeX edit → event 13–16 → 6.3 ms (reader 6.2 → 0.67), pdfLaTeX 3.3 ms; the same
-  as at 10 pages.
-- **The pass ships its lines at the old first baseline** (the driver reads it from SyncTeX and passes `\taudotyb`;
-  `\taudotgrab` kerns down to it): the engine rounds positions as on the exact page, the overlay's offset is 0, and
-  the content streams are byte-equal more often (pdfTeX 3 → 5–9 of 11).
-- **The checks**: a pass whose lines weren't the page's last (`why: insert`, no overlay for the app) is no longer
-  compared line by line, and pixels where the overlay draws nothing but the page has ink ("other ink in the rect",
-  e.g. an overfull table from the other column) are counted apart. The app erases such ink under the overlay, as
-  with patched pdfTeX.
-- **Parked engine** (`tau-live --park SOCKET --serve --engine PATH`): an engine started with the session's command
-  line, except that it reads the main file's name with `\openin` from `/.taudot/main.tex` (an `\openin` doesn't fix the
-  job name as a first `\input` would); libtau parks at that lookup (format loaded, kpathsea and the prelude done) and
-  listens on SOCKET. A session started with `--parked SOCKET` sends its environment, working directory, message pipe,
-  lifeline and log, and gets a forked child as its engine; a session started differently (a signature over the
-  engine, its command line and the environment that matters) spawns as before. Renewed every 5 minutes
-  (`TAU_PARK_RENEW`), since TeX's `\time` and `\today` are set when an engine starts. `uni.py parked`: outputs
-  identical to unparked sessions, fallback on a different `TEXINPUTS` (3 engines).
-- **First compile, corrected** (paper-b with its `.bbl`, no `.aux`, open → done, p50 of 3; earlier numbers in this
-  file ran without the `.bbl`):
-
-| | sparse first run off | default | parked |
-|---|---|---|---|
-| pdfLaTeX | 2.75 s (first PDF 1.07) | 2.64 s (0.97) | 2.58 s (0.89) |
-| XeLaTeX | 1.98 s (0.90) | 1.90 s (0.83) | 1.82 s (0.72) |
-| LuaLaTeX | 4.24 s (1.66) | 4.02 s (1.44) | 3.72 s (1.17) |
-
-- **LuaTeX's exact page** (typing, paper-b: key → first exact output p50 86 ms vs pdfTeX's 34): the early finish is
-  ~60 ms of CPU, 80% of it LuaTeX's `pdf_finish_file` walking every font's whole character range (`char_info`,
-  `get_sa_item`, `char_used` for its CID dictionaries and ToUnicode), ~25% freeing its Lua state, fonts and trees
-  after the PDF is written. A finisher now writes its outputs and exits when TeX closes its log (the document and its
-  SyncTeX are complete by then): CPU 61 → 50 ms, faults 6200 → 2450, key → first exact output p50 **86 → 70 ms**
-  (p95 105 → 92). `uni.py finish`: early outputs identical to the full run's pages, 10/10 on all three engines. The
-  character-range walk is the engine's own and stays.
-
-- **Display pages** (pdfTeX, LuaTeX; `--no-display-pages` turns them off). The first output after a key used to wait
-  for an early finish (LuaTeX ~50 ms of it: `pdf_finish_file` walks each OpenType font's whole character range, which
-  luaotfload's private-use glyphs stretch to ~1M slots; narrowing the range from outside isn't possible without
-  losing the fonts' used marks or changing typesetting). Now, at the run's first page after the edit, libtau writes
-  what the engine wrote for that page (`TAU_PAGE_PREVIEW`); `tau-tdl page` makes the last finished PDF with that page
-  drawing the new content stream (an incremental update; all pages' resources), and tau-live sends it as an early
-  `pdf` event with `display: true`; the finish follows as before. Only when it draws the same: every (font, code) of
-  the page must be drawn somewhere in the finished PDF (so its font subsets have the glyph), every resource it names
-  must be there, no inline image; else no display page. `uni.py display`: every display page against the run's
-  finished page at 288 dpi, 44/44 (LuaLaTeX) and 42/42 (pdfLaTeX) with 0 px differing, including keys with
-  characters new to the document; a key needing a glyph the subsets lacked was refused. Typing, key → first output p50:
-  **LuaLaTeX 70 → 19 ms, pdfLaTeX 34 → 11 ms**.
-- `from_page` in `run` and `pdf` events was always 0; it is now the pages shipped before the resume snapshot.
-
-## Bench gaps: first page, display coverage (2026-11-10)
-
-- **First compile, first page.** A fresh engine finished only at its end, so the first PDF grew with the document
-  (bench: 340 ms–1.27 s vs patched pdfTeX's 220–440 ms). Now a fresh engine (`TAU_FIRST_FINISH`, `--no-first-finish`)
-  forks a finisher once, at the goal page (else the first) as soon as it ships. Open → first PDF, no `.aux`, 3 runs
-  each (machine load ~20):
-
-| | before | after |
+| | exact previews | placed at 0 px |
 |---|---|---|
-| synth-10 pdfLaTeX | 0.34 s | 0.32 s |
-| synth-300 pdfLaTeX | 1.21 s | 0.32 s |
-| paper-b pdfLaTeX | 1.02 s | 0.44 s |
-| paper-b XeLaTeX | 0.85 s | 0.31 s |
-| paper-b LuaLaTeX | 1.50 s | 0.61 s |
+| pdfTeX, paper-a | 8 of 20 edits | 8/8 |
+| pdfTeX, paper-b | 11 of 20 | 11/11 |
+| LuaTeX, paper-a | 8 of 20 | 8/8 |
+| LuaTeX, paper-b | 7 | 7/7 |
+| XeTeX, paper-a / paper-b | 7 / 5 | on the exact baselines (≤ 0.0005 pt) |
+| pdfTeX, 1512.03385 | 8 | 8/8 |
+| list-heavy document (24 edits), pdfTeX / LuaTeX / XeTeX | 17 / 7 / 7 | all |
+| synth-10 first page, pdfTeX | 19 of 19 | 19/19 |
 
-  Open → done unchanged. The early page draws as the same run's full output (0 px at 288 dpi: synth-300, paper-b,
-  1512.03385 on pdfLaTeX; paper-b on LuaLaTeX); on XeLaTeX the full run's XDV page 1 is byte-identical (tau-live
-  converts only pages 2–51 after it).
-- **Display pages on long documents** (bench: 1/30 keys on synth-300 and 1512.03385). `tau-tdl page` rescanned every
-  page of each new finished PDF (decompress, collect each (font, code)) and walked the page tree from the root once per
-  page: ~55 ms at 300 pages, so the finish came first. Now one walk lists the pages, each font's bytes per code is
-  looked up once, and each page's (font, code)s are kept by a hash of its raw content stream (pages unchanged since the
-  last output aren't rescanned; the cache is dropped when the fonts' bytes per code differ); `warmpdf` does this
-  before the key (it hadn't been sent without SyncTeX). The cached set equals a full rescan on all 44 outputs of a
-  synth-300 session (checksum). `page`: 55 → 0.5–1 ms at 300 pages.
-- **Display pages show the changed page.** The display page was always page `from_page`, but TeX often set that page
-  before it read the edited line, or the run resumed pages before the edit (first-run snapshots are spaced): the
-  "display page" was then unchanged, and a key needing a new glyph wasn't refused because its page wasn't the one
-  checked. `page` now answers `same` for a page whose content stream is the old page's, and tau-live tries the next
-  page shipped until one differs (or the finish is out); the event's `pages` - 1 is that page. The earlier p50s (11 ms
-  pdfLaTeX, 19 ms LuaLaTeX on paper-b) partly timed unchanged pages. `uni.py display`, 40 keys + novel characters,
-  every display page 0 px at 288 dpi against the run's finished page, all novel-glyph keys refused:
+The other edits get `none` (in a box, crossing a page or column, followed by an insert) or `provisional`. Two-column
+papers cross columns often.
 
-| | keys with a display page | key → display page p50 | changed page past `from_page` (keys) |
+### Paragraph preview latency
+
+TeX time is warm pass ready → lines written; a key every 120 ms, 100 keys, p50 / p90.
+
+| | pdfTeX | XeTeX | LuaTeX |
 |---|---|---|---|
-| synth-300 pdfLaTeX | 29/40 (the others change no page, or need new glyphs) | 11.0 ms | 0: 19, 1: 9, 6: 1 |
-| 1512.03385 pdfLaTeX | 40/40 | 7.9 ms | 0: 39, 2: 1 |
-| paper-b pdfLaTeX | 40/40 | 21.8 ms | 0: 19, 1: 21 |
-| paper-b LuaLaTeX | 40/40 | 27–32 ms | 0: 36, 1: 4 |
-| synth-300 LuaLaTeX | 29/40 | 26.2 ms | 0: 28, 1: 1 |
+| TeX time, paper-a | 1.28 / 1.77 ms | 1.43 / 1.77 ms | 2.02 / 2.53 ms |
+| TeX time, paper-b | 2.91 / 4.92 ms | 2.06 / 3.65 ms | 8.14 / 9.70 ms\* |
+| edit → `para` event p50, paper-b | 4.2–5.8 ms | 4.6–5.8 ms | 7–10 ms |
+| edit → `para` event p50, synth-300 | 3.3 ms | | 6.3 ms |
 
-  (machine load ~20 during these.) Of paper-b LuaLaTeX's ~27 ms, ~25 is TeX from the edit to the page's ship; the
-  reader is under 1 ms.
+\* Bimodal: the slow keys are one paragraph that crosses a column, whose pass ships the first column through LaTeX's
+`\shipout`. LuaTeX passes that give an overlay take 2.7–2.9 ms.
 
-## Results (TeX Live 2026, M-series Mac, 2026-11-07)
+A pdfTeX event: edit → pass signalled 0.2 ms, wake 0.2, pass setup ~0.7, TeX ~2.9, reader 0.7. On paper-b, line
+breaking is 1.33 ms of the TeX time, the same work the exact run does. LuaTeX is ≈1.4× pdfTeX in every phase. Pass
+time doesn't grow with the document. Typing a burst (8 keys a second) on synth-10's first page, the six keys at one
+spot show in 62, 3, 3, 3, 3, 3 ms; the first key has no snapshot near the edit yet.
 
-Papers: paper-a (32 pages, one column, review-mode line numbers) and paper-b (the corpus's arXiv 2103.00020, 48 pages, two columns). "Stock" is TeX Live's
-own static build; the live engines are the same source with zlib as a dylib (checked byte-identical to stock).
+### Typing: display page and exact page
 
-**Step 1: a run under libtau == a stock run.** Byte-identical PDF, `.aux`, `.out` and even `.log`, both papers. Time:
-1615 vs 1661 ms (paper-a), 926 vs 923 ms (paper-b): no measurable overhead. The project directory is never written.
+pdfLaTeX, bench's memory session (`docs/bench.md`), p50 over 30 isolated keys.
 
-**Step 2: snapshots and rollback.** Random edits (insert/delete a word, change a letter) anywhere after
-`\begin{document}`, each final PDF compared with a fresh stock run of the edited copy:
+| document | key → display page | key → exact page |
+|---|---|---|
+| synth-10 | 17 ms | 44 ms |
+| synth-100 | 16 ms | 39 ms |
+| synth-300 | 18 ms | 45 ms |
+| 1512.03385 | 27 ms | 55 ms |
+| 1706.03762 | 38 ms | 60 ms |
+| 2103.00020 (paper-b) | 37 ms | 64 ms |
 
-| paper | identical | edit → final PDF (whole rest of the document) | snapshots kept | footprint |
-|---|---|---|---|---|
-| paper-a | 20/20 (and 10/10 earlier) | p50 578 ms, p95 888 | 45 | 25 MiB max per snapshot |
-| paper-b | 20/20 | p50 475 ms, p95 704 | 46 | 25 MiB max per snapshot |
+LuaLaTeX on paper-b: display page 27–32 ms, ~25 of it TeX up to the page's ship. XeLaTeX on paper-b: edit → PDF of
+the edited page 24.5 ms.
 
-(Footprint summed over snapshots is 487–524 MiB, but that counts copy-on-write pages each one shares; the real
-cost is lower. To measure: free memory before/after.)
+A key far from recent edits after a reap resumes further back. With the app's `cursor`, the scout brings a first key
+at a bench spot after a 3 s rest to 42–53 ms (synth-300) and 58–74 ms (2103.00020). Without a cursor, as bench drives
+it, such keys take 40–142 ms (107–139 on synth-300).
 
-**Step 3: finishing by injection.** Every early PDF's pages equal the full run's pages (content streams and fonts
-per page; an earlier version of this check compared fonts only, because pypdf's content stream object is falsy:
-fixed, and all re-run): **32/32 paper-a, 48/48 paper-b** (pdfTeX), the same for LuaTeX. After random edits, the first exact PDF (the page past the edit), against
-patched pdfTeX (`pdftex-live --serve`, same machine, same edits, goal page 0):
+### Open → first PDF and done
 
-| | stock + libtau | patched pdfTeX | ratio |
+pdfLaTeX with a settled `.aux`, p50 / p90 over 6 runs, patched pdfTeX interleaved:
+
+| document | tau-live | patched pdfTeX |
+|---|---|---|
+| synth-10 | 238 / 278 ms | 223–230 ms |
+| synth-300 | 216 / 216 ms | 227–230 ms |
+| 1706.03762 | 352 / 362 ms | 370–372 ms |
+| 2103.00020 | 362 / 366 ms | 376–378 ms |
+
+With no `.aux`, the first-page finish gives XeLaTeX 0.29–0.31 s and LuaLaTeX 0.61 s on paper-b.
+
+First compile to `done`, paper-b with its `.bbl` and no `.aux`, p50 of 3. pdfLaTeX's numbers predate the unlocked
+`getc`, which took 2103.00020's settled `done` from 1152 to 1028 ms.
+
+| | runs | default | parked engine |
 |---|---|---|---|
-| paper-a, random jumps | p50 53–57 ms, max 75 | p50 46 ms, max 72 | 1.2× |
-| paper-b, random jumps | p50 61 ms, max 75 | p50 49 ms, max 61 | 1.24× |
-| paper-a, typing (3 spots × 20 keys, 120 ms apart) | p50 50 ms, p95 103–109 | p50 49 ms, p95 64 | 1.0× / 1.7× |
-| paper-b, typing | p50 40 ms, p95 49 | p50 40 ms, p95 50 | **1.0×** |
+| pdfLaTeX | 2 | 2.64 s | 2.58 s |
+| XeLaTeX | 3 | 1.90 s | 1.82 s |
+| LuaLaTeX | 3 | 4.02 s | 3.72 s |
 
-Typing (the common case) is at parity. All final PDFs after typing are identical to stock runs.
+The reruns are latexmk's (hyperref's `.out`, BibTeX's `.bbl`, then the `\bibcite`s). Format loading is 0.07 s
+(pdfTeX), 0.09 (XeTeX), 0.24 (LuaTeX) of a run. A reopened project with `--state` settles in one run.
 
-**Step 4: the same on XeTeX and LuaTeX**, with no change to libtau or the driver (XeTeX runs with `-no-pdf`: its
-output is the XDV, compared page by page with `tests/xdv.py`; the PDF is xdvipdfmx's deterministic function of it).
+### Memory
 
-| | step 1 | step 2 (random edits) | step 3 (early outputs) | edit → first exact page | typing, per key |
-|---|---|---|---|---|---|
-| XeTeX, paper-a | identical (xdv, aux, out, log) | 12/12 | 32/32 | p50 30 ms, max 49 | p50 13 ms, p95 31 |
-| XeTeX, paper-b | identical | 12/12 | 51/51 | p50 30 ms, max 46 | p50 13 ms, p95 17 |
-| LuaTeX, paper-a | identical* | 12/12* | 32/32 | p50 76 ms, max 115 | p50 72 ms, p95 125 |
-| LuaTeX, paper-b | identical* | 12/12* | 51/51 | p50 130 ms, max 185 | p50 103 ms, p95 119 |
+pdfLaTeX, bench's memory session (open, 5 s, 30 isolated keys, bursts, 15 s), phys_footprint summed over the process
+group, two sessions each. MB; idle is the mean of the idle phases, typing columns are peaks. Rosina's numbers are from
+`docs/bench.md` (quick mode).
 
-\* LuaTeX's `/ID` is an MD5 that includes the output file's **absolute path** (pdfTeX's doesn't), so it is
-byte-identical only when the paths match: step 1 runs both in the same directory; live runs (in the driver's clone)
-are compared with `/ID` masked. To match Overleaf byte for byte, a LuaLaTeX project must run at CLSI's path
-(`/compile/...`), e.g. by making the clone's path the same; unverified.
+| document | idle after open | isolated keys | bursts | 10–15 s after | processes typing | Rosina idle / peak / after |
+|---|---|---|---|---|---|---|
+| synth-10 | 62 | 136 | 135–142 | 82 | 16 | 103 / 121–125 / 104–105 |
+| synth-100 | 95–101 | 237 | 213–224 | 105–113 | 31 | 137 / 157–182 / 133–139 |
+| synth-300 | 144 | 312–325 | 308–337 | 137 | 36 | 160 / 202–243 / 176–177 |
+| 1512.03385 | 89 | 211 | 194–216 | 118–124 | 21 | 112 / 127–149 / 107–115 |
+| 1706.03762 | 129 | 239–251 | 215–241 | 123 | 24 | 121–126 / 118–127 / 118–121 |
+| 2103.00020 | 172 | 405 | 377 | 163–182 | 36 | 131–134 / 129–191 / 118–135 |
 
-XeTeX's exact page is an XDV page: tau-live converts the changed pages with tau-pdfmx (above).
-LuaTeX's time is LuaTeX's own: a stock LuaLaTeX run of the paper-b paper takes 1.8 s against pdfTeX's 0.9 s, and its
-finish (OpenType subsetting, PDF objects in Lua) is heavier. Snapshot footprint: XeTeX up to 158 MiB, LuaTeX 76 MiB,
-pdfTeX 25 MiB (max single snapshot).
-
-### Where the remaining time goes
-
-- **Finishing** (`\end` + close): 15–35 ms of CPU, ~2–3k copy-on-write page faults; patched's
-  `close_files_and_terminate` alone takes 12–21 ms. Mine also runs the rest of the output routine and the line, and
-  `\end`'s page discard. Compression is not the cost (`\pdfcompresslevel=0` in the finisher saves ~1.5 ms).
-- **paper-a's p95 while typing**: the typed paragraph ends page 24; page 25 holds two RGBA PNGs. pdfTeX writes every
-  `\pdfximage` when it closes, so the page-24 finisher decodes both images (~60 ms) as well as the runner. zcache
-  saves the deflate (300 → 64 ms per ship), not the PNG decode. Next: cache `inflate` the same way (keyed by the
-  compressed input), or start finishers at the next text read after a ship, so the runner's work isn't repeated.
-- **Random jumps**: resuming from up to 20 ms before the edit, then typesetting to the page end; same as patched.
+At rest after typing, universal is below Rosina on 10, 100 and 300 pages, within 5 MB on 1706.03762, and above it on
+1512.03385 (+10–15) and 2103.00020 (+30–45). Typing peaks are 1.1–1.9× Rosina's: universal keeps the warm pass,
+finishers and the run's snapshots, while Rosina shows its preview and its whole PDF 0.24–4.8 s later. XeLaTeX and
+LuaLaTeX hold more (synth-10 after typing and a reap, before the budget: 266 and 288 MB, against 86 for pdfLaTeX).
 
 ## Open
 
-- Snapshots at 20 ms cost ~10% of a first run.
-- The native fetcher: prefetch a package's other files in parallel; an svn fallback for a store outage.
-- A provisional pass could stop at its first inside break; the reader could skip pages whose fonts it has.
-- Memory: see "Memory: a budget, a scout" (2026-11-12). A finisher/pass cap while typing is not done.
-
-## Paragraph preview on figures' pages; the LuaLaTeX 367 px (2026-11-10)
-
-- **The reader took a figure's stream as a page's content.** Both `tau-tdl pdf` (the paragraph overlay) and
-  `tau-tdl page` (display pages) found the content stream in what the engine wrote by "a stream with `BT` in it".
-  An embedded PDF figure's form XObject and font programs are written at the same ship; a font program has no
-  `/Type`, and its bytes can hold `BT` (and stray `)`). Effects: on 1512.03385 the reader looped forever on such a
-  stream, so every later request of the session timed out (bench: 1/30 exact previews, 12 `none/reader`); and the
-  pass's overlay could be a blank page marked exact (the app would erase the paragraph). A content stream is now one
-  whose dictionary holds only `/Length`, `/Filter`, `/DecodeParms`; the glyph check refuses (`syntax`) on a stray
-  delimiter instead of skipping it. `tests/pagepick.py`: a page's data with a font-program-like stream after the
-  content (the old reader drew the font program). Bench replay on 1512.03385 (30 keys): 0 → 20 exact previews
-  (patched pdfTeX 23; the other 10: 3 first keys at a spot with no snapshot in the paragraph yet, 5 `insert`, 2
-  split). `uni.py paragraph pdflatex` on 1512.03385: 8/8 exact events at 0 px.
-- **LuaLaTeX's "367 px" on paper-b was the test.** The pass's text operators were byte-identical to the page's. The
-  test's line parser rounded each run's offset in a clustered line to 0.01 pt (a table reaching into the column chained
-  lines 18 pt apart into one cluster), and its pixel check counted the table's ink over the paragraph's glyphs as a
-  difference. Offsets are now kept to 0.0001 pt, and both pixel checks render the page without the matched lines to
-  set the page's other ink apart. paper-b: LuaLaTeX 7/7, pdfLaTeX 11/11 exact at 0 px.
-- **Memory** (bench's peak summed RSS while typing, 1512.03385): patched 219–222 MB with 15 engine processes,
-  universal 272–293 MB with 26 (snapshots being replaced at an edit, the warm process, finishers, line snapshots near
-  the edit; ~10.7 MB each against patched's ~14.7). Returning freed malloc memory at idle saves ~1 MB; nothing cheap.
-
-## Display pages after the preview (2026-11-10)
-
-Bench (c6881dd): with display pages on most keys, tau-live's paragraph preview p50 rose 3.6 → 6.1 ms at 10 pages.
-The runner resumes before the edit and ships its first (often unchanged) page within a few ms, while the preview's
-TeX pass is still running; that page went to the reader at once (`page`: a `same` check or a display page) and the
-reader's work, beside the pass and the finisher, competes for cores. Measured here (bench's 30-key script,
-pdfLaTeX, p50 of the preview's own time): at load ~14, display pages on vs off: synth-10 3.5 → 4.0 ms, paper-b
-6.3 → 7.4 ms (reader time the same; the pass itself slower); at load 3–8 no difference either way.
-
-Now display-page requests for an edit wait while its paragraph pass runs (released when the pass reports, after its
-reader request; at most 50 ms), and every shipped page is queued in order: before, while a `page` request was out only
-the latest page shipped was kept, so a `same` answer could skip a changed page between them (the display PDF would
-then show an old page before the display page). Interleaved, same load (3–8), previous build vs this one, p50:
-
-| | preview | finished page | display page |
-|---|---|---|---|
-| synth-10 | 3.2–3.6 vs 3.0–3.8 ms | 36–43 vs 38–41 ms | 8.2–9.3 vs 7.8–10.5 ms |
-| synth-100 (with goal) | 2.9–3.6 vs 2.8–3.2 ms | 34–36 vs 36–39 ms | 8.3–9.3 vs 9.2–9.8 ms |
-| paper-b (with goal) | 5.6–5.8 vs 5.7–6.5 ms | 44–48 vs 44–49 ms | 18.5–20.5 vs 18.1–20.2 ms |
-
-At this load the two are within noise; the bench's regression needs a loaded machine to show, where the hold keeps
-the reader off the cores during the pass. `uni.py display` after the change: 40/40 (1512.03385, paper-b pdfLaTeX and
-LuaLaTeX), 29/40 synth-300, all 0 px, novel-glyph keys refused.
-
-## Parked sessions: lifeline, duplicate runners (2026-11-10)
-
-From a stall in the app (pdfLaTeX, parked engine on, edits through the app): no PDF after an edit; ~600 engine
-processes from earlier sessions still alive (parent 1); three runners in lockstep for one edit (page and finisher files
-in triples from consecutive pids).
-
-- **Lifeline.** libtau unset `TAU_FD` after reading it but not `TAU_LIFE`. A session's engine forked from the parked
-  one set its lifeline to the session's pipe, then `tau_config()` read the parked engine's stale `TAU_LIFE` (fd 5: in
-  the child its own kqueue or `/dev/null`, which kqueue refuses as a read filter). So no process of a parked session
-  watched its lifeline: when tau-live died without cleaning up (the app quitting or restarting), they lived on.
-  Fixed (the session's pipes set after `tau_config`, `TAU_LIFE` unset with `TAU_FD`). `uni.py parked` now types in a
-  parked session, SIGKILLs its tau-live, and counts the engine's processes left: 56 before, 0 now.
-- **Two runners for one edit.** A woken snapshot forked the runner, and the runner read `ctl-<snapshot>` after the
-  fork. Two resumes of one snapshot back to back (fast typing) gave two wakes, and both runners could read the newest
-  orders: two runners for the same edit, one unknown to tau-live, writing to the session's pipe. Now the snapshot reads
-  its orders once, before forking, and passes them to the runner; each resume's orders carry a stamp (`go N`), and a
-  wake for orders already served forks nothing. Fast typing (96 keys in bursts, 8 ms apart): duplicate runners per
-  session 4–6 before, 0 after (the one remaining pair is edit 0's two latexmk reruns, each with its own orders).
-- The stall itself didn't reproduce here (fast typing, parked typing; both builds). Duplicate runners are the likely
-  route: a resume of a snapshot from the untracked chain.
-
-Checked after: `edits` 8/8 (pdfLaTeX, LuaLaTeX), `finish` 10/10 (3 engines), `paragraph` pdfLaTeX 11/11 at 0 px,
-`display` 40/40, `parked` XeLaTeX and LuaLaTeX ok (with the new checks). `rule` on paper-b had failed on both builds: the
-test's own reference ran BibTeX on a `.bbl`-only project (no `.bib`) and emptied the `.bbl`; fixed (latexmk's
-`-bibtex-cond`, as `stock_rule`). Now identical to stock in 3 runs, pdfLaTeX and LuaLaTeX.
-
-## List items: the preview stood 25 pt left (2026-11-10, editfix item 8)
-
-The user saw the PDF jitter while typing in a long `\item` (universal pdfLaTeX). Off screen (the app's pane, every
-frame of the page composited from its layers: `EditfixJitterTests.swift`), each key moved the item's lines sideways
-twice: the preview drew them 24.9 pt left of the page's, and the display page put them back. The pass takes its lines
-off with `\lastbox`, which drops each line's shift (a list's indent comes from `\parshape`, as a shift of every line
-box), and shipped them at the text's left edge (`\moveright\dimen0`). `uni.py paragraph` never had a list item.
-
-Now the driver passes the old lines' left edge from SyncTeX (`\taudotxb`, sp less 1in, beside `\taudotyb`) and the
-pass ships its lines there (`\moveright\dimexpr\taudotxb sp-\hoffset`): the engine rounds positions as on the page,
-the reader is unchanged. Old lines that don't share one left edge (a hanging indent) get no preview (`none`/`shape`).
-`uni.py paragraph` on a list-heavy document (14 sections of three long `\item`s and a nested `enumerate` item; 24
-edits): exact previews placed at 0 px, before → after: pdfLaTeX 4/17 (worst 44,063 px) → 17/17; LuaLaTeX 7/7 and
-XeLaTeX 7/7 (baselines) after. synth-10: 9/9 at 0 px, as before.
-
-The app side of the same report (`LiveTex.stale`, `retirePara`): tau-live's first-run finisher PDF could land after
-the run's finished PDF and `done` and put the older page back (and keep SyncTeX from installing); and the preview
-was taken down on the edit's second PDF (`changed` []), before the display page's tiles were up, so the old text
-showed for a frame at every key.
-
-## A finisher after its run's end (2026-11-10)
-
-The Mac test `paneChoosesUniversal` (XeLaTeX) sometimes waited its 60 s with no SyncTeX (1 in 42 runs here). Captured
-live: in the last latexmk rerun the first-page finisher (forked at page 2, the document's last) reported after the
-run's own end, so its early `pdf` went out after the final one and `done`; the pane installs SyncTeX only once reports
-have been quiet for 250 ms after `done`, and the early one cancelled it with no `done` to follow. Fixed: a finisher's
-output that comes after its run's final output isn't sent (its pages are no newer), and the first-page finish applies
-to a fresh engine's own run only (reruns resumed from its snapshots had it too). `uni.py latefinish` holds the first
-finisher 0.5 s (TAU_DEBUG_SAMPLE) on a two-page document with a settled `.aux`: the previous build sent an early `pdf`
-after `done` on all three engines, this one none. The Mac test: 30/30 after (the race was too rare to show by count).
-Checked: `finish` 10/10 ×3, first PDF on open pdfLaTeX 0.40 s and XeLaTeX 0.29 s, `edits` 8/8, `display`, `parked`,
-`rule`.
-
-## First page on open: unlocked getc (2026-11-10)
-
-Bench's last pdfLaTeX gap: open → first PDF 294–481 ms vs patched 230–412. The difference was the engine, not tau-live:
-plain stock pdfLaTeX on synth-10 took 303 ms p50 vs patched pdfTeX's 227, same format, same format load (70 ms). The
-patched engine carries pdfTeX 1.40.29's getc_unlocked (patch 0004): stock pdfTeX reads the font map, encodings, Type 1
-fonts, TFMs and every input line through Libc's `getc`/`fgetc`, which take the FILE's mutex per character. libtau now
-interposes both with `getc_unlocked` (Libc's `getc` is exactly `__sgetc` under that lock; the engines are
-single-threaded). A snapshot forked inside `read()` then finds the lock free (`fix_lock` with depth 0). A stock run
-with only this interposer: 303 → 224 ms, PDF byte-identical.
-
-Open → first PDF through tau-live (pdfLaTeX, settled `.aux`, 6 runs each, patched interleaved, load 12–16), p50 / p90 ms:
-
-| doc | before | after | patched |
-|---|---|---|---|
-| synth-10 | 307 / 321 | 238 / 278 | 223–230 |
-| synth-300 | 319 / 328 | 216 / 216 | 227–230 |
-| 1706.03762 | 456 / 465 | 352 / 362 | 370–372 |
-| 2103.00020 | 456 / 481 | 362 / 366 | 376–378 |
-
-`done` (the settled first compile) drops alike (synth-300 1354 → 1190 ms, 2103.00020 1152 → 1028). The 0.6–1 s
-outliers on a first run are macOS checking newly written binaries: rewriting tau-live and tau-tdl (or libtau) added
-130–180 ms to the next run only.
-
-## Burst typing on the first page (2026-11-10)
-
-Bench's burst (8 keys a second) on synth-10's first page: each key restarted a run that needed ~140 ms to ship page 1,
-longer than the 125 ms between keys, so nothing showed until 130–160 ms after the word's last key (0.8 s for its first),
-and no paragraph preview ever came (a pass before the first page was refused). Patched: 61–88 ms per key, previews in
-3 ms. Three causes, three fixes:
-
-- The run's speed: the unlocked getc above. Exact page per key 139–769 → 62–93 ms (patched 65–70); keys never shown
-  exact 5/30 → 0/30.
-- The pass refused before the first page (`s->pages > 0`): first-page passes read the font map at their ship-out (50–90
-  ms, longer than the exact page). Now the warm child, which only ever runs a pass, looks every loaded font up while it
-  waits (`hasfmentry`, found by symbol, pdfTeX only; as patched pdfTeX's paragraph snapshot does). Exact runners don't,
-  so their output can't change. Pass on the first page 50–90 → 2 ms.
-- The pass's output before the first page: libtau took the pass's bytes from the output file as it was when the pass
-  began; with no page shipped yet there was none, so the overlay was empty ("no content stream"). Now the file is found
-  at the pass's end and taken whole.
-
-Burst on synth-10 (one run each, load ~15), key → first pixels on the first-page spot's six keys: before 769 640 517
-389 264 139 ms, after 62 3 3 3 3 3 (the first key has no snapshot near the edit yet). `uni.py paragraph` takes
-`PARA_SPAN=N` (edits within N bytes after `\begin{document}`): synth-10's first page 19/19 previews byte-identical and
-placed at 0 px.
-
-Found on the way, and fixed in the reader: pdfTeX names a font resource `/F<k>` after the first font of its name the
-run uses (fonts of one name share one object). A pass before the first page uses the paragraph's font first (`/F58`);
-the exact run used another of that name first, on the title (`/F89`). The bytes differ only in that name, but the
-overlay took `/F58` from the exact PDF's other pages: another subset (1512.03385's first page: 8 of 12 previews
-marked exact were misplaced, worst 23,766 px). `tau-tdl pdf` now checks the pass as `page` checks a display page:
-every (font, code) it shows is drawn somewhere in the exact PDF under that name, and every resource it names is
-there, else no overlay ("glyph"/"resource"). This also stops overlays of characters the subsets lack (a new letter),
-which were marked exact before. Title-page documents get no first-page preview on pdfLaTeX (1512.03385, 2103.00020:
-refused, none wrong). Tried: libtau listing fonts that share an object (same name, same map entry) so the reader
-could rename `/F58` to its partner; no gain: there the abstract sits in the title block (a box), and the exact run
-used another font loaded later, not a partner. Not kept; synth-10's first page 19/19 at 0 px; elsewhere coverage unchanged (1512.03385 8,
-2103.00020 11 exact, all at 0 px).
-
-## Memory: one warm child (2026-11-10)
-
-Bench's typing peak (summed RSS, 1512.03385): universal 245–292 MB with 25 engine processes against patched's 219–222
-with 15. The tree at the peak: the snapshot chain, plus a warm pass child under every line snapshot near the edit
-(7 of them, ~7.8 MB each). The next key resumes from the newest of those (the edited line's), so only its warm child
-is used. Now tau-live keeps one: when a warm child is announced it lets the others go (SIGTERM), and a snapshot parks
-a new warm child after its old one exits unless that was SIGTERM (a pass that ran, or one killed as superseded, is still
-replaced). A key on another line of the paragraph forks its pass from its snapshot as before (`ctl-para`). Bench-style peak summed RSS
-245–292 → 232–235 MB, 25 → 15–18 engine processes; combined footprint (`footprint` over the tree, shared pages once) at
-rest after 30 keys 247–251 → 196–201 MB (two runs each, interleaved); preview p50 unchanged (2.3–2.6 ms).
-
-## Giving memory back (2026-11-11)
-
-After typing, universal kept ~50–80 MB more than after opening (bench, 1512.03385: 234 MB with 33 processes against
-patched's 180–189 with 12), flat: line snapshots near every spot typed at (each edit leaves one at every line near it,
-and they stay until an edit before them), their warm pass children, and the rollbacks' 20 ms grids on top of the
-open run's. Now when no edit has come for `--reap-ms` (2500 by default; 0: never) and the run has settled, tau-live
-reaps (`reap`):
-
-- Kept: the first snapshot; the one the next key at the last edit resumes from (as `apply_run` picks: the newest
-  that hasn't read past the edit; a line snapshot of the edit's, or, when the edit's run was a rerun from before it
-  because the .aux changed, one of the rerun's), with its warm child; and the others spaced at least
-  `--reap-snapshot-ms` (50) apart in **engine time along the run** (`rc`: the time from the run's start through each
-  snapshot's ancestors, not the wall clock, whose gaps across rollbacks kept one more snapshot per rerun). 50, not
-  the 20 the engine snapshots at: a run resumed from a snapshot takes copy-on-write faults and covers less than half
-  the text per ms that the open run does, so 50 ms of it is about the open run's 20 in the document.
-- Let go (SIGKILL): every other snapshot (any can be resumed alone; a killed one's kept descendants are reparented
-  but stay in the session's process group and exit when the lifeline closes), stopped runners, the SyncTeX of all but
-  the newest output (reloaded from its file if needed), and freed malloc memory (`malloc_zone_pressure_relief`) in
-  tau-live and, by a new `idle` command, in tau-tdl. Finishers exit on their own; a finished one's pid is never
-  signalled (it may be reused).
-- `stats` lists every process the driver knows (`procs`: role, pid, phys_footprint) and the number of reaps.
-
-`uni.py reap ENGINE SRC MAIN` (the app's form, `--serve --engine`, in its own process group so that orphaned
-snapshots count): opens, rests, types 8 keys at 4 spots, rests, and compares the summed phys_footprint and process
-count of the whole group with an unreaped session's after opening; then 8 times a pause, a key and two more at typing
-pace, a jump to the first spot after a pause, every settled output against stock, and no process of the group left
-once the session closes. Synth-10 and 1512.03385, pdfLaTeX unless named (MB, processes):
-
-| | after opening (no reap) | after typing, rest, reaped | not reaped |
-|---|---|---|---|
-| synth-10 pdfLaTeX | 83 / 6 | 86 / 7 | 146 / 16 |
-| synth-10 XeLaTeX | 251 / 8 | 266 / 10 | 313 / 17 |
-| synth-10 LuaLaTeX | 276 / 9 | 288 / 10 | 392 / 18 |
-| 1512.03385 | 155 / 12 | 142 / 11 | 159 / 18 |
-
-The first key after a reap is as fast as the keys after it (p50, reaped / not): key → preview 9.6 / 9.8 ms, →
-display page 19.1 / 19.4, → exact page 49.3 / 48.8 on synth-10 pdfLaTeX; LuaLaTeX 16.6 / 17.2, 33.9 / 33.6, 75.2 /
-74.5; 1512.03385 display 73.0 / 74.5, page 95.0 / 96.0. A jump to another spot after a reap resumes further back:
-its exact page 13–27 ms later (synth-10 pdfLaTeX 54 against 41 ms, LuaLaTeX 78 / 56, 1512.03385 148 / 121), about a
-first key there after opening. Outputs = stock in every run, no process left after any session.
-
-Bench's memory session (`run.py memory`'s phases, the whole process group summed, `before` = the commit before the
-reap; two sessions each, ABBA): at rest after the typing synth-10 **123–129 → 84–85 MB**, 13–14 → 7 processes (after
-opening 83–89); 1512.03385 **249–270 → 116–122 MB**, 28–34 → 8–9 processes (after opening 152–158; patched pdfTeX
-180–189 in docs/bench.md). Bench's own tree sum (`TreeRSS`, the driver's descendants) undercounts after a reap:
-reaped snapshots' kept descendants leave the driver's tree (45–50 MB counted of 84–122); count by process group.
-The first key after the pause, p50 (after / before, 8 keys each, one at the last spot after 4 s of quiet): 1512.03385
-display 15.4 / 13.7 ms, page 38.8 / 38.5; synth-10 display 15.1 / 9.3, page 38.4 / 28.6 (in a run of the reap's
-steps one by one on synth-10, the full reap 10.2 / 31.4 against no reap 11.3 / 29.0: within the sessions' spread;
-open). The key after it is as fast as before (synth-10 7.7 / 10.2, 24.1 / 31.4).
-
-## Memory: a budget, a scout, sparse snapshots past the edit (2026-11-12)
-
-Bench (phys_footprint by process group): Rosina (one engine and its children) stays at 103–177 MB; universal sat
-at 1.3–3× that after opening and while typing, and 1.3–1.9× after its reap on the long documents. Measured here
-with bench's memory session (open, 5 s, 30 isolated keys, bursts, 15 s), ABBA.
-
-**What a snapshot costs.** vmmap of a parked snapshot (synth-300): ~7.3 MB of its own, of which TeX's node memory
-(`mem`) 2.6 MB, other arrays 1.1, small allocations 1.6, per-process pages (malloc metadata, `__DATA`, stack) ~1.5.
-It is the same at 20 and 50 ms apart: between any two snapshots the run rewrites the same hot pages. So memory is
-about how many snapshots are kept, not how far apart. The base: the engine's image (the first snapshot, 38 MB on
-pdfLaTeX), the snapshot holding the first page's fonts (21 MB), the driver, the reader. Releasing malloc's free
-memory before each fork changed nothing (7.28 → 7.27 MB).
-
-- **Thin after open.** The reap runs as soon as the open settles (`--reap-open-ms`, 0), not 2.5 s after the last
-  command. Idle after open: synth-300 247 → 182 MB, arxiv-2103 259–272 → 193–196.
-- **A budget.** `--mem-budget-mb N` (the session's total) or, by default, the base as the first reap finds it +
-  `--mem-extra-mb` (64): ~150 MB on pdfLaTeX at any length. The reap keeps the first snapshot, the next key's resume
-  point and the cursor's, and others spaced `--reap-snapshot-ms` + slope × the engine-time distance to the nearest
-  focus (the last 8 edits, the cursor, the pages in view from `goal`), with the smallest slope that fits (bisection on
-  each snapshot's footprint), and looks again 400 ms later, since a kept snapshot takes over pages it shared only with
-  the ones let go.
-- **The driver** held 16 MB: the SyncTeX file and its records, freed into malloc's large cache, which pressure relief
-  doesn't return. Both are now mappings of their own, unmapped whole: 16.4 → 4.2 MB.
-- **The scout.** With few snapshots kept, a first key far from the recent edits resumed far before it: synth-300 exact
-  page 138–270 ms. The app now sends `["cursor", path, line, column]` when the editor's cursor rests (300 ms, once per
-  place; `docs/live-protocol.md`). If a key there would resume more than 2 KB before it, tau-live wakes that snapshot
-  with no edit (ctl `scout`, `finish none`, `dense` at the cursor's line, `halt REL POS`): it typesets quietly to the
-  cursor, writes nothing, leaves line snapshots there (inserted after the one it resumed, so the list stays in reading
-  order) with the warm pass, and exits (`K`). Any edit stops it; what it left stays valid. 17–61 ms of engine time per
-  scout on synth-300 and arxiv-2103. First key at each bench spot after a 3 s rest, the cursor sent 0.5 s before:
-  synth-300 exact page 42–53 ms (before umem, no cursor: 61–99), arxiv-2103 58–74.
-- **Sparse past the edit.** A run after a key re-takes every snapshot past its resume point; at 20 ms over the rest of
-  a long document that was most of the typing peak, and the reap let most go anyway. Now (ctl `snapfar`) it snapshots
-  every 20 ms only from 16 KB before the key to 150 ms past it, every 100 ms elsewhere (`--snap-far-ms`,
-  `--snap-near-ms`). Typing mean / peak: synth-300 288–301 / 390–405 → 221–222 / 311–321 MB (48 → 36 processes),
-  arxiv-2103 371–375 / 469–479 → 292–297 / 407–430; key → display and exact page p50 unchanged.
-
-Checked: `uni.py` paragraph ×3 engines (0 px), display, finish ×3, latefinish ×3, parked, edits, reap = stock as
-before; `uni.py cursor` (new): after the open's reap, a cursor near the end of synth-300 (pdfLaTeX) and synth-100
-(LuaLaTeX) leaves a line snapshot, the key resumes from it (first PDF 21 / 43 ms), settled = stock.
-
-Final, main (7bc4db5) against this, pdfLaTeX, bench's memory session, two sessions each in ABBA order (0.3–0.5 cores
-busy elsewhere). MB, phys_footprint by process group: mean of the idle phases, peak of the typing ones; key timings
-p50 over the 30 isolated keys; far: a key at the document's first and last bench spot after 4 s quiet, **no cursor
-sent** (as bench drives it), exact page ms:
-
-| document | build | idle after open | isolated keys, peak | bursts, peak | 0–5 s after | 10–15 s after | processes, typing | key → display / page | far keys, page |
-|---|---|---|---|---|---|---|---|---|---|
-| 10 pp | before | 72 | 142–149 | 132 | 103 | 84 | 18 | 15 / 43 | 68–101 |
-| 10 pp | after | 62 | 136 | 135–142 | 99 | 82 | 16 | 17 / 44 | 75–118 |
-| 100 pp | before | 129–136 | 246–267 | 222–242 | 161–172 | 115–132 | 31 | 16 / 40 | 42–88 |
-| 100 pp | after | 95–101 | 237 | 213–224 | 149–162 | 105–113 | 31 | 16 / 39 | 73–125 |
-| 300 pp | before | 227 | 418–429 | 423–446 | 295–306 | 222 | 46 | 20 / 45 | 64–83 |
-| 300 pp | after | **144** | **312–325** | **308–337** | 192 | **137** | 36 | 18 / 45 | 107–139 |
-| 1512.03385 | before | 118 | 220–230 | 221 | 144–150 | 99–110 | 22 | 27 / 53 | 51–117 |
-| 1512.03385 | after | 89 | 211 | 194–216 | 149–158 | 118–124 | 21 | 27 / 55 | 40–71 |
-| 1706.03762 | before | 150 | 250 | 218–244 | 164 | 128 | 24 | 36 / 63 | 46–104 |
-| 1706.03762 | after | 129 | 239–251 | 215–241 | 163 | 123 | 24 | 38 / 60 | 44–96 |
-| 2103.00020 | before | 263 | 492 | 462 | 308 | 223 | 44 | 37 / 63 | 78–93 |
-| 2103.00020 | after | **172** | **405** | **377** | 247–257 | **163–182** | 36 | 37 / 64 | 63–142 |
-
-Rosina (quick mode, docs/bench.md): idle 103 / 137 / 160 / 112 / 121–126 / 131–134, typing peak 121–125 / 157–182 /
-202–243 / 127–149 / 118–127 / 129–191, after 104–105 / 133–139 / 176–177 / 107–115 / 118–121 / 118–135. Universal is
-now below Rosina at rest after typing on 10, 100 and 300 pages and within 5 MB on 1706.03762; above it on 1512.03385
-(+10–15) and 2103.00020 (+30–45); idle after open below or near it except 2103.00020 (+40). Typing peaks stay
-1.1–1.9× Rosina's (universal keeps the warm pass, finishers and the run's snapshots; Rosina shows its preview only and
-its whole PDF 0.24–4.8 s later).
-
-Open: on 1512.03385 the rest after the bursts is 118–124 MB against 99–110 (after the isolated keys alone both builds
-keep the same set, 141 MB known); far keys without a cursor are slower on long documents (300 pp 107–139 ms: the
-budget keeps ~9 snapshots for a 1.1 s run); with the app's `cursor` the scout brings them to 42–53 ms.
+- Snapshots cost ~10% of a first run.
+- The native fetcher has no prefetch of a package's other files and no fallback during a store outage.
+- A provisional pass could stop at its first break inside the paragraph instead of shipping a column.
+- Far keys without a cursor are slower on long documents (the budget keeps ~9 snapshots for a 1.1 s run on 300 pages).
+- On 1512.03385 the rest after bursts is 118–124 MB against 99–110 before the budget.
+- On a page with PNG figures every finisher decodes them again at `\end` (pdfTeX writes `\pdfximage`s when it
+  closes); zcache saves the deflate, not the inflate.
+- No cap on finishers or passes while typing.
