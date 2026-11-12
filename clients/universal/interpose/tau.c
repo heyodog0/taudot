@@ -99,6 +99,22 @@ static char out[1024];
 static int tau_fd = -1, life_fd = -1;
 static long snap_us = 50000;
 static int64_t last_snap;
+// Sparse away from the edit (TAU_OUT/ctl `snapfar`): every far_us instead of snap_us, except in the edited file from
+// far_before bytes before far_pos up to far_after_us of run time past it (the next keys resume there). A run after a
+// key re-takes every snapshot past its resume point; at 20 ms over the rest of a long document that was most of the
+// typing peak, and the reap let most of them go anyway.
+static long far_us, far_after_us, far_before;
+static char far_rel[1024];
+static long far_pos = -1;
+static int64_t far_passed;  // when the run passed far_pos (0: not yet)
+// A scout (ctl `scout` + `halt REL POS`): a runner resumed with no edit to leave line snapshots where the cursor is
+// (the reap kept few there); it writes nothing and exits (K) once it reads past POS in REL, or after scout_max_us.
+static int scout;
+static char halt_rel[1024];
+static long halt_pos = -1;
+static int64_t scout_t0;
+static const int64_t scout_max_us = 3000000;
+static void scout_halt(void);
 static int inited;
 static int seq;             // the edit this process's run belongs to
 static int pages;           // shipouts seen (the TeX side's hook)
@@ -255,6 +271,7 @@ static mfile *get_file(const char *rel, int create) {
 
 static void note_extent(mfile *f, long e) {
   if (e > f->extent) f->extent = e;
+  if (far_us && !far_passed && f->extent > far_pos && !strcmp(f->rel, far_rel)) far_passed = now_us();
   if (!passed && !strcmp(f->rel, edit_rel) && f->extent > edit_pos) passed = 1;
 }
 
@@ -343,6 +360,8 @@ static void dump_outputs(int announce);
 //   eof              finisher: every project text read is at its end from now on
 //   stop             paragraph pass: exit at /.taudot/stop
 //   dense REL LO HI  snapshot at every line read of REL in [LO, HI)
+//   scout            no outputs, no previews; with halt REL POS: exit (K) once a read of REL is past POS
+//   snapfar MS AFTER BEFORE REL POS  snapshots every MS ms, except from BEFORE bytes before POS in REL to AFTER ms past it
 //   tag NAME         output folder prefix
 // A snapshot's orders (TAU_OUT/ctl-PID) as text, read once by the snapshot when woken, before it forks the runner: the
 // driver rewrites the file for each edit resumed here, and a runner reading it after the fork could take a later
@@ -360,6 +379,8 @@ static int ctl_text(int pid, char *b, size_t cap) {
   return 1;
 }
 static void read_ctl(char *b) {
+  far_us = 0;  // (each resume's orders say it again)
+  scout = 0, halt_pos = -1;
   finish_first = 0;  // (a fresh engine's own run only: runs resumed from its snapshots, latexmk's reruns too, follow the rule)
   // Every source file from the clone: an older snapshot (resumed for a rerun) may hold text from before later edits
   // past what it read; what it read is unchanged (else the driver wouldn't have chosen it).
@@ -388,6 +409,16 @@ static void read_ctl(char *b) {
     else if (sscanf(line, "snapms %ld", &x) == 1) {  // the interval from here on (a first run's may be sparser)
       snap_us = x * 1000;
       mark_lo = mark_hi = -1;
+    } else if (sscanf(line, "snapfar %ld %ld %ld %1023s %ld", &x, &y, &far_before, a, &far_pos) == 5) {
+      far_us = x * 1000, far_after_us = y * 1000;
+      snprintf(far_rel, sizeof far_rel, "%s", a);
+      mfile *f = find_file(a);
+      far_passed = f && f->extent > far_pos ? now_us() : 0;
+    } else if (!strcmp(line, "scout")) {
+      scout = 1, scout_t0 = now_us();
+    } else if (sscanf(line, "halt %1023s %ld", a, &x) == 2) {
+      snprintf(halt_rel, sizeof halt_rel, "%s", a);
+      halt_pos = x;
     } else if (sscanf(line, "dense %1023s %ld %ld", a, &x, &y) == 3) {
       snprintf(dense_rel, sizeof dense_rel, "%s", a);
       dense_lo = x, dense_hi = y;
@@ -885,7 +916,7 @@ static int magic(const char *path) {  // 1 if PATH is a TeX-side signal (handled
     // TAU_PAGE_PREVIEW: what the engine wrote for this page (its content stream among it), for a display page
     // built on the last finished document (tau-tdl page) before this run's own finish is out
     static long ship_off = -1;  // (the output's length at the last ship: inherited by snapshots and runners)
-    if (is_runner && tau_fd >= 0 && getenv("TAU_PAGE_PREVIEW")) {
+    if (is_runner && !scout && tau_fd >= 0 && getenv("TAU_PAGE_PREVIEW")) {
       mfile *o = NULL;
       for (int i = 0; i < nfiles; i++)
         if (files[i]->written && is_output(files[i])) o = files[i];
@@ -1064,8 +1095,13 @@ static void my_exit(int code) {
 }
 INTERPOSE(my_exit, exit);
 
+static void scout_halt(void) {
+  msg("K %d %d %lld", getpid(), seq, (long long)now_us());
+  _exit(0);
+}
 static void at_exit(void) {
   if (!inited) return;
+  if (scout && is_runner) scout_halt();  // (the input ran out before POS: still nothing written)
   fflush(NULL);
   dump_outputs(1);
   if (!strcmp(tag, "fin")) _exit(0);  // skip the teardown: nobody waits for it
@@ -1403,9 +1439,16 @@ static ssize_t mem_read(mfd *d, void *buf, size_t n, int fd) {
   mfile *f = d->f;
   int text = !f->binary && !f->written;
   if (text && !d->wr) {
+    if (scout && is_runner && ((halt_pos >= 0 && (long)d->pos > halt_pos && !strcmp(f->rel, halt_rel)) ||
+                               now_us() - scout_t0 > scout_max_us))
+      scout_halt();
     int dense = dense_lo >= 0 && !strcmp(f->rel, dense_rel) && (long)d->pos >= dense_lo && (long)d->pos < dense_hi;
     int mark = mark_lo >= 0 && (long)d->pos >= mark_lo && (long)d->pos < mark_hi && !strcmp(f->rel, mark_rel);
-    if (tau_fd >= 0 && is_runner && !eof_all && (dense || mark || now_us() - last_snap >= snap_us)) {
+    long iv = snap_us;
+    if (far_us > 0 && !(far_passed ? now_us() - far_passed < far_after_us
+                                   : !strcmp(f->rel, far_rel) && (long)d->pos + far_before >= far_pos))
+      iv = far_us;
+    if (tau_fd >= 0 && is_runner && !eof_all && (dense || mark || now_us() - last_snap >= iv)) {
       reading_fd = fd;
       snprintf(snap_rel, sizeof snap_rel, "%s", f->rel);
       snap_pos = (long)d->pos;

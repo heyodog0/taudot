@@ -1317,7 +1317,63 @@ def reap(engine, src, main, spots=4, keys=8, cycles=8, seed=6):
     return ok and near
 
 
+def cursor(engine, src, main):
+    """The scout (`cursor`): after the open's reap, the cursor (as a line and a byte column) rests near the end of the
+    document; tau-live runs there and leaves a line snapshot. The key there must resume from it, and settle = stock."""
+    name = os.path.basename(os.path.abspath(src))
+    base = settle(engine, src, main, name)
+    text = open(f"{base}/{main}", "rb").read()
+    lo = text.find(b"\\begin{document}")
+    pos = [m.end() for m in re.finditer(rb"[a-z]{4,}\. ", text[lo:])]
+    k = lo + pos[int(len(pos) * 0.9)]
+    line = text[:k].count(b"\n") + 1
+    col = k - (text.rfind(b"\n", 0, k) + 1)
+    out = f"{WORK}/c-out"
+    shutil.rmtree(out, ignore_errors=True)
+    env = dict(os.environ)
+    env.pop("TAU_FETCH", None)
+    env.pop("TEXSTORE_URL", None)
+    lv = Live.__new__(Live)
+    lv.events = []
+    lv.p = subprocess.Popen([f"{UBIN}/tau-live", "--serve", "--engine", f"{UBIN}/{ENGINES[engine][0][0]}", base, main, out],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env, start_new_session=True)
+    lv.until(lambda e: e["ev"] == "done", timeout=600)
+    time.sleep(1.5)  # (the open's reap)
+
+    def near():  # line snapshots at the cursor's line: (pid, pos)
+        lv.send("stats")
+        st = lv.until(lambda e: e["ev"] == "stats")
+        ls = text.rfind(b"\n", 0, k) + 1
+        return [(x["pid"], x["pos"]) for x in st["procs"] if x["role"] == "snapshot" and x.get("file") == main
+                and ls - 300 <= x["pos"] <= k]
+    before = near()
+    lv.send("cursor", main, line, col)
+    time.sleep(1.5)
+    after = near()
+    t0 = time.monotonic()
+    lv.send("change", main, k, 0, "x")
+    run = lv.until(lambda e: e["ev"] == "run" and e.get("applied", 0) >= 1)
+    page = lv.until(lambda e: e["ev"] == "pdf" and e.get("seq") == run["seq"])
+    ms = (time.monotonic() - t0) * 1000
+    done = lv.until(lambda e: e["ev"] == "done" and e.get("seq") == run["seq"])
+    lv.p.stdin.close()
+    lv.p.wait(20)
+    ref = f"{WORK}/c-ref"
+    copy(base, ref)
+    open(f"{ref}/{main}", "wb").write(text[:k] + b"x" + text[k:])
+    stock_rule(engine, ref, main)
+    same = same_output(engine, open(done["path"], "rb").read(), open(f"{ref}/{stem(main)}.{ENGINES[engine][1]}", "rb").read())
+    used = run.get("snapshot") in [p for p, _ in after]
+    shutil.rmtree(out, ignore_errors=True)
+    ok = not before and bool(after) and used and same
+    print(f"cursor {engine} {name}: line snapshots at the cursor before {len(before)}, after {len(after)}; the key "
+          f"resumed from one: {used}; key -> first pdf {ms:.0f} ms; settled = stock: {same}: {'ok' if ok else 'FAILED'}")
+    return ok
+
+
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["cursor"]:
+        sys.exit(0 if cursor(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["reap"]:
         sys.exit(0 if reap(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["serve"]:

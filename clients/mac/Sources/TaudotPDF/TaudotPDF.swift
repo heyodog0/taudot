@@ -347,6 +347,7 @@ import TaudotShared
     t.pageStyle = pageStyle.rawValue  // sent when it starts
     resetParaCount()
     txp = t
+    cursorFeed.reset()
     t.onPages = { [weak self] e in self?.pagesEvent(e) }
     if let lt = t as? LiveTex {
       lt.onPara = { [weak self] o in
@@ -714,6 +715,8 @@ import TaudotShared
   }
   /// Tests set this instead of the defaults (a defaults write reaches every window's settings observer).
   nonisolated(unsafe) static var followsForTest: Bool?
+  /// The cursor, once it rests, to the typesetter (tau-live readies a key there: docs/universal.md, the scout).
+  lazy var cursorFeed = CursorFeed { [weak self] p, l, c in self?.txp?.cursor(p, line: l, column: c) }
 
   /// The editor's cursor came to rest on a line or word (cursor-follow). `deliberate`: ⌘⌥J / <leader>av, ]r, ⌥⌘↓ —
   /// the highlight goes there. Otherwise (the follow mode off) the highlight from the last deliberate jump stays while
@@ -721,6 +724,7 @@ import TaudotShared
   /// `fades`: a click's jump (a double-click in Neovim): the mark only shows where the word is, and fades by itself
   /// after `clickMarkHold`, as a click in the PDF's does (the user: it stayed on for good while the cursor sat there).
   public func cursorMoved(path: String, line: Int, column: Int?, deliberate: Bool, fades: Bool = false) {
+    cursorFeed.moved(relative(path), line: line, column: column ?? 0)
     let follows = Self.highlightFollows
     pane.forward.dimWhenIdle = follows
     if deliberate && fades {

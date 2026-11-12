@@ -620,7 +620,7 @@ pdfTeX 25 MiB (max single snapshot).
 - Snapshots at 20 ms cost ~10% of a first run.
 - The native fetcher: prefetch a package's other files in parallel; an svn fallback for a store outage.
 - A provisional pass could stop at its first inside break; the reader could skip pages whose fonts it has.
-- A real memory measurement (free memory with N snapshots).
+- Memory: see "Memory: a budget, a scout" (2026-11-12). A finisher/pass cap while typing is not done.
 
 ## Paragraph preview on figures' pages; the LuaLaTeX 367 px (2026-11-10)
 
@@ -846,3 +846,75 @@ The first key after the pause, p50 (after / before, 8 keys each, one at the last
 display 15.4 / 13.7 ms, page 38.8 / 38.5; synth-10 display 15.1 / 9.3, page 38.4 / 28.6 (in a run of the reap's
 steps one by one on synth-10, the full reap 10.2 / 31.4 against no reap 11.3 / 29.0: within the sessions' spread;
 open). The key after it is as fast as before (synth-10 7.7 / 10.2, 24.1 / 31.4).
+
+## Memory: a budget, a scout, sparse snapshots past the edit (2026-11-12)
+
+Bench (phys_footprint by process group): Rosina (one engine and its children) stays at 103–177 MB; universal sat
+at 1.3–3× that after opening and while typing, and 1.3–1.9× after its reap on the long documents. Measured here
+with bench's memory session (open, 5 s, 30 isolated keys, bursts, 15 s), ABBA.
+
+**What a snapshot costs.** vmmap of a parked snapshot (synth-300): ~7.3 MB of its own, of which TeX's node memory
+(`mem`) 2.6 MB, other arrays 1.1, small allocations 1.6, per-process pages (malloc metadata, `__DATA`, stack) ~1.5.
+It is the same at 20 and 50 ms apart: between any two snapshots the run rewrites the same hot pages. So memory is
+about how many snapshots are kept, not how far apart. The base: the engine's image (the first snapshot, 38 MB on
+pdfLaTeX), the snapshot holding the first page's fonts (21 MB), the driver, the reader. Releasing malloc's free
+memory before each fork changed nothing (7.28 → 7.27 MB).
+
+- **Thin after open.** The reap runs as soon as the open settles (`--reap-open-ms`, 0), not 2.5 s after the last
+  command. Idle after open: synth-300 247 → 182 MB, arxiv-2103 259–272 → 193–196.
+- **A budget.** `--mem-budget-mb N` (the session's total) or, by default, the base as the first reap finds it +
+  `--mem-extra-mb` (64): ~150 MB on pdfLaTeX at any length. The reap keeps the first snapshot, the next key's resume
+  point and the cursor's, and others spaced `--reap-snapshot-ms` + slope × the engine-time distance to the nearest
+  focus (the last 8 edits, the cursor, the pages in view from `goal`), with the smallest slope that fits (bisection on
+  each snapshot's footprint), and looks again 400 ms later, since a kept snapshot takes over pages it shared only with
+  the ones let go.
+- **The driver** held 16 MB: the SyncTeX file and its records, freed into malloc's large cache, which pressure relief
+  doesn't return. Both are now mappings of their own, unmapped whole: 16.4 → 4.2 MB.
+- **The scout.** With few snapshots kept, a first key far from the recent edits resumed far before it: synth-300 exact
+  page 138–270 ms. The app now sends `["cursor", path, line, column]` when the editor's cursor rests (300 ms, once per
+  place; `docs/live-protocol.md`). If a key there would resume more than 2 KB before it, tau-live wakes that snapshot
+  with no edit (ctl `scout`, `finish none`, `dense` at the cursor's line, `halt REL POS`): it typesets quietly to the
+  cursor, writes nothing, leaves line snapshots there (inserted after the one it resumed, so the list stays in reading
+  order) with the warm pass, and exits (`K`). Any edit stops it; what it left stays valid. 17–61 ms of engine time per
+  scout on synth-300 and arxiv-2103. First key at each bench spot after a 3 s rest, the cursor sent 0.5 s before:
+  synth-300 exact page 42–53 ms (before umem, no cursor: 61–99), arxiv-2103 58–74.
+- **Sparse past the edit.** A run after a key re-takes every snapshot past its resume point; at 20 ms over the rest of
+  a long document that was most of the typing peak, and the reap let most go anyway. Now (ctl `snapfar`) it snapshots
+  every 20 ms only from 16 KB before the key to 150 ms past it, every 100 ms elsewhere (`--snap-far-ms`,
+  `--snap-near-ms`). Typing mean / peak: synth-300 288–301 / 390–405 → 221–222 / 311–321 MB (48 → 36 processes),
+  arxiv-2103 371–375 / 469–479 → 292–297 / 407–430; key → display and exact page p50 unchanged.
+
+Checked: `uni.py` paragraph ×3 engines (0 px), display, finish ×3, latefinish ×3, parked, edits, reap = stock as
+before; `uni.py cursor` (new): after the open's reap, a cursor near the end of synth-300 (pdfLaTeX) and synth-100
+(LuaLaTeX) leaves a line snapshot, the key resumes from it (first PDF 21 / 43 ms), settled = stock.
+
+Final, main (7bc4db5) against this, pdfLaTeX, bench's memory session, two sessions each in ABBA order (0.3–0.5 cores
+busy elsewhere). MB, phys_footprint by process group: mean of the idle phases, peak of the typing ones; key timings
+p50 over the 30 isolated keys; far: a key at the document's first and last bench spot after 4 s quiet, **no cursor
+sent** (as bench drives it), exact page ms:
+
+| document | build | idle after open | isolated keys, peak | bursts, peak | 0–5 s after | 10–15 s after | processes, typing | key → display / page | far keys, page |
+|---|---|---|---|---|---|---|---|---|---|
+| 10 pp | before | 72 | 142–149 | 132 | 103 | 84 | 18 | 15 / 43 | 68–101 |
+| 10 pp | after | 62 | 136 | 135–142 | 99 | 82 | 16 | 17 / 44 | 75–118 |
+| 100 pp | before | 129–136 | 246–267 | 222–242 | 161–172 | 115–132 | 31 | 16 / 40 | 42–88 |
+| 100 pp | after | 95–101 | 237 | 213–224 | 149–162 | 105–113 | 31 | 16 / 39 | 73–125 |
+| 300 pp | before | 227 | 418–429 | 423–446 | 295–306 | 222 | 46 | 20 / 45 | 64–83 |
+| 300 pp | after | **144** | **312–325** | **308–337** | 192 | **137** | 36 | 18 / 45 | 107–139 |
+| 1512.03385 | before | 118 | 220–230 | 221 | 144–150 | 99–110 | 22 | 27 / 53 | 51–117 |
+| 1512.03385 | after | 89 | 211 | 194–216 | 149–158 | 118–124 | 21 | 27 / 55 | 40–71 |
+| 1706.03762 | before | 150 | 250 | 218–244 | 164 | 128 | 24 | 36 / 63 | 46–104 |
+| 1706.03762 | after | 129 | 239–251 | 215–241 | 163 | 123 | 24 | 38 / 60 | 44–96 |
+| 2103.00020 | before | 263 | 492 | 462 | 308 | 223 | 44 | 37 / 63 | 78–93 |
+| 2103.00020 | after | **172** | **405** | **377** | 247–257 | **163–182** | 36 | 37 / 64 | 63–142 |
+
+Rosina (quick mode, docs/bench.md): idle 103 / 137 / 160 / 112 / 121–126 / 131–134, typing peak 121–125 / 157–182 /
+202–243 / 127–149 / 118–127 / 129–191, after 104–105 / 133–139 / 176–177 / 107–115 / 118–121 / 118–135. Universal is
+now below Rosina at rest after typing on 10, 100 and 300 pages and within 5 MB on 1706.03762; above it on 1512.03385
+(+10–15) and 2103.00020 (+30–45); idle after open below or near it except 2103.00020 (+40). Typing peaks stay
+1.1–1.9× Rosina's (universal keeps the warm pass, finishers and the run's snapshots; Rosina shows its preview only and
+its whole PDF 0.24–4.8 s later).
+
+Open: on 1512.03385 the rest after the bursts is 118–124 MB against 99–110 (after the isolated keys alone both builds
+keep the same set, 141 MB known); far keys without a cursor are slower on long documents (300 pp 107–139 ms: the
+budget keeps ~9 snapshots for a 1.1 s run); with the app's `cursor` the scout brings them to 42–53 ms.
