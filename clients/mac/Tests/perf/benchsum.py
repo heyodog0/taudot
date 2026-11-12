@@ -1,6 +1,6 @@
 """Summaries of run.sh's runs: per editor mode, PDF path and script, the latency stages pooled over the runs.
 
-  uv run clients/mac/Tests/perf/benchsum.py OUT [--commit C] [--load L] [--write docs/perf.md]
+  uv run clients/mac/Tests/perf/benchsum.py OUT [--commit C] [--load L] [--write clients/mac/Tests/perf/README.md]
   uv run clients/mac/Tests/perf/benchsum.py --compare OUT/A OUT/B [--margin PCT] [--labels A B]
 
 Each run dir is MODE-ENGINE-SCRIPT-K with latency.json (latency.py --json). --write replaces the text between

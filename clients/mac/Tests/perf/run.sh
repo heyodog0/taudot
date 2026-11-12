@@ -8,7 +8,7 @@
 #
 # DOC: a folder copied (cp -R) for every run, served by the mock engine (default $TAUDOT_PERF_DOC; no built-in
 # default). It needs a main.tex of 400+ lines with running text at line 177: any long paper of your own works.
-# --write puts the summary into docs/perf.md (between the "bench:begin/end" markers) with the commit.
+# --write puts the summary into clients/mac/Tests/perf/README.md (between the "bench:begin/end" markers) with the commit.
 # --compare builds taudot-app at each revision (both must have the probes: 2026-11-06 or later) into copies of the
 # bundle, then runs A and B alternately (A B A B ...: the machine's load hits both alike) and fails (exit 1) if B's
 # key → presented or key → committed p95/p99 is worse than A's by more than PCT % (default 15) and 2 ms.
@@ -95,7 +95,7 @@ title=$(basename "$doc")
 
 # A copy of the bundle under its own bundle ID (app.taudot.bench), so runs never write into the user's defaults
 # (per-folder window frames, split positions, sidebar keys: each run's temp folder would add its own, and the
-# domain's size slows every launch: docs/perf.md). The bench domain gets the user's global settings (taudot.* keys
+# domain's size slows every launch: clients/mac/Tests/perf/README.md). The bench domain gets the user's global settings (taudot.* keys
 # without a path in them: theme, font, Vim keys...), once per bench.
 mkapp() {  # $1 taudot-app binary, $2 destination .app
   rm -rf "$2"; cp -R "$bundle" "$2"
@@ -174,5 +174,5 @@ for m in $modes; do for e in $engines; do for s in $scripts; do
 done; done; done
 commit=$(git -C "$repo" rev-parse --short HEAD)$(git -C "$repo" diff --quiet || echo "+dirty")
 uv run -q "$here/benchsum.py" "$out" --commit "$commit" --load "$(sysctl -n vm.loadavg)" | tee "$out/summary.md"
-[ -n "$write" ] && uv run -q "$here/benchsum.py" "$out" --commit "$commit" --load "$(sysctl -n vm.loadavg)" --write "$repo/docs/perf.md"
+[ -n "$write" ] && uv run -q "$here/benchsum.py" "$out" --commit "$commit" --load "$(sysctl -n vm.loadavg)" --write "$repo/clients/mac/Tests/perf/README.md"
 echo "run.sh: $out" >&2

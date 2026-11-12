@@ -60,7 +60,7 @@ public struct DocRange: Equatable {
   private var rangesAt: (seq: Int, list: [[String: Any]])?
   /// How long an edit waits before it goes to the engine: none (a timer of 0 sends it after this turn's frame). The
   /// engine batches for Overleaf (2 s / 0.5 s, engine.rs), and edits typed while one is in flight compose into one
-  /// pending op; a 50 ms wait here only delayed the PDF, which gets our edits from the engine (docs/perf.md).
+  /// pending op; a 50 ms wait here only delayed the PDF, which gets our edits from the engine (clients/mac/Tests/perf/README.md).
   public var sendDelay: TimeInterval = 0
   /// Counters for checks.
   public private(set) var sent = 0, received = 0
