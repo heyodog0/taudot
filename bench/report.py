@@ -1,10 +1,10 @@
 # AGPL-3.0-or-later. Tables and a chart from bench/results/*.tsv into docs/bench.md (between the markers) and
 # docs/bench.svg.   uv run bench/report.py
+# One table per question; the prose around the markers (method, fairness) is written by hand.
 import csv
 import os
-import platform
-import subprocess
 import sys
+import textwrap
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import REPO, RESULTS, pct  # noqa: E402
@@ -13,23 +13,7 @@ DOC = f"{REPO}/docs/bench.md"
 SVG = f"{REPO}/docs/bench.svg"
 SIZES = ("synth-10", "synth-100", "synth-300")
 PAPERS = ("arxiv-1512.03385", "arxiv-1706.03762", "arxiv-2103.00020")
-ROWS = [  # (system, engine, label)
-    ("taudot-pdftex", "pdflatex", "**Taudot**, patched pdfTeX"),
-    ("taudot-universal", "pdflatex", "**Taudot** universal, pdfLaTeX"),
-    ("taudot-universal", "pdflatex", "↳ its display page", "display_ms"),
-    ("taudot-universal", "xelatex", "**Taudot** universal, XeLaTeX"),
-    ("taudot-universal", "lualatex", "**Taudot** universal, LuaLaTeX"),
-    ("taudot-universal", "lualatex", "↳ its display page", "display_ms"),
-    ("rtex", "lualatex", "rtex, LuaLaTeX"),
-    ("texpresso", "xelatex", "TeXpresso, XeLaTeX"),
-    ("typst", "typst", "Typst `watch` (not LaTeX)"),
-    ("latexmk", "pdflatex", "latexmk, pdfLaTeX"),
-    ("latexmk", "xelatex", "latexmk, XeLaTeX"),
-    ("latexmk", "lualatex", "latexmk, LuaLaTeX"),
-    ("stock-run", "pdflatex", "one stock run, pdfLaTeX"),
-    ("stock-run", "xelatex", "one stock run, XeLaTeX"),
-    ("stock-run", "lualatex", "one stock run, LuaLaTeX"),
-]
+ENGINES = (("pdflatex", "pdfLaTeX"), ("xelatex", "XeLaTeX"), ("lualatex", "LuaLaTeX"))
 
 
 def load(name):
@@ -41,272 +25,289 @@ def num(x):
     return float(x) if x not in ("", None) else None
 
 
-def cell(xs):
-    xs = [x for x in xs if x is not None]
-    if not xs:
-        return "–"
-    return f"{f(pct(xs, 50))} / {f(pct(xs, 90))}"
-
-
 def f(x):
     return f"{x:.0f}" if x >= 100 else f"{x:.1f}" if x >= 1 else f"{x:.2f}"
 
 
-NO_PREVIEW = ("latexmk", "stock-run", "typst", "texpresso")
-OWN = {"para_ms": ("taudot-pdftex", "taudot-universal", "rtex"), "page_ms": ("typst", "texpresso")}
+def vals(rs, k):
+    return [v for v in (num(r.get(k)) for r in rs) if v is not None]
 
 
-def table(edits, docs, key, title, note=None, extra=None):
-    out = [f"| {title} | " + " | ".join(d.replace("synth-", "") + " pp" if d.startswith("synth") else d.replace("arxiv-", "")
-                                        for d in docs) + " |", "|---|" + "---|" * len(docs)]
-    for s, e, label, *own_key in ROWS:
-        if own_key and key != "page_ms":
-            continue
-        k_ = own_key[0] if own_key else key
-        if key == "para_ms" and s in NO_PREVIEW:
-            continue
-        cells, any_ = [], False
-        for d in docs:
-            rs = [r for r in edits if r["system"] == s and r["engine"] == e and r["doc"] == d]
-            if d.startswith("synth") and s == "typst":
-                rs = [r for r in edits if r["system"] == s and r["doc"] == d]
-            if not rs:
-                cells.append("")
-                continue
-            any_ = True
-            c = cell([num(r.get(k_)) for r in rs])
-            if own_key:  # display pages: how many keys got one, and how many showed the edited page
-                got = [r for r in rs if r.get(k_)]
-                c += f"<br><sub>{len(got)} of {len(rs)}, {sum(r['display_page'] == r['page'] for r in got)} the edited page</sub>"
-            if extra:
-                c += extra(rs)
-            if s in OWN.get(key, ()):  # the system's own figure for the same thing, where it reports one
-                own = [num(r["self_ms"]) for r in rs if r.get("self_ms")]
-                if own:
-                    c += f"<br><sub>own p50 {f(pct(own, 50))}</sub>"
-            cells.append(c)
-        if any_:
-            out.append(f"| {label} | " + " | ".join(cells) + " |")
-    return "\n".join(out) + ("\n\n" + note if note else "")
+def cell(xs):
+    """p50 / p90, or the one value when there is one."""
+    if not xs:
+        return "–"
+    return f(xs[0]) if len(xs) == 1 else f"{f(pct(xs, 50))} / {f(pct(xs, 90))}"
 
 
-def coverage(rs):
-    n = len(rs)
-    ex = sum(r["para_state"] == "exact" for r in rs)
-    pr = sum(r["para_state"] == "provisional" for r in rs)
-    if ex == 0 and pr == 0:
+def pick(rows, system, doc, engine=None):
+    return [r for r in rows if r["system"] == system and r["doc"] == doc and (engine is None or r["engine"] == engine)]
+
+
+def size(d):
+    return d.replace("synth-", "") + " pp" if d.startswith("synth") else d.replace("arxiv-", "")
+
+
+def head(first, docs, extra=()):
+    cols = [first] + [size(d) for d in docs] + list(extra)
+    return [f"| {' | '.join(cols)} |", "|" + "---|" * len(cols)]
+
+
+def counted(rs, k, first_col):
+    """p50 / p90 (exact previews, and provisional ones when any), with "of N" in the first column."""
+    xs = vals(rs, k)
+    if not rs:
         return ""
-    return f"<br><sub>{ex} exact, {pr} prov. of {n}</sub>" if ex else f"<br><sub>{pr} prov. of {n}</sub>"
+    ex = sum(r.get("para_state") == "exact" for r in rs)
+    pr = sum(r.get("para_state", "").startswith("provisional") for r in rs)
+    n = f"{ex} of {len(rs)}" if first_col else f"{ex}"
+    return f"{cell(xs)} ({n}" + (f", +{pr} prov.)" if pr else ")")
 
 
-def exact_table(edits):
-    out = ["| | display page = stock | exact page = stock | whole PDF = stock |", "|---|---|---|---|"]
-    for s, e, label, *own_key in ROWS:
-        rs = [r for r in edits if r["system"] == s and r["engine"] == e]
-        if not rs or s in ("latexmk", "stock-run") or own_key:
-            continue
-
-        def c(k):
-            vals = [r[k] for r in rs]
-            if all(v in ("n/a", "claim") for v in vals):
-                return {"n/a": "not checkable", "claim": "claimed (display lists)"}[vals[0]]
-            return f"{sum(v == 'yes' for v in vals)} / {len(vals)}" + (
-                f" ({sum(v == 'NO' for v in vals)} differ)" if any(v == "NO" for v in vals) else "")
-        disp = [r.get("display_exact") for r in rs if r.get("display_exact")]
-        dc = (f"{sum(v == 'yes' for v in disp)} / {len(disp)}" + (f" ({len(disp) - sum(v == 'yes' for v in disp)} not)"
-              if any(v != "yes" for v in disp) else "")) if disp else ""
-        out.append(f"| {label} | {dc} | {c('page_exact')} | {c('final_exact')} |")
-    return "\n".join(out)
+def own_counted(rs, k, first_col):
+    """As counted(), with the system's own figure (self_ms p50) in brackets."""
+    xs, own = vals(rs, k), vals(rs, "self_ms")
+    o = f" [{f(pct(own, 50))}]" if own else ""
+    return f"{cell(xs)}{o} ({len(xs)} of {len(rs)})" if first_col else f"{cell(xs)}{o} ({len(xs)})"
 
 
-def first_table(first):
-    out = ["| | " + " | ".join(f"{d.replace('synth-', '')} pp: first page / settled / peak RSS" for d in SIZES) + " |",
-           "|---|" + "---|" * len(SIZES)]
-    for s, e, label, *own_key in ROWS:
-        if own_key:
-            continue
-        cells, any_ = [], False
+# The systems on the synthetic documents: (label, rows, system, engine).
+def exact_page(e, r):
+    out = ["## Edit → exact page", "",
+           "The page holding the edit, as stock sets it. Display page: universal's copy of it sent before the run "
+           "finishes (in brackets, keys that got one).", ""] + head("system", SIZES)
+    rows = [
+        ("**Taudot** patched, pdfLaTeX", e, "taudot-pdftex", "pdflatex", "page_ms"),
+        ("**Taudot** universal, pdfLaTeX", e, "taudot-universal", "pdflatex", "page_ms"),
+        ("↳ display page", e, "taudot-universal", "pdflatex", "display_ms"),
+        ("**Taudot** universal, XeLaTeX", e, "taudot-universal", "xelatex", "page_ms"),
+        ("**Taudot** universal, LuaLaTeX", e, "taudot-universal", "lualatex", "page_ms"),
+        ("↳ display page", e, "taudot-universal", "lualatex", "display_ms"),
+        ("TeXpresso, XeLaTeX (XDV page)", e, "texpresso", "xelatex", "page_ms"),
+        ("Typst `watch` (not LaTeX)", e, "typst", "typst", "page_ms"),
+        ("Rosina quick mode, pdfLaTeX (whole PDF)", r, "rosina-quick", "pdflatex", "final_ms"),
+        ("rtex, LuaLaTeX (background layout)", e, "rtex", "lualatex", "page_ms"),
+    ] + [(f"latexmk, {n}", e, "latexmk", en, "final_ms") for en, n in ENGINES] \
+      + [(f"one stock run, {n}", e, "stock-run", en, "final_ms") for en, n in ENGINES]
+    for label, src, s, en, k in rows:
+        cells = []
         for d in SIZES:
-            r = [x for x in first if x["system"] == s and (x["engine"] == e or s == "typst") and x["doc"] == d]
-            if not r or s == "stock-run":
-                cells.append("")
-                continue
-            any_ = True
-            r = r[0]
-            fp, dn, mb = num(r["first_page_ms"]), num(r["done_ms"]), num(r["peak_mb"])
-            cells.append((f"{f(fp) if fp else '–'} / {f(dn) if dn else '–'} ms / {mb:.0f} MB" if mb else
-                          f"{f(fp) if fp else '–'} / {f(dn) if dn else '–'} ms") + f"<br><sub>{r.get('other_cpu', '')} cores busy elsewhere</sub>")
-        if any_:
-            out.append(f"| {label} | " + " | ".join(cells) + " |")
-    return "\n".join(out)
+            rs = pick(src, s, d, None if s == "typst" else en)
+            cells.append(f"{cell(vals(rs, k))} ({len(vals(rs, k))})" if k == "display_ms" else cell(vals(rs, k)))
+        out.append(f"| {label} | " + " | ".join(cells) + " |")
+    own = [pct(vals(pick(e, "typst", d), "self_ms"), 50) for d in SIZES]
+    out += ["", f"Typst's own compile is {' / '.join(f(x) for x in own)} ms; the rest of its wall time is the file "
+            "watcher."]
+    return out
 
 
-def interleave_table():
-    p = f"{RESULTS}/interleave.tsv"
-    if not os.path.exists(p):
-        return ""
-    rows = list(csv.DictReader(open(p), delimiter="\t"))
-    out = ["| document | run | cores busy elsewhere (load) | preview p50 (exact) | display page p50 (sent, = stock) | "
-           "finished page p50 | whole PDF p50 | first page on open |", "|---|---|---|---|---|---|---|---|"]
-    name = {"taudot-pdftex": "patched", "taudot-universal": "universal"}
-    for r in rows:
-        g = lambda k: f(float(r[k])) if r[k] else "–"
-        disp = f"{g('display_p50')} ({r['display_n']}, {r['display_exact']})" if r["display_n"] != "0" else "–"
-        out.append(f"| {r['doc'].replace('synth-', '').replace('arxiv-', '')}{' pp' if r['doc'].startswith('synth') else ''}"
-                   f" | {name[r['system']]} {r['round']} | {r['other_cpu']} ({r['load']}) | {g('para_p50')} "
-                   f"({r['para_exact']}) | {disp} | {g('page_p50')} | {g('final_p50')} | {g('first_page_ms')} |")
-    return "\n".join(out)
+def whole_pdf(e, r):
+    out = ["## Edit → whole exact PDF", ""] + head("system", SIZES)
+    for label, s, en in [("**Taudot** patched, pdfLaTeX", "taudot-pdftex", "pdflatex"),
+                         ("**Taudot** universal, pdfLaTeX", "taudot-universal", "pdflatex"),
+                         ("**Taudot** universal, XeLaTeX", "taudot-universal", "xelatex"),
+                         ("**Taudot** universal, LuaLaTeX", "taudot-universal", "lualatex"),
+                         ("TeXpresso, XeLaTeX (its `done`, no file)", "texpresso", "xelatex")]:
+        out.append(f"| {label} | " + " | ".join(cell(vals(pick(e, s, d, en), "final_ms")) for d in SIZES) + " |")
+    out.append("| Rosina, pdfLaTeX, quick / PDF mode (p50) | " + " | ".join(
+        f"{f(pct(vals(pick(r, 'rosina-quick', d, 'pdflatex'), 'final_ms'), 50))} / "
+        f"{f(pct(vals(pick(r, 'rosina', d, 'pdflatex'), 'final_ms'), 50))}" for d in SIZES) + " |")
+    out.append("| rtex, LuaLaTeX (`export_pdf`) | " + " | ".join(
+        cell(vals(pick(e, "rtex", d, "lualatex"), "final_ms")) for d in SIZES) + " |")
+    out += ["", "latexmk and one stock run: as in the table above (they write nothing before the whole PDF)."]
+    return out
 
 
-def memory_table(tag=None, path=None, systems=("taudot-pdftex", "taudot-universal")):
-    """Memory per document and driver: phys_footprint summed over the process tree (MB; idle phases: mean, typing
-    phases: peak), summed RSS's peak and the most processes; each cell the two runs' range."""
-    p = path or f"{RESULTS}/memory.tsv"
-    if not os.path.exists(p):
-        return ""
-    rows = list(csv.DictReader(open(p), delimiter="\t"))
-    tag = tag if tag is not None else [r["tag"] for r in rows if r["tag"].startswith("main-")][-1]
-    rows = [r for r in rows if r["tag"] == tag]
-    rest = "idle +10-15 s" if any(r["phase"] == "idle +10-15 s" for r in rows) else None
-    out = ["| document | driver | cores busy elsewhere | idle after open | isolated keys, peak | bursts, peak | "
-           "0–5 s after typing | " + ("10–15 s after | " if rest else "") + "summed RSS, peak | processes, most |",
-           "|---|---|---|---|---|---|---|" + ("---|" if rest else "") + "---|---|"]
-    order = ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762", "arxiv-2103.00020"]
-    name = {"taudot-pdftex": "patched", "taudot-universal": "universal", "rosina-quick": "Rosina"}
-    for d in sorted(dict.fromkeys(r["doc"] for r in rows), key=lambda d: order.index(d) if d in order else 99):
-        for system in systems:
-            rs = [r for r in rows if r["doc"] == d and r["system"] == system]
-            if not rs:
-                continue
-
-            def m(phase, k):
-                xs = sorted(float(r[k]) for r in rs if r["phase"] == phase)
-                return "–" if not xs else f"{xs[0]:.0f}" if xs[-1] - xs[0] < 10 else f"{xs[0]:.0f}–{xs[-1]:.0f}"
-            rounds = sorted({r["round"] for r in rs})
-            rss = sorted(max(float(r["rss_peak_mb"]) for r in rs if r["round"] == x) for x in rounds)
-            procs = max(int(r["procs"]) for r in rs)
-            other = sorted({r["other_cpu"] for r in rs})
-            dn = d.replace("synth-", "").replace("arxiv-", "") + (" pp" if d.startswith("synth") else "")
-            out.append(f"| {dn} | {name[system]} | {', '.join(other)} | {m('idle', 'fp_mean_mb')} | "
-                       f"{m('keys', 'fp_peak_mb')} | {m('burst', 'fp_peak_mb')} | {m('idle after', 'fp_mean_mb')} | "
-                       + (f"{m(rest, 'fp_mean_mb')} | " if rest else "") +
-                       f"{rss[0]:.0f}–{rss[-1]:.0f} | {procs} |")
-    return "\n".join(out)
+def preview(e, r):
+    out = ["## Edit → paragraph preview", "",
+           "The edited paragraph alone, set by the real engine on the old page; in brackets, keys that got one and "
+           "[the system's own figure]. Taudot's previews are exact (same lines and heights) except the few marked "
+           "prov.; Rosina's are provisional by design.", ""] + head("system", SIZES)
+    rows = [("**Taudot** patched, pdfLaTeX", e, "taudot-pdftex", "pdflatex", counted),
+            ("**Taudot** universal, pdfLaTeX", e, "taudot-universal", "pdflatex", counted),
+            ("**Taudot** universal, XeLaTeX", e, "taudot-universal", "xelatex", counted),
+            ("**Taudot** universal, LuaLaTeX", e, "taudot-universal", "lualatex", counted),
+            ("rtex, LuaLaTeX", e, "rtex", "lualatex", own_counted),
+            ("Rosina quick, pdfLaTeX", r, "rosina-quick", "pdflatex", own_counted),
+            ("Rosina quick, XeLaTeX", r, "rosina-quick", "xelatex", own_counted),
+            ("Rosina PDF mode, pdfLaTeX", r, "rosina", "pdflatex", own_counted)]
+    for label, src, s, en, fn in rows:
+        out.append(f"| {label} | " + " | ".join(fn(pick(src, s, d, en), "para_ms", i == 0)
+                                               for i, d in enumerate(SIZES)) + " |")
+    out += ["", "Taudot has none for the first key at a new spot, or a paragraph across a page or column or in a box."]
+    return out
 
 
-def rosina_tables():
-    """liveTeX-Rosina against universal, from results/rosina/ (one run of `BENCH_PAIR=rosina-quick,taudot-universal`:
-    interleave, `rosina` per document, XeLaTeX, memory with `BENCH_TAG=rosina BENCH_IDLE_TAIL=10`)."""
-    d_ = f"{RESULTS}/rosina"
-    if not os.path.exists(f"{d_}/edits.tsv"):
-        return ""
-    ed = list(csv.DictReader(open(f"{d_}/edits.tsv"), delimiter="\t"))
-    fi = list(csv.DictReader(open(f"{d_}/first.tsv"), delimiter="\t"))
+def papers(e, r):
+    out = ["## Real papers (pdfLaTeX)", "",
+           "1512.03385 (12 pp., one column), 1706.03762 (15 pp., `\\input` sections), 2103.00020 (48 pp., two "
+           "columns, many figures).", ""] + head("measure, system", PAPERS)
+    rows = [("preview, patched", e, "taudot-pdftex", "para_ms", counted),
+            ("preview, universal", e, "taudot-universal", "para_ms", counted),
+            ("display page, universal", e, "taudot-universal", "display_ms", None),
+            ("exact page, patched", e, "taudot-pdftex", "page_ms", cell),
+            ("exact page, universal", e, "taudot-universal", "page_ms", cell),
+            ("whole PDF, patched", e, "taudot-pdftex", "final_ms", cell),
+            ("whole PDF, universal", e, "taudot-universal", "final_ms", cell),
+            ("whole PDF, Rosina quick (no previews)", r, "rosina-quick", "final_ms", cell),
+            ("latexmk", e, "latexmk", "final_ms", cell),
+            ("one stock run", e, "stock-run", "final_ms", cell)]
+    for label, src, s, k, fn in rows:
+        cells = []
+        for i, d in enumerate(PAPERS):
+            rs = pick(src, s, d, "pdflatex")
+            xs = vals(rs, k)
+            cells.append(fn(rs, k, i == 0) if fn in (counted,) else f"{cell(xs)} ({len(xs)})" if fn is None
+                         else cell(xs))
+        out.append(f"| {label} | " + " | ".join(cells) + " |")
+    rp = [x for d in PAPERS for x in vals(pick(r, "rosina-quick", d, "pdflatex"), "para_ms")]
+    out += ["", "Rosina previews none of the keys on the papers: each falls back to a whole build." if not rp else
+            f"Rosina previews {len(rp)} of the keys on the papers."]
+    return out
 
-    def rs(s, d, e):
-        return [r for r in ed if r["system"] == s and r["doc"] == d and r["engine"] == e]
 
-    def pc(rows, k, p90=True):
-        xs = [num(r[k]) for r in rows if num(r.get(k)) is not None]
-        return "–" if not xs else f"{f(pct(xs, 50))} / {f(pct(xs, 90))}" if p90 else f(pct(xs, 50))
+def burst():
+    keys, runs = load("burst"), load("burst_runs")
+    out = ["## Burst typing, 8 keys a second", "",
+           "Each spot's six keys sent 125 ms apart without waiting, two runs per row (60 keys); times from each key to "
+           "the first output containing it (first pixels: preview, display page or page). Skipped: keys whose own "
+           "state never reached an exact page.", "",
+           "| document | first pixels: patched | universal | exact page: patched | universal | skipped (universal) |",
+           "|---|---|---|---|---|---|"]
 
-    def prev(rows):
-        n = sum(num(r["para_ms"]) is not None for r in rows)
-        if not n:
-            return f"none (0 of {len(rows)})"
-        return f"{pc(rows, 'para_ms')} [{pc(rows, 'self_ms', False)}] ({n} of {len(rows)})"
-
-    def dn(d):
-        return d.replace("synth-", "").replace("arxiv-", "") + (" pp" if d.startswith("synth") else "")
-    vs = sorted({(r["system"], r["version"]) for r in fi})
-    out = ["Versions: " + "; ".join(f"{s} `{v}`" for s, v in vs) + ".", "",
-           "| document | Rosina quick: preview [own] (keys) | Rosina quick: whole PDF | Rosina PDF mode: preview "
-           "[own] | Rosina PDF mode: whole PDF | universal: display page | universal: exact page | universal: whole PDF |",
-           "|---|---|---|---|---|---|---|---|"]
+    def ks(d, s, en):
+        return [k for k in keys if k["doc"] == d and k["system"] == s and k["engine"] == en]
     for d in SIZES + PAPERS:
-        q, pm, u = rs("rosina-quick", d, "pdflatex"), rs("rosina", d, "pdflatex"), rs("taudot-universal", d, "pdflatex")
-        out.append(f"| {dn(d)} | {prev(q)} | {pc(q, 'final_ms')} | {prev(pm)} | {pc(pm, 'final_ms')} | "
-                   f"{pc(u, 'display_ms')} | {pc(u, 'page_ms')} | {pc(u, 'final_ms')} |")
-    out += ["", "XeLaTeX:", "",
-            "| document | Rosina quick: preview [own] (keys) | Rosina quick: whole PDF | universal: exact page | "
-            "universal: whole PDF |", "|---|---|---|---|---|"]
-    for d in SIZES:
-        q, u = rs("rosina-quick", d, "xelatex"), rs("taudot-universal", d, "xelatex")
-        out.append(f"| {dn(d)} | {prev(q)} | {pc(q, 'final_ms')} | {pc(u, 'page_ms')} | {pc(u, 'final_ms')} |")
-    out += ["", "First output on open (ms; universal: first page / settled):", "",
-            "| document | engine | Rosina quick | Rosina PDF mode | universal |", "|---|---|---|---|---|"]
-    for e, docs in (("pdflatex", SIZES + PAPERS), ("xelatex", SIZES)):
-        for d in docs:
-            def o(s, both=False):
-                r = [r for r in fi if r["system"] == s and r["doc"] == d and r["engine"] == e]
-                if not r:
-                    return "–"
-                a, b = num(r[0]["first_page_ms"]), num(r[0]["done_ms"])
-                return f"{f(a)} / {f(b)}" if both else f(a)
-            out.append(f"| {dn(d)} | {e} | {o('rosina-quick')} | {o('rosina')} | {o('taudot-universal', True)} |")
-    out += ["", "Checked against stock (whole PDF; universal also its exact and display pages):", "",
-            "| system | keys | whole PDF = stock |", "|---|---|---|"]
-    for s, label in (("rosina-quick", "Rosina quick"), ("rosina", "Rosina PDF mode"), ("taudot-universal", "universal")):
-        r = [r for r in ed if r["system"] == s]
-        out.append(f"| {label} | {len(r)} | {sum(x['final_exact'] == 'yes' for x in r)} |")
-    out += ["", "Memory, pdfLaTeX (phys_footprint by process group, as above; Rosina in quick mode):", "",
-            memory_table("rosina", f"{d_}/memory.tsv", ("rosina-quick", "taudot-universal"))]
-    return "\n".join(out)
+        p, u = ks(d, "taudot-pdftex", "pdflatex"), ks(d, "taudot-universal", "pdflatex")
+        out.append(f"| {size(d)} | {cell(vals(p, 'pixels_ms'))} | {cell(vals(u, 'pixels_ms'))} | "
+                   f"{cell(vals(p, 'exact_ms'))} | {cell(vals(u, 'exact_ms'))} | "
+                   f"{sum(k['own_exact'] != 'True' for k in u)} |")
+    other = []
+    skipped = 0
+    for en, n in ENGINES[1:]:
+        px = " / ".join(f(pct(vals(ks(d, "taudot-universal", en), "pixels_ms"), 50)) for d in SIZES)
+        ex = " / ".join(f(pct(vals(ks(d, "taudot-universal", en), "exact_ms"), 50)) for d in SIZES)
+        skipped += sum(k["own_exact"] != "True" for d in SIZES for k in ks(d, "taudot-universal", en))
+        other.append((n, px, ex))
+    tot = lambda c: sum(int(x[c]) for x in runs)
+    o, oe, fi, fe = tot("outputs"), tot("outputs_exact"), tot("finals"), tot("finals_exact")
+    same = (f"All {o:,} outputs sent during bursts matched latexmk after the same keys" if o == oe else
+            f"{oe:,} of {o:,} outputs sent during bursts matched latexmk after the same keys") + \
+           (f", as did all {fi} settled PDFs." if fi == fe else f"; {fe} of {fi} settled PDFs did.")
+    (xn, xp, xe), (ln, lp, le) = other
+    out += ["", f"Universal {xn}, p50 at 10 / 100 / 300 pp: first pixels {xp}, exact page {xe}; {ln} {lp} and {le}; "
+            + ("none skipped. " if not skipped else f"{skipped} skipped. ") + same,
+            "Universal's one stall: an edit on page 1 of the 10-page document has no snapshot before it, so each key "
+            "restarts a run that needs ~140 ms to ship a page, longer than the gap between keys; nothing shows until "
+            "130–160 ms after the last key (patched: 61–88 ms per key)."]
+    return out
 
 
-def opens_table():
-    """First page on open: six runs per driver and document (three ABBA blocks), median [min-max]."""
-    p = f"{RESULTS}/opens.tsv"
-    if not os.path.exists(p):
-        return ""
-    rows = list(csv.DictReader(open(p), delimiter="\t"))
-    out = ["| document | cores busy elsewhere (load) | first page on open: patched | universal | settled: patched | "
-           "universal |", "|---|---|---|---|---|---|"]
-    order = ["synth-10", "synth-100", "synth-300", "arxiv-1512.03385", "arxiv-1706.03762", "arxiv-2103.00020"]
-    for d in sorted(dict.fromkeys(r["doc"] for r in rows), key=lambda d: order.index(d) if d in order else 99):
-        rs = [r for r in rows if r["doc"] == d]
-        oc, ld = [float(r["other_cpu"]) for r in rs], [float(r["load"]) for r in rs]
+def opens(e, first, rfirst):
+    rows = load("opens")
 
-        def c(system, k):
-            xs = sorted(float(r[k]) for r in rs if r["system"] == system)
-            return f"{f(pct(xs, 50))} [{f(xs[0])}–{f(xs[-1])}]"
-        name = d.replace("synth-", "").replace("arxiv-", "") + (" pp" if d.startswith("synth") else "")
-        out.append(f"| {name} | {min(oc):.1f}–{max(oc):.1f} ({min(ld):.0f}–{max(ld):.0f}) | "
-                   f"{c('taudot-pdftex', 'first_page_ms')} | {c('taudot-universal', 'first_page_ms')} | "
-                   f"{c('taudot-pdftex', 'done_ms')} | {c('taudot-universal', 'done_ms')} |")
-    return "\n".join(out)
+    def med(s, d, k):
+        xs = [float(r[k]) for r in rows if r["system"] == s and r["doc"] == d]
+        return pct(xs, 50) if xs else None
+
+    def fd(src, s, d, en, both=True):
+        r = pick(src, s, d, en)
+        if not r:
+            return ""
+        a, b = num(r[0]["first_page_ms"]), num(r[0]["done_ms"])
+        return f"{f(a)} / {f(b)}" if both else f(a)
+    out = ["## First output on open", "",
+           "A reopened project (`.aux` settled). ms, first page / settled; Taudot pdfLaTeX: median of six opens.", "",
+           "| system | 10 pp | 100 pp | 300 pp | papers (first page) |", "|---|---|---|---|---|"]
+    for label, s in (("**Taudot** patched, pdfLaTeX", "taudot-pdftex"), ("**Taudot** universal, pdfLaTeX", "taudot-universal")):
+        out.append(f"| {label} | " + " | ".join(f"{f(med(s, d, 'first_page_ms'))} / {f(med(s, d, 'done_ms'))}"
+                                                 for d in SIZES)
+                   + " | " + " / ".join(f(med(s, d, "first_page_ms")) for d in PAPERS) + " |")
+    xe = rfirst if pick(rfirst, "taudot-universal", SIZES[0], "xelatex") else first
+    out.append("| **Taudot** universal, XeLaTeX | " + " | ".join(fd(xe, "taudot-universal", d, "xelatex")
+                                                                 for d in SIZES) + " | |")
+    out.append("| **Taudot** universal, LuaLaTeX | " + " | ".join(fd(first, "taudot-universal", d, "lualatex")
+                                                                  for d in SIZES) + " | |")
+    for label, src, s, en, pap in (("TeXpresso, XeLaTeX", first, "texpresso", "xelatex", False),
+                                   ("Typst `watch`", first, "typst", "typst", False),
+                                   ("Rosina quick, pdfLaTeX", rfirst, "rosina-quick", "pdflatex", True),
+                                   ("Rosina quick, XeLaTeX", rfirst, "rosina-quick", "xelatex", False),
+                                   ("rtex, LuaLaTeX", first, "rtex", "lualatex", False)):
+        p = " / ".join(fd(src, s, d, en, False) for d in PAPERS) if pap else ""
+        out.append(f"| {label} | " + " | ".join(fd(src, s, d, en, False) for d in SIZES) + f" | {p} |")
+    out.append("| latexmk, pdfLaTeX / XeLaTeX / LuaLaTeX | " + " | ".join(
+        " / ".join(fd(first, "latexmk", d, en, False) for en, _ in ENGINES) for d in SIZES) + " | |")
+    out += ["", "Settled on the papers: " + ", ".join(
+        f"{n} " + " / ".join(f(med(s, d, "done_ms")) for d in PAPERS)
+        for n, s in (("patched", "taudot-pdftex"), ("universal", "taudot-universal"))) + "."]
+    return out
 
 
-def burst_table():
-    """The burst script: one row per document, system and engine, both rounds pooled (60 keys)."""
-    kp, rp = f"{RESULTS}/burst.tsv", f"{RESULTS}/burst_runs.tsv"
-    if not os.path.exists(rp):
-        return ""
-    keys, runs = list(csv.DictReader(open(kp), delimiter="\t")), list(csv.DictReader(open(rp), delimiter="\t"))
-    out = ["| document | system | cores busy elsewhere (load), per run | key → first pixels p50 / p90 | "
-           "key → exact page p50 / p90 | keys never shown exact (preview) | outputs = stock | settled PDFs = stock |",
-           "|---|---|---|---|---|---|---|---|"]
-    name = {("taudot-pdftex", "pdflatex"): "patched", ("taudot-universal", "pdflatex"): "universal",
-            ("taudot-universal", "xelatex"): "universal XeLaTeX", ("taudot-universal", "lualatex"): "universal LuaLaTeX"}
-    seen = []
-    for r in runs:
-        g = (r["doc"], r["system"], r["engine"])
-        if g not in seen:
-            seen.append(g)
-    for doc, system, engine in seen:
-        rs = [r for r in runs if (r["doc"], r["system"], r["engine"]) == (doc, system, engine)]
-        ks = [k for k in keys if (k["doc"], k["system"], k["engine"]) == (doc, system, engine)]
-        px = [float(k["pixels_ms"]) for k in ks if k["pixels_ms"]]
-        ex = [float(k["exact_ms"]) for k in ks if k["exact_ms"]]
-        never = sum(k["own_exact"] != "True" for k in ks)
-        nprev = sum(k["own_preview"] != "True" for k in ks)
-        tot = lambda c: sum(int(r[c]) for r in rs)
-        d = doc.replace("synth-", "").replace("arxiv-", "") + (" pp" if doc.startswith("synth") else "")
-        noise = ", ".join(f"{r['other_cpu']} ({r['load']})" for r in rs)
-        out.append(f"| {d} | {name[(system, engine)]} | {noise} | "
-                   f"{f(pct(px, 50))} / {f(pct(px, 90))} | {f(pct(ex, 50))} / {f(pct(ex, 90))} | {never}/{len(ks)} "
-                   f"({nprev}) | {tot('outputs_exact')}/{tot('outputs')} | {tot('finals_exact')}/{tot('finals')} |")
-    return "\n".join(out)
+def memory():
+    """phys_footprint summed over the process group, MB: idle (mean), typing (peak over keys and bursts), 10-15 s after
+    the last key (mean); each cell the two runs' range when it is over 10 MB."""
+    main_ = load("memory")
+    tag = [r["tag"] for r in main_ if r["tag"].startswith("main-")][-1]
+    main_ = [r for r in main_ if r["tag"] == tag]
+    ros = [r for r in load("rosina/memory") if r["system"] == "rosina-quick"]
+    out = ["## Memory, pdfLaTeX", "",
+           "phys_footprint, MB: idle after open, peak while typing, 10–15 s after the last key. Two runs each (range "
+           "when they differ by over 10 MB); Rosina in quick mode.", "",
+           "| document | system | idle | typing peak | after |", "|---|---|---|---|---|"]
+    srcs = ((main_, "taudot-pdftex"), (main_, "taudot-universal"), (ros, "rosina-quick"))
+
+    def rng(xs):
+        xs = sorted(xs)
+        return f"{xs[0]:.0f}" if xs[-1] - xs[0] <= 10 else f"{xs[0]:.0f}–{xs[-1]:.0f}"
+
+    def m(src, s, d, phases, k, agg):
+        rs = [r for r in src if r["system"] == s and r["doc"] == d and r["phase"] in phases]
+        return rng([agg(float(r[k]) for r in rs if r["round"] == x) for x in sorted({r["round"] for r in rs})])
+    for d in SIZES + PAPERS:
+        idle = " / ".join(m(src, s, d, ("idle",), "fp_mean_mb", max) for src, s in srcs)
+        peak = " / ".join(m(src, s, d, ("keys", "burst"), "fp_peak_mb", max) for src, s in srcs)
+        after = " / ".join(m(src, s, d, ("idle +10-15 s",), "fp_mean_mb", max) for src, s in srcs)
+        out.append(f"| {size(d)} | patched / universal / Rosina | {idle} | {peak} | {after} |")
+
+    def span(src, s, k, agg=max):
+        xs = [agg(float(r[k]) for r in src if r["system"] == s and r["doc"] == d and r["round"] == x)
+              for d in SIZES + PAPERS for x in sorted({r["round"] for r in src if r["system"] == s and r["doc"] == d})]
+        return f"{min(xs):.0f}–{max(xs):.0f}"
+    out += ["", "Universal reaps kept processes after 2.5 s idle and falls back to its idle level or below; patched "
+            "holds its typing level until it exits. Processes: " + ", ".join(
+                f"{n} {span(src, s, 'procs')}" for n, (src, s) in zip(("patched", "universal", "Rosina"), srcs))
+            + ". Summed RSS gives the same order: " + ", ".join(
+                f"{n} {span(src, s, 'rss_peak_mb')} MB" for n, (src, s) in zip(("universal", "patched"), srcs[1::-1]))
+            + "."]
+    return out
+
+
+def checked(e, r):
+    out = ["## Checked against stock", "",
+           "| system | display page = stock | exact page = stock | whole PDF = stock |", "|---|---|---|---|"]
+
+    def frac(rs, k):
+        xs = [x[k] for x in rs if x.get(k)]
+        if xs and all(v in ("n/a", "claim") for v in xs):
+            return {"n/a": "not checkable", "claim": "claimed (display lists)"}[xs[0]]
+        return f"{sum(v == 'yes' for v in xs)} / {len(xs)}" if xs else ""
+    for label, s, en in (("**Taudot** patched, pdfLaTeX", "taudot-pdftex", "pdflatex"),
+                         ("**Taudot** universal, pdfLaTeX", "taudot-universal", "pdflatex"),
+                         ("**Taudot** universal, XeLaTeX", "taudot-universal", "xelatex"),
+                         ("**Taudot** universal, LuaLaTeX", "taudot-universal", "lualatex"),
+                         ("rtex, LuaLaTeX", "rtex", "lualatex")):
+        rs = [x for x in e if x["system"] == s and x["engine"] == en]
+        out.append(f"| {label} | {frac(rs, 'display_exact')} | {frac(rs, 'page_exact')} | {frac(rs, 'final_exact')} |")
+    q, p = [x for x in r if x["system"] == "rosina-quick"], [x for x in r if x["system"] == "rosina"]
+    out.append(f"| Rosina quick / PDF mode | | | {frac(q, 'final_exact')}, {frac(p, 'final_exact')} |")
+    out.append("| TeXpresso, Typst | | not checkable | not checkable |")
+    miss = sorted({(x["doc"], int(x["n"]) % 100) for x in q + p if x["final_exact"] != "yes"})
+    if len(miss) == 1:
+        out += ["", f"Rosina's misses are one edit ({size(miss[0][0])}, edit {miss[0][1]}): a page stays as before "
+                "the key; stock's changes."]
+    elif miss:
+        out += ["", "Rosina's misses: " + ", ".join(f"{size(d)} edit {n}" for d, n in miss) + "."]
+    return out
 
 
 # ---------------------------------------------------------------------------------------------- chart
@@ -393,96 +394,20 @@ def marker(kind, x, y, c):
     }[kind]
     return f'<g stroke="var(--s)" stroke-width="2" paint-order="stroke">{shape}'
 
-
 # ---------------------------------------------------------------------------------------------- doc
-def machine():
-    chip = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout.strip()
-    mem = int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True).stdout) // 2**30
-    return f"{chip}, {mem} GB, macOS {platform.mac_ver()[0]}"
-
-
 def main():
     edits, first = load("edits"), load("first")
-    versions = sorted({(r["system"], r["version"]) for r in first})
-    loads = [num(r["load"]) for r in first if r.get("load")]
-    block = [
-        f"Machine: {machine()}; load average during runs {min(loads):.1f}–{max(loads):.1f} (other agents' work "
-        f"shared the machine). Dates: {', '.join(sorted({r['date'] for r in first}))}. "
-        "Cells: **p50 / p90 ms** over the 30 edits. Blank: the system doesn't support that engine.",
-        "",
-        "Versions: " + "; ".join(f"{s} `{v}`" for s, v in versions) + ".",
-        "",
-        "### pdfLaTeX, patched and universal interleaved",
-        "",
-        "Per document: patched, universal, universal, patched (ABBA), back to back; one row per run of 30 keys. "
-        "The tables below pool both rounds (60 keys per document for these two).",
-        "",
-        interleave_table(),
-        "",
-        "### Memory, pdfLaTeX (phys_footprint)",
-        "",
-        "One session per run: open, 5 s idle, the 30 isolated keys, the same spots again as bursts at 8 keys a "
-        "second, then 15 s idle. phys_footprint (`proc_pid_rusage`) summed over the driver's process tree and every "
-        "process in a group the tree has had, MB: mean over the idle phases, peak over the typing ones. Two runs per driver in ABBA order; each cell their range (one figure when within 10 MB).",
-        "",
-        memory_table(),
-        "",
-        "### First page on open, pdfLaTeX",
-        "",
-        "Six opens per driver and document in three ABBA blocks, after one untimed open of each rebuilt binary. "
-        "Median [min–max] ms; open → first PDF, and open → settled.",
-        "",
-        opens_table(),
-        "",
-        "### Burst typing (8 keys a second)",
-        "",
-        "Each spot's word typed at 8 keys a second without waiting, then the compile settles and the next spot "
-        "follows; two runs per row (pdfLaTeX: ABBA, as above), 60 keys. Times from each key to the first output that "
-        "contains it. Outputs = stock: every early, display and tau-pdfmx page sent, checked against latexmk after "
-        "as many keys as the output contains.",
-        "",
-        burst_table(),
-        "",
-        "### liveTeX-Rosina against universal",
-        "",
-        "One run on 2026-11-11, Rosina and universal interleaved ABBA (60 keys each per document), Rosina's PDF mode "
-        "one round (30 keys), XeLaTeX one round each. Preview: wall time p50 / p90, Rosina's own `elapsed_ms` p50 in "
-        "brackets, and how many keys got one. Rosina's previews are provisional by its own design and are not "
-        "checked; its whole PDFs are.",
-        "",
-        rosina_tables(),
-        "",
-        "### Edit → paragraph preview",
-        "",
-        table(edits, SIZES, "para_ms", "", extra=coverage),
-        "",
-        "### Edit → exact page",
-        "",
-        table(edits, SIZES, "page_ms", ""),
-        "",
-        "### Edit → whole exact PDF",
-        "",
-        table(edits, SIZES, "final_ms", ""),
-        "",
-        "### Real papers (pdfLaTeX): edit → preview, exact page, whole PDF",
-        "",
-        table(edits, PAPERS, "para_ms", "preview", extra=coverage),
-        "",
-        table(edits, PAPERS, "page_ms", "exact page"),
-        "",
-        table(edits, PAPERS, "final_ms", "whole PDF"),
-        "",
-        "### Checked against stock (all documents)",
-        "",
-        exact_table(edits),
-        "",
-        "### First compile and memory",
-        "",
-        first_table(first),
-    ]
+    redits, rfirst = load("rosina/edits"), load("rosina/first")
+    block = []
+    for part in (exact_page(edits, redits), whole_pdf(edits, redits), preview(edits, redits), papers(edits, redits),
+                 burst(), opens(edits, first, rfirst), memory(), checked(edits, redits)):
+        block += part + [""]
+    block = [x if x.startswith("|") else "\n".join(textwrap.wrap(x, 120, break_on_hyphens=False)) or x
+             for x in block]
+    block = [x.replace("|  |", "| |") for x in block]
     text = open(DOC).read()
     a, b = text.index("<!-- bench:begin -->"), text.index("<!-- bench:end -->")
-    open(DOC, "w").write(text[:a] + "<!-- bench:begin -->\n" + "\n".join(block) + "\n" + text[b:])
+    open(DOC, "w").write(text[:a] + "<!-- bench:begin -->\n" + "\n".join(block[:-1]) + "\n" + text[b:])
     chart(edits)
     print(f"wrote {DOC} and {SVG}")
 

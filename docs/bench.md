@@ -37,7 +37,7 @@ brackets, keys that got one).
 | one stock run, XeLaTeX | 255 / 260 | 400 / 465 | 707 / 728 |
 | one stock run, LuaLaTeX | 558 / 564 | 1357 / 1371 | 3068 / 3086 |
 
-Typst's own compile is 6 / 50 / 176 ms; ~110 ms of its wall time is the file watcher.
+Typst's own compile is 6.2 / 49.7 / 176 ms; the rest of its wall time is the file watcher.
 
 ## Edit → whole exact PDF
 
@@ -55,15 +55,16 @@ latexmk and one stock run: as in the table above (they write nothing before the 
 
 ## Edit → paragraph preview
 
-The edited paragraph alone, set by the real engine on the old page; in brackets, keys that got one and [the
-system's own figure]. Taudot's previews are all exact (same lines and heights); Rosina's are provisional by design.
+The edited paragraph alone, set by the real engine on the old page; in brackets, keys that got one and [the system's own
+figure]. Taudot's previews are exact (same lines and heights) except the few marked prov.; Rosina's are provisional by
+design.
 
 | system | 10 pp | 100 pp | 300 pp |
 |---|---|---|---|
-| **Taudot** patched, pdfLaTeX | 4.5 / 12.8 (48 of 60) | 6.2 / 14.7 (48) | 9.8 / 19.7 (48) |
-| **Taudot** universal, pdfLaTeX | 3.9 / 9.8 (41 of 60) | 4.4 / 11.4 (41) | 5.3 / 12.9 (53) |
-| **Taudot** universal, XeLaTeX | 3.9 / 10.9 (20 of 30) | 5.5 / 14.6 (19) | 10.4 / 17.3 (14) |
-| **Taudot** universal, LuaLaTeX | 3.7 / 4.6 (20 of 30) | 4.2 / 5.3 (19) | 11.9 / 19.6 (26) |
+| **Taudot** patched, pdfLaTeX | 4.5 / 12.8 (48 of 60) | 6.2 / 14.7 (48, +2 prov.) | 9.8 / 19.7 (48, +2 prov.) |
+| **Taudot** universal, pdfLaTeX | 3.9 / 9.8 (41 of 60) | 4.4 / 11.4 (41) | 5.3 / 12.9 (53, +2 prov.) |
+| **Taudot** universal, XeLaTeX | 3.9 / 10.9 (20 of 30) | 5.5 / 14.6 (19, +1 prov.) | 10.4 / 17.3 (14, +1 prov.) |
+| **Taudot** universal, LuaLaTeX | 3.7 / 4.6 (20 of 30) | 4.2 / 5.3 (19, +1 prov.) | 11.9 / 19.6 (26, +1 prov.) |
 | rtex, LuaLaTeX | 10.4 / 15.1 [1.6] (30 of 30) | 15.5 / 29.5 [2.3] (30) | 19.3 / 34.5 [4.5] (30) |
 | Rosina quick, pdfLaTeX | 71.3 / 86.6 [31.0] (60 of 60) | 252 / 264 [27.0] (60) | 760 / 784 [37.0] (60) |
 | Rosina quick, XeLaTeX | 83.0 / 101 [65.5] (24 of 30) | 260 / 279 [72.0] (24) | 729 / 756 [82.0] (24) |
@@ -73,13 +74,12 @@ Taudot has none for the first key at a new spot, or a paragraph across a page or
 
 ## Real papers (pdfLaTeX)
 
-1512.03385 (12 pp., one column), 1706.03762 (15 pp., `\input` sections), 2103.00020 (48 pp., two columns, many
-figures).
+1512.03385 (12 pp., one column), 1706.03762 (15 pp., `\input` sections), 2103.00020 (48 pp., two columns, many figures).
 
 | measure, system | 1512.03385 | 1706.03762 | 2103.00020 |
 |---|---|---|---|
-| preview, patched | 7.1 / 15.8 (46 of 60) | 4.2 / 12.4 (30) | 7.1 / 24.5 (28) |
-| preview, universal | 5.9 / 12.5 (40 of 60) | 5.9 / 14.7 (34) | 8.1 / 15.0 (23) |
+| preview, patched | 7.1 / 15.8 (46 of 60, +4 prov.) | 4.2 / 12.4 (30) | 7.1 / 24.5 (28) |
+| preview, universal | 5.9 / 12.5 (40 of 60, +2 prov.) | 5.9 / 14.7 (34) | 8.1 / 15.0 (23) |
 | display page, universal | 16.5 / 32.4 (60) | 31.7 / 49.9 (48) | 25.7 / 40.7 (60) |
 | exact page, patched | 50.5 / 64.0 | 73.6 / 94.2 | 61.5 / 76.4 |
 | exact page, universal | 47.3 / 69.4 | 74.3 / 97.2 | 64.2 / 78.3 |
@@ -93,9 +93,9 @@ Rosina previews none of the keys on the papers: each falls back to a whole build
 
 ## Burst typing, 8 keys a second
 
-Each spot's six keys sent 125 ms apart without waiting, two runs per row (60 keys); times from each key to the
-first output containing it (first pixels: preview, display page or page). Skipped: keys whose own state never
-reached an exact page.
+Each spot's six keys sent 125 ms apart without waiting, two runs per row (60 keys); times from each key to the first
+output containing it (first pixels: preview, display page or page). Skipped: keys whose own state never reached an exact
+page.
 
 | document | first pixels: patched | universal | exact page: patched | universal | skipped (universal) |
 |---|---|---|---|---|---|
@@ -106,11 +106,12 @@ reached an exact page.
 | 1706.03762 | 29.6 / 73.4 | 6.8 / 77.1 | 60.6 / 87.9 | 28.8 / 77.1 | 0 |
 | 2103.00020 | 41.3 / 65.1 | 10.2 / 22.1 | 52.7 / 65.6 | 17.2 / 25.7 | 0 |
 
-Universal XeLaTeX, p50 at 10 / 100 / 300 pp: first pixels 2.8 / 4.7 / 8.9, exact page 14.0 / 19.5 / 28.3; LuaLaTeX
-4.0 / 5.1 / 4.8 and 11.7 / 12.3 / 14.3; none skipped. All 3,008 outputs sent during bursts matched latexmk after
-the same keys, as did all 180 settled PDFs. Universal's one stall: an edit on page 1 of the 10-page document has no snapshot before it, so each
-key restarts a run that needs ~140 ms to ship a page, longer than the gap between keys; nothing shows until 130–160
-ms after the last key (patched: 61–88 ms per key).
+Universal XeLaTeX, p50 at 10 / 100 / 300 pp: first pixels 2.8 / 4.7 / 8.9, exact page 14.0 / 19.5 / 28.3; LuaLaTeX 4.0 /
+5.1 / 4.8 and 11.7 / 12.3 / 14.3; none skipped. All 3,008 outputs sent during bursts matched latexmk after the same
+keys, as did all 180 settled PDFs.
+Universal's one stall: an edit on page 1 of the 10-page document has no snapshot before it, so each key restarts a run
+that needs ~140 ms to ship a page, longer than the gap between keys; nothing shows until 130–160 ms after the last key
+(patched: 61–88 ms per key).
 
 ## First output on open
 
@@ -139,15 +140,15 @@ differ by over 10 MB); Rosina in quick mode.
 | document | system | idle | typing peak | after |
 |---|---|---|---|---|
 | 10 pp | patched / universal / Rosina | 111 / 73 / 103 | 365 / 143 / 123 | 344 / 84 / 104 |
-| 100 pp | patched / universal / Rosina | 211 / 147 / 137 | 470–485 / 247–279 / 182 | 448–471 / 125 / 133 |
-| 300 pp | patched / universal / Rosina | 395 / 244 / 160 | 708–722 / 438–453 / 230–243 | 682–694 / 229 / 176 |
-| 1512.03385 | patched / universal / Rosina | 176 / 119 / 112 | 434–602 / 202–229 / 143 | 419 / 120 / 107 |
-| 1706.03762 | patched / universal / Rosina | 216–226 / 147 / 121 | 476–496 / 233–258 / 125 | 465 / 142 / 118 |
+| 100 pp | patched / universal / Rosina | 211 / 147 / 137 | 471–485 / 247–279 / 182 | 448–471 / 125 / 133 |
+| 300 pp | patched / universal / Rosina | 395 / 244 / 160 | 708–722 / 451 / 238 | 682–694 / 229 / 176 |
+| 1512.03385 | patched / universal / Rosina | 176 / 119 / 112 | 434–602 / 222 / 143 | 419 / 120 / 107 |
+| 1706.03762 | patched / universal / Rosina | 216 / 147 / 121 | 476–496 / 239–258 / 125 | 465 / 142 / 118 |
 | 2103.00020 | patched / universal / Rosina | 422–472 / 262 / 131 | 706–780 / 486–497 / 190 | 679–691 / 215 / 116–135 |
 
 Universal reaps kept processes after 2.5 s idle and falls back to its idle level or below; patched holds its typing
-level until it exits. Processes: patched 13–56, universal 17–53, Rosina 4–6. Summed RSS gives the same order:
-universal 156–542 MB, patched 752–1211 MB.
+level until it exits. Processes: patched 13–56, universal 16–53, Rosina 4–6. Summed RSS gives the same order: universal
+156–542 MB, patched 752–1211 MB.
 
 ## Checked against stock
 
@@ -161,7 +162,7 @@ universal 156–542 MB, patched 752–1211 MB.
 | Rosina quick / PDF mode | | | 448 / 450, 179 / 180 |
 | TeXpresso, Typst | | not checkable | not checkable |
 
-Rosina's misses are one key (2103.00020, edit 25): its page 32 stays as before the key; stock's changes.
+Rosina's misses are one edit (2103.00020, edit 25): a page stays as before the key; stock's changes.
 <!-- bench:end -->
 
 ## Method
