@@ -642,7 +642,7 @@ static pid_t from_parked(char **env, const char *logp) {
 
 static void spawn_engine(void) {
   kill_all();
-  char e1[4200], e2[4200], e3[64], e4[64], e5[64], e6[4200], e7[4200];
+  char e1[4200], e2[4200], e3[64], e4[64], e5[64], e6[4200], e7[4200], e9[64];
   snprintf(e1, sizeof e1, "TAU_PROJECT=%s", work);
   snprintf(e2, sizeof e2, "TAU_OUT=%s", tdir);
   snprintf(e3, sizeof e3, "TAU_FD=%d", msg_w);
@@ -674,9 +674,13 @@ static void spawn_engine(void) {
     if (strncmp(environ[i], "TAU_PROJECT=", 12) && strncmp(environ[i], "TAU_OUT=", 8) &&
         strncmp(environ[i], "TAU_FD=", 7) && strncmp(environ[i], "TAU_LIFE=", 9) &&
         strncmp(environ[i], "TAU_SNAPSHOT_MS=", 16) && strncmp(environ[i], "TAU_ZCACHE=", 11) &&
-        strncmp(environ[i], "TAU_MARK=", 9))
+        strncmp(environ[i], "TAU_MARK=", 9) && strncmp(environ[i], "TAU_SEQ=", 8))
       env[k++] = environ[i];
   env[k++] = e1, env[k++] = e2, env[k++] = e3, env[k++] = e4, env[k++] = e5, env[k++] = e6, env[k++] = e7;
+  // the run's seq: an engine that started at 0 would have its first snapshot taken for a killed lineage's (the `S`
+  // handler kills it) after any edit, and the run would never end
+  snprintf(e9, sizeof e9, "TAU_SEQ=%d", seq);
+  env[k++] = e9;
   if (finish_every) env[k++] = "TAU_FINISH=every";
   if (e8[0]) env[k++] = e8;
   if (display_pages && hook && !strcmp(out_ext(), "pdf")) env[k++] = "TAU_PAGE_PREVIEW=1";

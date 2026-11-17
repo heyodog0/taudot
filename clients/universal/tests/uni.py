@@ -6,6 +6,8 @@
 #                                                                         final output == a fresh stock run
 #   uv run clients/universal/tests/uni.py finish ENGINE SRC MAIN [N]     step 3: finished-early outputs == the full
 #                                                                         run's pages
+#   uv run clients/universal/tests/uni.py preamble ENGINE                edits before every snapshot (fresh engines)
+#                                                                         finish, == a stock run
 # ENGINE: pdflatex | xelatex | lualatex. Environment: clients/universal/env.sh, WORK.
 import collections
 import json
@@ -227,6 +229,75 @@ def edits(engine, src, main, n=30, seed=1):
           f"ms, p95 {q[18]:.0f} ms; fresh restarts {fresh}; snapshots {st['snapshots']}, footprint "
           f"{st['footprint'] / 2**20:.0f} MiB total, {st['max_footprint'] / 2**20:.0f} MiB max")
     return fails == 0
+
+
+def preamble(engine, n=6):
+    """Edits before every snapshot left (the top of the file, once the reap has kept only the snapshots near the last
+    edit: a fresh engine each time), between edits in the body, on a generated one-page document. Each compile must
+    finish, and its output equal a stock run's. A fresh engine started after the first compile once began at seq 0,
+    and the driver killed it as a stale lineage's: no output ever again (syncfix)."""
+    base = f"{WORK}/pre-src"
+    shutil.rmtree(base, ignore_errors=True)
+    os.makedirs(base)
+    main = "main.tex"
+    body = "".join(f"Paragraph {i} has some words in it so that the page fills up a little.\n\n" for i in range(40))
+    text = ("\\documentclass{article}\n\\begin{document}\n" + body + "\\end{document}\n").encode()
+    open(f"{base}/{main}", "wb").write(text)
+    out = f"{WORK}/pre-out"
+    shutil.rmtree(out, ignore_errors=True)
+    live = Live.__new__(Live)  # as the app starts it (--serve: it reaps once the open settles)
+    live.events = []
+    env = dict(os.environ)
+    env.pop("TAU_FETCH", None)
+    live.p = subprocess.Popen([f"{UBIN}/tau-live", "--serve", "--engine", f"{UBIN}/{ENGINES[engine][0][0]}", base, main,
+                               out], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
+    # a frozen driver prints nothing: read on a thread, so a wait can time out
+    import queue, threading
+    q = queue.Queue()
+    threading.Thread(target=lambda: [q.put(json.loads(l)) for l in live.p.stdout], daemon=True).start()
+
+    def until(pred, timeout=60):
+        end = time.monotonic() + timeout
+        while (left := end - time.monotonic()) > 0:
+            try:
+                ev = q.get(timeout=left)
+            except queue.Empty:
+                break
+            live.events.append(ev)
+            if pred(ev):
+                return ev
+        raise TimeoutError
+
+    live.until = until
+    live.send("open", main, text.decode())
+    live.until(lambda e: e["ev"] == "done")
+    ref = f"{WORK}/pre-ref"
+    copy(base, ref)
+    stock_rule(engine, ref, main)
+    ext = ENGINES[engine][1]
+    fails = fresh = 0
+    for i in range(n):
+        time.sleep(1.5)  # the compile settles and tau-live reaps
+        pos, ins = (0, f"% top {i}\n") if i % 2 else (text.index(b"Paragraph 30"), "very ")
+        text = text[:pos] + ins.encode() + text[pos:]
+        live.send("change", main, pos, 0, ins)
+        try:
+            run = newer_run(live)
+            fresh += bool(run.get("fresh"))
+            done = live.until(lambda e: e["ev"] == "done" and e["seq"] == run["seq"], timeout=30)
+        except TimeoutError:
+            print(f"  edit {i} @{pos}: NO OUTPUT ({[e['ev'] for e in live.events[-3:]]})")
+            live.p.kill()
+            return False
+        open(f"{ref}/{main}", "wb").write(text)
+        stock_rule(engine, ref, main)
+        ok = "path" in done and same_output(engine, open(done["path"], "rb").read(),
+                                            open(f"{ref}/{stem(main)}.{ext}", "rb").read())
+        fails += not ok
+        print(f"  edit {i} @{pos:5d} {'ok' if ok else 'DIFFERENT'}{' (fresh)' if run.get('fresh') else ''}")
+    live.close()
+    print(f"preamble {engine}: {n - fails}/{n} identical, {fresh} fresh runs")
+    return fails == 0 and fresh > 0
 
 
 def pages_of(path):
@@ -1390,6 +1461,8 @@ if __name__ == "__main__":
         sys.exit(0 if latefinish(sys.argv[2]) else 1)
     if sys.argv[1:2] == ["display"]:
         sys.exit(0 if display(*sys.argv[2:5]) else 1)
+    if sys.argv[1:2] == ["preamble"]:
+        sys.exit(0 if preamble(sys.argv[2]) else 1)
     if sys.argv[1:2] == ["parked"]:
         sys.exit(0 if parked(*sys.argv[2:5]) else 1)
     if sys.argv[1:2] == ["bblonly"]:
