@@ -291,6 +291,7 @@ pages, two columns), arXiv 1512.03385 and 1706.03762, and synthetic documents of
 | early outputs = the full run's pages | `uni.py finish` | 32/32 paper-a, 48/48 and 51/51 paper-b; 10/10 × 3 engines |
 | command-line macros don't change output | `uni.py prelude` | 3 engines × 2 papers |
 | parked, reaped and scouted sessions = stock | `uni.py parked`, `reap`, `cursor` | every settled output; no process left after the session |
+| edits before every snapshot (a fresh engine, told its run's seq by `TAU_SEQ`) finish = stock | `uni.py preamble` | 6/6 pdfTeX; before the fix, no output after the first fresh engine |
 | tau-pdfmx = fresh `xdvipdfmx` | `uni.py xpdf`, `tests/pdfmx.py` | 50/50 PDFs; pages drawn identically 41/41 × 8; 30/30 and 20/20 random ranges |
 | display pages = finished page at 288 dpi | `uni.py display` | 0 px: 44/44 LuaLaTeX, 42/42 pdfLaTeX (paper-b), 40/40 on 1512.03385, 29/40 shown on synth-300 |
 

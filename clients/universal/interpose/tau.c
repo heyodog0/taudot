@@ -1291,6 +1291,8 @@ static void tau_config(void) {
   if (s && !strcmp(s, "every")) finish_every = 1;
   s = getenv("TAU_FIRST_FINISH");
   if (s && *s == '1') finish_first = 1;
+  s = getenv("TAU_SEQ");  // a fresh engine started for a later edit: its run's seq (the driver kills other seqs' words)
+  if (s) seq = atoi(s);
   s = getenv("TAU_WARM_QOS");  // only an exec'd process may set its QoS (EPERM after fork); children inherit it
   if (s && !strcmp(s, "ui")) pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
   s = getenv("TAU_TLROOT");
